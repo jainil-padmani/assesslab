@@ -7,6 +7,23 @@ import { ChevronRight, BookOpen, Brain, CheckCircle, BarChart3 } from "lucide-re
 const Index = () => {
   return (
     <div className="min-h-screen">
+      {/* Header */}
+      <header className="bg-white py-4 border-b">
+        <div className="container px-4 mx-auto">
+          <div className="flex items-center justify-between">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h1 className="text-2xl font-bold text-primary">
+                Teach<span className="text-accent">Lab</span>
+              </h1>
+            </motion.div>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="hero-gradient py-20 md:py-32">
         <div className="container px-4 mx-auto">
