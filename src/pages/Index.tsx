@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { ChevronRight, BookOpen, Brain, CheckCircle, BarChart3 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   return (
@@ -20,6 +21,9 @@ const Index = () => {
                 Teach<span className="text-accent">Lab</span>
               </h1>
             </motion.div>
+            <Link to="/auth">
+              <Button variant="outline">Sign In</Button>
+            </Link>
           </div>
         </div>
       </header>
