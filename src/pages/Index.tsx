@@ -47,13 +47,15 @@ const Index = () => {
               cutting-edge artificial intelligence.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                size="lg"
-                className="bg-accent hover:bg-accent/90 text-white"
-              >
-                Start Free Trial
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
+              <Link to="/auth">
+                <Button
+                  size="lg"
+                  className="bg-accent hover:bg-accent/90 text-white"
+                >
+                  Start Free Trial
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
               <Button
                 size="lg"
                 variant="outline"
@@ -120,10 +122,12 @@ const Index = () => {
             <p className="text-lg text-gray-600 mb-8">
               Try TeachLab free for your first 10 papers. No credit card required.
             </p>
-            <Button size="lg" className="bg-accent hover:bg-accent/90 text-white">
-              Get Started Now
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+            <Link to="/auth">
+              <Button size="lg" className="bg-accent hover:bg-accent/90 text-white">
+                Get Started Now
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
           </motion.div>
         </div>
       </section>
