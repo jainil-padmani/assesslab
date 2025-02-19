@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +20,13 @@ import {
   Chrome
 } from "lucide-react";
 
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+    confirmationResult: any;
+  }
+}
+
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +48,6 @@ const Auth = () => {
     return () => unsubscribe();
   }, [navigate]);
 
-  // Initialize reCAPTCHA verifier
   useEffect(() => {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
@@ -266,15 +271,5 @@ const Auth = () => {
     </div>
   );
 };
-
-export default Auth;
-
-// Add these types to global.d.ts or a separate types file
-declare global {
-  interface Window {
-    recaptchaVerifier: any;
-    confirmationResult: any;
-  }
-}
 
 export default Auth;
