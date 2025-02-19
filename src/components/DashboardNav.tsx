@@ -11,8 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { auth } from "@/integrations/firebase/config";
-import { signOut } from "firebase/auth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const links = [
@@ -48,7 +47,8 @@ interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {}
 export function DashboardNav({ className, ...props }: DashboardNavProps) {
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       window.location.href = "/";
     } catch (error: any) {
       toast.error(error.message);

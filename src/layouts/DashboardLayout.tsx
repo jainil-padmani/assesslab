@@ -2,18 +2,17 @@
 import { DashboardNav } from "@/components/DashboardNav";
 import { Outlet, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { auth } from "@/integrations/firebase/config";
-import { onAuthStateChanged } from "firebase/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
     });
 
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   if (isAuthenticated === null) {
