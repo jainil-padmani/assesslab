@@ -9,6 +9,10 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Generate from "./pages/dashboard/Generate";
+import Analysis from "./pages/dashboard/Analysis";
+import Check from "./pages/dashboard/Check";
+import Performance from "./pages/dashboard/Performance";
+import Settings from "./pages/dashboard/Settings";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +28,10 @@ const App = () => (
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<Generate />} />
             <Route path="generate" element={<Generate />} />
+            <Route path="analysis" element={<Analysis />} />
+            <Route path="check" element={<Check />} />
+            <Route path="performance" element={<Performance />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
