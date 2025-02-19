@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,17 @@ const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/dashboard");
+      }
+    };
+    checkUser();
+  }, [navigate]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -23,19 +34,31 @@ const Auth = () => {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: window.location.origin + "/dashboard"
+          }
         });
         if (error) throw error;
         toast.success("Account created! Please check your email for verification.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        navigate("/dashboard");
+        if (data.session) {
+          toast.success("Successfully signed in!");
+          navigate("/dashboard");
+        }
       }
     } catch (error: any) {
+      console.error("Auth error:", error);
       toast.error(error.message);
+      // Check for specific refresh token errors
+      if (error.message.includes("refresh token")) {
+        await supabase.auth.signOut(); // Clear any invalid session data
+        toast.error("Your session has expired. Please sign in again.");
+      }
     } finally {
       setIsLoading(false);
     }
