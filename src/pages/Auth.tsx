@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/integrations/firebase/config";
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  onAuthStateChanged
+} from "firebase/auth";
 import { toast } from "sonner";
 
 const Auth = () => {
@@ -16,13 +21,13 @@ const Auth = () => {
 
   useEffect(() => {
     // Check if user is already logged in
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
         navigate("/dashboard");
       }
-    };
-    checkUser();
+    });
+
+    return () => unsubscribe();
   }, [navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -31,34 +36,17 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin + "/dashboard"
-          }
-        });
-        if (error) throw error;
-        toast.success("Account created! Please check your email for verification.");
+        await createUserWithEmailAndPassword(auth, email, password);
+        toast.success("Account created successfully!");
+        navigate("/dashboard");
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        if (data.session) {
-          toast.success("Successfully signed in!");
-          navigate("/dashboard");
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        toast.success("Successfully signed in!");
+        navigate("/dashboard");
       }
     } catch (error: any) {
       console.error("Auth error:", error);
       toast.error(error.message);
-      // Check for specific refresh token errors
-      if (error.message.includes("refresh token")) {
-        await supabase.auth.signOut(); // Clear any invalid session data
-        toast.error("Your session has expired. Please sign in again.");
-      }
     } finally {
       setIsLoading(false);
     }
