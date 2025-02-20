@@ -9,7 +9,132 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      answer_keys: {
+        Row: {
+          content: Json | null
+          created_at: string
+          id: string
+          subject_id: string | null
+          title: string
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          id?: string
+          subject_id?: string | null
+          title: string
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          id?: string
+          subject_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_keys_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments: {
+        Row: {
+          answer_key_id: string | null
+          answer_sheet_url: string | null
+          created_at: string
+          id: string
+          score: number | null
+          status: string | null
+          student_id: string | null
+          subject_id: string | null
+        }
+        Insert: {
+          answer_key_id?: string | null
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          score?: number | null
+          status?: string | null
+          student_id?: string | null
+          subject_id?: string | null
+        }
+        Update: {
+          answer_key_id?: string | null
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          score?: number | null
+          status?: string | null
+          student_id?: string | null
+          subject_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_answer_key_id_fkey"
+            columns: ["answer_key_id"]
+            isOneToOne: false
+            referencedRelation: "answer_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          roll_number: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          roll_number: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          roll_number?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

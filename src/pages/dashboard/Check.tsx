@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, CheckCircle, Plus, Pencil, Trash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import type { Student, Subject, AnswerKey } from "@/types/dashboard";
 
 export default function Check() {
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -14,44 +14,48 @@ export default function Check() {
   const [selectedAnswerKey, setSelectedAnswerKey] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [answerKeys, setAnswerKeys] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
+  const [answerKeys, setAnswerKeys] = useState<AnswerKey[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [newKeyTitle, setNewKeyTitle] = useState("");
 
   // Fetch data when component mounts
-  useState(() => {
+  useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
       // Fetch students
-      const { data: studentsData } = await supabase
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
         .order('name');
       
+      if (studentsError) throw studentsError;
       if (studentsData) setStudents(studentsData);
 
       // Fetch subjects
-      const { data: subjectsData } = await supabase
+      const { data: subjectsData, error: subjectsError } = await supabase
         .from('subjects')
         .select('*')
         .order('name');
       
+      if (subjectsError) throw subjectsError;
       if (subjectsData) setSubjects(subjectsData);
 
       // Fetch answer keys
-      const { data: keysData } = await supabase
+      const { data: keysData, error: keysError } = await supabase
         .from('answer_keys')
         .select('*')
         .order('created_at');
       
+      if (keysError) throw keysError;
       if (keysData) setAnswerKeys(keysData);
     } catch (error: any) {
       toast.error('Failed to fetch data');
+      console.error('Error fetching data:', error);
     }
   };
 
@@ -97,6 +101,7 @@ export default function Check() {
           subject_id: selectedSubject,
           answer_key_id: selectedAnswerKey,
           answer_sheet_url: publicUrl,
+          status: 'pending'
         });
 
       if (assessmentError) throw assessmentError;
@@ -109,6 +114,7 @@ export default function Check() {
       setSelectedAnswerKey("");
     } catch (error: any) {
       toast.error(error.message);
+      console.error('Error submitting answer sheet:', error);
     } finally {
       setIsLoading(false);
     }
@@ -137,6 +143,7 @@ export default function Check() {
       fetchData(); // Refresh the list
     } catch (error: any) {
       toast.error(error.message);
+      console.error('Error adding answer key:', error);
     }
   };
 
