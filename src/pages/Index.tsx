@@ -1,9 +1,41 @@
-
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { ChevronRight, BookOpen, Brain, CheckCircle, BarChart3 } from "lucide-react";
+import { ChevronRight, BookOpen, Brain, CheckCircle, BarChart3, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const features = [
+  {
+    title: "Generate Questions",
+    description: "Generate comprehensive question papers from your study materials in minutes.",
+    icon: BookOpen,
+    href: "/dashboard/generate",
+  },
+  {
+    title: "Smart Analysis",
+    description: "Get detailed insights and suggestions to improve your question papers.",
+    icon: Brain,
+    href: "/dashboard/analysis",
+  },
+  {
+    title: "Automated Checking",
+    description: "Save time with AI-powered answer sheet evaluation and grading.",
+    icon: CheckCircle,
+    href: "/dashboard/check",
+  },
+  {
+    title: "Performance Tracking",
+    description: "Track and analyze student performance with detailed analytics.",
+    icon: BarChart3,
+    href: "/dashboard/performance",
+  },
+  {
+    title: "Settings",
+    description: "Customize your experience and manage your account settings.",
+    icon: Settings,
+    href: "/dashboard/settings",
+  },
+];
 
 const Index = () => {
   return (
@@ -68,7 +100,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features Grid */}
       <section className="py-20">
         <div className="container px-4 mx-auto">
           <motion.div
@@ -86,7 +118,7 @@ const Index = () => {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
@@ -94,13 +126,19 @@ const Index = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 * (index + 1) }}
               >
-                <Card className="p-6 h-full hover:shadow-lg transition-shadow">
-                  <div className="h-12 w-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                    <feature.icon className="h-6 w-6 text-accent" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-gray-600">{feature.description}</p>
-                </Card>
+                <Link to={feature.href}>
+                  <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                    <CardHeader>
+                      <div className="h-12 w-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                        <feature.icon className="h-6 w-6 text-accent" />
+                      </div>
+                      <CardTitle className="text-xl mb-2">{feature.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-gray-600">{feature.description}</p>
+                    </CardContent>
+                  </Card>
+                </Link>
               </motion.div>
             ))}
           </div>
@@ -134,28 +172,5 @@ const Index = () => {
     </div>
   );
 };
-
-const features = [
-  {
-    title: "AI Question Generation",
-    description: "Generate comprehensive question papers from your study materials in minutes.",
-    icon: BookOpen,
-  },
-  {
-    title: "Smart Analysis",
-    description: "Get detailed insights and suggestions to improve your question papers.",
-    icon: Brain,
-  },
-  {
-    title: "Automated Checking",
-    description: "Save time with AI-powered answer sheet evaluation and grading.",
-    icon: CheckCircle,
-  },
-  {
-    title: "Performance Tracking",
-    description: "Track and analyze student performance with detailed analytics.",
-    icon: BarChart3,
-  },
-];
 
 export default Index;
