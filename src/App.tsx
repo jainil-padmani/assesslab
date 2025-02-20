@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./layouts/DashboardLayout";
+import Dashboard from "./pages/dashboard/Dashboard";
 import Generate from "./pages/dashboard/Generate";
 import Questions from "./pages/dashboard/Questions";
 import Analysis from "./pages/dashboard/Analysis";
@@ -28,7 +29,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Generate />} />
+            <Route index element={<Dashboard />} />
             <Route path="generate" element={<Generate />} />
             <Route path="questions" element={<Questions />} />
             <Route path="analysis" element={<Analysis />} />
