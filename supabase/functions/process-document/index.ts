@@ -21,6 +21,20 @@ serve(async (req) => {
       throw new Error('OpenAI API key not configured')
     }
 
+    if (action !== 'analyze_paper') {
+      throw new Error('Invalid action')
+    }
+
+    // Download the file from Supabase storage
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const response = await fetch(content.fileUrl)
+    const fileText = await response.text()
+
+    // Analyze the paper using OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -32,37 +46,39 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: getSystemPrompt(action),
+            content: `You are an expert in analyzing question papers. Analyze the given question paper and provide:
+            1. Topics covered with number of questions for each topic
+            2. Difficulty distribution (Easy, Medium, Hard) as percentages
+            3. Overall assessment
+            4. Recommendations for improvement
+            
+            Format the response as a JSON object with these keys:
+            {
+              topics: [{ name: string, questionCount: number }],
+              difficulty: [{ name: string, value: number }],
+              overallAssessment: string,
+              recommendations: string[]
+            }`
           },
           {
             role: 'user',
-            content,
-          },
+            content: fileText
+          }
         ],
       }),
     })
 
-    const data = await openAIResponse.json()
-    return new Response(JSON.stringify(data), {
+    const aiData = await openAIResponse.json()
+    const analysis = JSON.parse(aiData.choices[0].message.content)
+
+    return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
+    console.error('Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })
-
-function getSystemPrompt(action: string): string {
-  switch (action) {
-    case 'generate_questions':
-      return 'You are an AI that generates exam questions based on study materials. Generate a mix of MCQ, short answer, and long answer questions.'
-    case 'analyze_paper':
-      return 'You are an AI that analyzes question papers. Identify topics covered, calculate difficulty levels, and provide detailed feedback.'
-    case 'check_answers':
-      return 'You are an AI that evaluates student answers against answer keys. Provide detailed feedback and scoring.'
-    default:
-      return 'You are a helpful AI assistant.'
-  }
-}

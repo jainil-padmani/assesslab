@@ -4,11 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brain, Upload, PieChart } from "lucide-react";
+import { Brain, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { PieChart as RechartPieChart, Pie, Cell, Legend, Tooltip } from "recharts";
 
 export default function Analysis() {
   const [file, setFile] = useState<File | null>(null);
