@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { extract as extractPDF } from 'https://deno.land/x/pdf_extract@v0.1.2/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,9 +33,26 @@ serve(async (req) => {
     if (!fileResponse.ok) {
       throw new Error('Failed to fetch document from storage')
     }
-    const fileText = await fileResponse.text()
+
+    // Get the content type from the response
+    const contentType = fileResponse.headers.get('content-type')
+    let fileText = ''
+
+    if (contentType?.includes('pdf')) {
+      // Handle PDF files
+      const fileBuffer = await fileResponse.arrayBuffer()
+      const pdfContent = await extractPDF(new Uint8Array(fileBuffer))
+      fileText = pdfContent.text
+    } else {
+      // Handle other text-based formats (DOCX, TXT)
+      fileText = await fileResponse.text()
+    }
+
+    if (!fileText) {
+      throw new Error('Could not extract text from the document')
+    }
     
-    console.log('Successfully fetched document content')
+    console.log('Successfully extracted text from document')
 
     // Analyze the paper using OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -44,7 +62,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
