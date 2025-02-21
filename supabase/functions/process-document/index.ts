@@ -25,14 +25,16 @@ serve(async (req) => {
       throw new Error('Invalid action')
     }
 
-    // Download the file from Supabase storage
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    console.log('Analyzing document from URL:', content.fileUrl)
 
-    const response = await fetch(content.fileUrl)
-    const fileText = await response.text()
+    // Download the file content from Supabase storage
+    const fileResponse = await fetch(content.fileUrl)
+    if (!fileResponse.ok) {
+      throw new Error('Failed to fetch document from storage')
+    }
+    const fileText = await fileResponse.text()
+    
+    console.log('Successfully fetched document content')
 
     // Analyze the paper using OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -42,22 +44,26 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
             content: `You are an expert in analyzing question papers. Analyze the given question paper and provide:
             1. Topics covered with number of questions for each topic
             2. Difficulty distribution (Easy, Medium, Hard) as percentages
-            3. Overall assessment
-            4. Recommendations for improvement
+            3. Overall assessment of the paper quality, balance, and coverage
+            4. Specific recommendations for improvement
             
             Format the response as a JSON object with these keys:
             {
-              topics: [{ name: string, questionCount: number }],
-              difficulty: [{ name: string, value: number }],
-              overallAssessment: string,
-              recommendations: string[]
+              "topics": [{ "name": string, "questionCount": number }],
+              "difficulty": [
+                { "name": "Easy", "value": number },
+                { "name": "Medium", "value": number },
+                { "name": "Hard", "value": number }
+              ],
+              "overallAssessment": string,
+              "recommendations": string[]
             }`
           },
           {
@@ -65,17 +71,33 @@ serve(async (req) => {
             content: fileText
           }
         ],
+        temperature: 0.7,
+        max_tokens: 2000
       }),
     })
 
+    if (!openAIResponse.ok) {
+      const error = await openAIResponse.json()
+      console.error('OpenAI API error:', error)
+      throw new Error('Failed to analyze paper')
+    }
+
     const aiData = await openAIResponse.json()
-    const analysis = JSON.parse(aiData.choices[0].message.content)
+    console.log('OpenAI Analysis completed successfully')
+    
+    let analysis
+    try {
+      analysis = JSON.parse(aiData.choices[0].message.content)
+    } catch (error) {
+      console.error('Failed to parse OpenAI response:', error)
+      throw new Error('Failed to parse analysis results')
+    }
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error in process-document function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
