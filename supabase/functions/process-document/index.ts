@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { extract as extractPDF } from 'https://deno.land/x/pdf_extract@v0.1.2/mod.ts'
+import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,8 +41,16 @@ serve(async (req) => {
     if (contentType?.includes('pdf')) {
       // Handle PDF files
       const fileBuffer = await fileResponse.arrayBuffer()
-      const pdfContent = await extractPDF(new Uint8Array(fileBuffer))
-      fileText = pdfContent.text
+      const pdfDoc = await PDFDocument.load(fileBuffer)
+      const pages = pdfDoc.getPages()
+      
+      // Extract text from each page
+      const textPromises = pages.map(async (page) => {
+        const textContent = await page.doc.getPage(page.ref).then(p => p.textContent())
+        return textContent?.items?.map(item => item.str).join(' ') || ''
+      })
+      
+      fileText = (await Promise.all(textPromises)).join('\n')
     } else {
       // Handle other text-based formats (DOCX, TXT)
       fileText = await fileResponse.text()
