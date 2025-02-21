@@ -53,6 +53,8 @@ export default function Analysis() {
         .from('documents')
         .getPublicUrl(fileName);
 
+      console.log('Uploaded file URL:', publicUrl);
+
       const response = await fetch('/api/process-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -62,11 +64,19 @@ export default function Analysis() {
         })
       });
 
-      if (!response.ok) throw new Error('Failed to analyze paper');
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Response error:', errorData);
+        throw new Error('Failed to analyze paper');
+      }
 
-      const analysis = await response.json();
+      const analysisText = await response.text();
+      console.log('Analysis response:', analysisText);
+
+      const analysis = JSON.parse(analysisText);
       navigate('/dashboard/analysis-result', { state: { analysis } });
     } catch (error: any) {
+      console.error('Analysis error:', error);
       toast.error(error.message);
     } finally {
       setIsLoading(false);

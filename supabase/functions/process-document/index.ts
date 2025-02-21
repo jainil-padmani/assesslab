@@ -2,7 +2,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib@1.17.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,39 +27,19 @@ serve(async (req) => {
 
     console.log('Analyzing document from URL:', content.fileUrl)
 
-    // Download the file content from Supabase storage
+    // Download the file content
     const fileResponse = await fetch(content.fileUrl)
     if (!fileResponse.ok) {
       throw new Error('Failed to fetch document from storage')
     }
 
-    // Get the content type from the response
-    const contentType = fileResponse.headers.get('content-type')
-    let fileText = ''
-
-    if (contentType?.includes('pdf')) {
-      // Handle PDF files
-      const fileBuffer = await fileResponse.arrayBuffer()
-      const pdfDoc = await PDFDocument.load(fileBuffer)
-      const pages = pdfDoc.getPages()
-      
-      // Extract text from each page
-      const textPromises = pages.map(async (page) => {
-        const textContent = await page.doc.getPage(page.ref).then(p => p.textContent())
-        return textContent?.items?.map(item => item.str).join(' ') || ''
-      })
-      
-      fileText = (await Promise.all(textPromises)).join('\n')
-    } else {
-      // Handle other text-based formats (DOCX, TXT)
-      fileText = await fileResponse.text()
-    }
+    // Convert file to text
+    const fileText = await fileResponse.text()
+    console.log('File content length:', fileText.length)
 
     if (!fileText) {
       throw new Error('Could not extract text from the document')
     }
-    
-    console.log('Successfully extracted text from document')
 
     // Analyze the paper using OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -111,15 +90,7 @@ serve(async (req) => {
     const aiData = await openAIResponse.json()
     console.log('OpenAI Analysis completed successfully')
     
-    let analysis
-    try {
-      analysis = JSON.parse(aiData.choices[0].message.content)
-    } catch (error) {
-      console.error('Failed to parse OpenAI response:', error)
-      throw new Error('Failed to parse analysis results')
-    }
-
-    return new Response(JSON.stringify(analysis), {
+    return new Response(JSON.stringify(aiData.choices[0].message.content), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
