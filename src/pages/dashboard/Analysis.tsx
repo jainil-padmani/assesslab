@@ -8,9 +8,12 @@ import { Brain, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Analysis() {
   const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -20,12 +23,11 @@ export default function Analysis() {
       const fileType = selectedFile.type;
       const validTypes = [
         'application/pdf',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       ];
       
       if (!validTypes.includes(fileType)) {
-        toast.error('Please upload PDF, PPT, or DOCX files only');
+        toast.error('Please upload PDF or DOCX files only');
         return;
       }
       setFile(selectedFile);
@@ -33,47 +35,43 @@ export default function Analysis() {
   };
 
   const handleAnalyze = async () => {
-    if (!file) {
-      toast.error('Please upload a file first');
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file);
+      let content;
 
-      if (uploadError) throw uploadError;
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
 
-      console.log('Uploaded file URL:', publicUrl);
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(fileName);
 
-      const response = await fetch('/api/process-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'analyze_paper',
-          content: { fileUrl: publicUrl }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Response error:', errorData);
-        throw new Error('Failed to analyze paper');
+        content = { fileUrl: publicUrl };
+      } else if (text.trim()) {
+        content = { text: text.trim() };
+      } else {
+        throw new Error('Please upload a file or enter text to analyze');
       }
 
-      const analysisText = await response.text();
-      console.log('Analysis response:', analysisText);
+      const response = await supabase.functions.invoke('process-document', {
+        body: {
+          action: 'analyze_paper',
+          content
+        }
+      });
 
-      const analysis = JSON.parse(analysisText);
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to analyze paper');
+      }
+
+      const analysis = response.data;
       navigate('/dashboard/analysis-result', { state: { analysis } });
     } catch (error: any) {
       console.error('Analysis error:', error);
@@ -86,39 +84,83 @@ export default function Analysis() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Question Paper Analysis</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-accent" />
-            Upload Question Paper
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="file">Upload File (PDF, PPT, DOCX)</Label>
-            <Input 
-              id="file" 
-              type="file" 
-              accept=".pdf,.pptx,.docx"
-              onChange={handleFileChange}
-            />
-          </div>
-          <Button
-            className="w-full bg-accent hover:bg-accent/90"
-            onClick={handleAnalyze}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              "Analyzing..."
-            ) : (
-              <>
-                <Brain className="mr-2 h-4 w-4" />
-                Analyze Paper
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="file" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="file">Upload File</TabsTrigger>
+          <TabsTrigger value="text">Enter Text</TabsTrigger>
+        </TabsList>
+        <TabsContent value="file">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-accent" />
+                Upload Question Paper
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="file">Upload File (PDF or DOCX)</Label>
+                <Input 
+                  id="file" 
+                  type="file" 
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
+                />
+              </div>
+              <Button
+                className="w-full bg-accent hover:bg-accent/90"
+                onClick={handleAnalyze}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  "Analyzing..."
+                ) : (
+                  <>
+                    <Brain className="mr-2 h-4 w-4" />
+                    Analyze Paper
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="text">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-accent" />
+                Enter Question Paper Text
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="text">Question Paper Text</Label>
+                <Textarea
+                  id="text"
+                  placeholder="Paste your question paper text here..."
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="min-h-[200px]"
+                />
+              </div>
+              <Button
+                className="w-full bg-accent hover:bg-accent/90"
+                onClick={handleAnalyze}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  "Analyzing..."
+                ) : (
+                  <>
+                    <Brain className="mr-2 h-4 w-4" />
+                    Analyze Text
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

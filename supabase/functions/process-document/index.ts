@@ -25,23 +25,28 @@ serve(async (req) => {
       throw new Error('Invalid action')
     }
 
-    console.log('Analyzing document from URL:', content.fileUrl)
-
-    // Download the file content
-    const fileResponse = await fetch(content.fileUrl)
-    if (!fileResponse.ok) {
-      throw new Error('Failed to fetch document from storage')
+    let fileText = '';
+    
+    if (content.fileUrl) {
+      console.log('Analyzing document from URL:', content.fileUrl)
+      const fileResponse = await fetch(content.fileUrl)
+      if (!fileResponse.ok) {
+        throw new Error('Failed to fetch document from storage')
+      }
+      fileText = await fileResponse.text()
+    } else if (content.text) {
+      console.log('Analyzing provided text content')
+      fileText = content.text
+    } else {
+      throw new Error('No content provided for analysis')
     }
 
-    // Convert file to text
-    const fileText = await fileResponse.text()
-    console.log('File content length:', fileText.length)
+    console.log('Content length:', fileText.length)
 
     if (!fileText) {
-      throw new Error('Could not extract text from the document')
+      throw new Error('Could not extract text from the content')
     }
 
-    // Analyze the paper using OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -90,9 +95,16 @@ serve(async (req) => {
     const aiData = await openAIResponse.json()
     console.log('OpenAI Analysis completed successfully')
     
-    return new Response(JSON.stringify(aiData.choices[0].message.content), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    try {
+      // Parse the content to ensure it's valid JSON
+      const analysis = JSON.parse(aiData.choices[0].message.content)
+      return new Response(JSON.stringify(analysis), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    } catch (error) {
+      console.error('Failed to parse OpenAI response:', error)
+      throw new Error('Failed to parse analysis results')
+    }
   } catch (error) {
     console.error('Error in process-document function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
