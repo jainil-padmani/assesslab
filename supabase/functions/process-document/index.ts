@@ -9,7 +9,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -33,7 +32,7 @@ serve(async (req) => {
       );
     }
 
-    let fileText = '';
+    let paperContent = '';
     
     if (content.fileUrl) {
       console.log('Analyzing document from URL:', content.fileUrl)
@@ -44,10 +43,10 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      fileText = await fileResponse.text()
+      paperContent = await fileResponse.text()
     } else if (content.text) {
       console.log('Analyzing provided text content')
-      fileText = content.text
+      paperContent = content.text
     } else {
       return new Response(
         JSON.stringify({ error: 'No content provided for analysis' }), 
@@ -55,93 +54,98 @@ serve(async (req) => {
       );
     }
 
-    console.log('Content length:', fileText.length)
-
-    if (!fileText) {
+    if (!paperContent) {
       return new Response(
-        JSON.stringify({ error: 'Could not extract text from the content' }), 
+        JSON.stringify({ error: 'Empty content provided' }), 
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    try {
-      const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert in analyzing question papers. Analyze the given question paper and provide:
-              1. Topics covered with number of questions for each topic
-              2. Difficulty distribution (Easy, Medium, Hard) as percentages
-              3. Overall assessment of the paper quality, balance, and coverage
-              4. Specific recommendations for improvement
-              
-              Format the response as a JSON object with these keys:
-              {
-                "topics": [{ "name": string, "questionCount": number }],
-                "difficulty": [
-                  { "name": "Easy", "value": number },
-                  { "name": "Medium", "value": number },
-                  { "name": "Hard", "value": number }
-                ],
-                "overallAssessment": string,
-                "recommendations": string[]
-              }`
-            },
-            {
-              role: 'user',
-              content: fileText
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 2000
-        }),
-      })
+    console.log('Sending content to OpenAI for analysis...');
 
-      if (!openAIResponse.ok) {
-        const error = await openAIResponse.json()
-        console.error('OpenAI API error:', error)
-        return new Response(
-          JSON.stringify({ error: 'Failed to analyze paper' }), 
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert in analyzing question papers. Given a question paper, analyze and provide:
+            1. Topics covered with number of questions for each topic
+            2. Difficulty distribution (Easy, Medium, Hard) as percentages
+            3. Overall assessment of the paper quality, balance, and coverage
+            4. Specific recommendations for improvement
 
-      const aiData = await openAIResponse.json()
-      console.log('OpenAI Analysis completed successfully')
-      
-      try {
-        // Parse the content to ensure it's valid JSON
-        const analysis = JSON.parse(aiData.choices[0].message.content)
-        return new Response(
-          JSON.stringify(analysis), 
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } catch (error) {
-        console.error('Failed to parse OpenAI response:', error)
-        return new Response(
-          JSON.stringify({ error: 'Failed to parse analysis results' }), 
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } catch (error) {
-      console.error('OpenAI API error:', error)
+            Ensure your response is a valid JSON object with exactly these fields:
+            {
+              "topics": [{"name": "Topic Name", "questionCount": number}],
+              "difficulty": [
+                {"name": "Easy", "value": number},
+                {"name": "Medium", "value": number},
+                {"name": "Hard", "value": number}
+              ],
+              "overallAssessment": "string with overall assessment",
+              "recommendations": ["string array of recommendations"]
+            }`
+          },
+          {
+            role: 'user',
+            content: paperContent
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      }),
+    });
+
+    if (!openAIResponse.ok) {
+      console.error('OpenAI API error:', await openAIResponse.text());
       return new Response(
-        JSON.stringify({ error: 'Failed to communicate with OpenAI API' }), 
+        JSON.stringify({ error: 'Failed to analyze paper with OpenAI' }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const aiResponse = await openAIResponse.json();
+    console.log('OpenAI response received:', aiResponse);
+
+    if (!aiResponse.choices?.[0]?.message?.content) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid response from OpenAI' }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    try {
+      const analysisResult = JSON.parse(aiResponse.choices[0].message.content);
+      console.log('Analysis result:', analysisResult);
+      
+      // Verify the response has the expected structure
+      if (!analysisResult.topics || !analysisResult.difficulty || 
+          !analysisResult.overallAssessment || !analysisResult.recommendations) {
+        throw new Error('Invalid analysis format');
+      }
+
+      return new Response(
+        JSON.stringify(analysisResult),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('Failed to parse OpenAI response:', error);
+      return new Response(
+        JSON.stringify({ error: 'Failed to parse analysis results' }), 
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
   } catch (error) {
-    console.error('Error in process-document function:', error)
+    console.error('Error in process-document function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ error: error.message || 'Internal server error' }), 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-})
+});

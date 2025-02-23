@@ -53,6 +53,7 @@ export default function Analysis() {
           .from('documents')
           .getPublicUrl(fileName);
 
+        console.log('File uploaded, URL:', publicUrl);
         content = { fileUrl: publicUrl };
       } else if (text.trim()) {
         content = { text: text.trim() };
@@ -60,22 +61,33 @@ export default function Analysis() {
         throw new Error('Please upload a file or enter text to analyze');
       }
 
-      const response = await supabase.functions.invoke('process-document', {
+      const { data, error } = await supabase.functions.invoke('process-document', {
         body: {
           action: 'analyze_paper',
           content
         }
       });
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to analyze paper');
+      console.log('Analysis response:', data);
+
+      if (error) {
+        console.error('Analysis error:', error);
+        throw new Error(error.message || 'Failed to analyze paper');
       }
 
-      const analysis = response.data;
-      navigate('/dashboard/analysis-result', { state: { analysis } });
+      if (!data) {
+        throw new Error('No analysis data received');
+      }
+
+      // Navigate with the analysis data
+      navigate('/dashboard/analysis-result', { 
+        state: { 
+          analysis: data 
+        } 
+      });
     } catch (error: any) {
       console.error('Analysis error:', error);
-      toast.error(error.message);
+      toast.error(error.message || 'Failed to analyze paper');
     } finally {
       setIsLoading(false);
     }
