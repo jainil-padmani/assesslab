@@ -9,6 +9,8 @@ import {
   BarChart3,
   LogOut,
   Settings,
+  User,
+  Book,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
