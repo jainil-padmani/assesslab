@@ -31,15 +31,7 @@ export type Database = {
           subject_id?: string | null
           title?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "answer_keys_subject_id_fkey"
-            columns: ["subject_id"]
-            isOneToOne: false
-            referencedRelation: "subjects"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       assessments: {
         Row: {
@@ -80,20 +72,6 @@ export type Database = {
             referencedRelation: "answer_keys"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "assessments_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assessments_subject_id_fkey"
-            columns: ["subject_id"]
-            isOneToOne: false
-            referencedRelation: "subjects"
-            referencedColumns: ["id"]
-          },
         ]
       }
       profiles: {
@@ -129,21 +107,33 @@ export type Database = {
       students: {
         Row: {
           created_at: string
+          department: string
+          email: string | null
+          gr_number: string
           id: string
           name: string
-          roll_number: string
+          parent_contact: string | null
+          parent_name: string | null
         }
         Insert: {
           created_at?: string
+          department: string
+          email?: string | null
+          gr_number: string
           id?: string
           name: string
-          roll_number: string
+          parent_contact?: string | null
+          parent_name?: string | null
         }
         Update: {
           created_at?: string
+          department?: string
+          email?: string | null
+          gr_number?: string
           id?: string
           name?: string
-          roll_number?: string
+          parent_contact?: string | null
+          parent_name?: string | null
         }
         Relationships: []
       }
@@ -152,16 +142,22 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          semester: number
+          subject_code: string
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          semester: number
+          subject_code: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          semester?: number
+          subject_code?: string
         }
         Relationships: []
       }

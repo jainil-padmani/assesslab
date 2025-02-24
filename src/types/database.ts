@@ -1,3 +1,4 @@
+
 export interface Profile {
   id: string;
   name: string | null;
@@ -6,6 +7,25 @@ export interface Profile {
   subject: string | null;
   nationality: string | null;
   updated_at: string | null;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+  email: string | null;
+  gr_number: string;
+  parent_name: string | null;
+  parent_contact: string | null;
+  department: string;
+  created_at: string;
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  subject_code: string;
+  semester: number;
+  created_at: string;
 }
 
 export interface Database {
@@ -17,48 +37,42 @@ export interface Database {
         Update: Partial<Profile>;
       };
       students: {
-        Row: {
-          created_at: string;
-          id: string;
-          name: string;
-          roll_number: string;
-        };
+        Row: Student;
         Insert: {
           id?: string;
           name: string;
-          roll_number: string;
+          email?: string | null;
+          gr_number: string;
+          parent_name?: string | null;
+          parent_contact?: string | null;
+          department: string;
         };
         Update: {
           id?: string;
           name?: string;
-          roll_number?: string;
+          email?: string | null;
+          gr_number?: string;
+          parent_name?: string | null;
+          parent_contact?: string | null;
+          department?: string;
         };
-        Select: {
-          created_at: string;
-          id: string;
-          name: string;
-          roll_number: string;
-        };
+        Select: Student;
       };
       subjects: {
-        Row: {
-          created_at: string;
-          id: string;
-          name: string;
-        };
+        Row: Subject;
         Insert: {
           id?: string;
           name: string;
+          subject_code: string;
+          semester: number;
         };
         Update: {
           id?: string;
           name?: string;
+          subject_code?: string;
+          semester?: number;
         };
-        Select: {
-          created_at: string;
-          id: string;
-          name: string;
-        };
+        Select: Subject;
       };
       answer_keys: {
         Row: {
