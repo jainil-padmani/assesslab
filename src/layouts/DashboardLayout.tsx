@@ -4,7 +4,7 @@ import { Outlet, Navigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, Book } from "lucide-react";
+import { LogOut, Settings, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 
 export default function DashboardLayout() {
@@ -50,13 +50,13 @@ export default function DashboardLayout() {
             </Link>
             <div className="flex items-center gap-6">
               <nav className="flex items-center gap-6">
-                <Link to="/dashboard/students" className="flex items-center gap-2 text-gray-600 hover:text-accent">
-                  <User className="h-4 w-4" />
-                  <span>Students</span>
+                <Link to="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-accent">
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span>Dashboard</span>
                 </Link>
-                <Link to="/dashboard/subjects" className="flex items-center gap-2 text-gray-600 hover:text-accent">
-                  <Book className="h-4 w-4" />
-                  <span>Subjects</span>
+                <Link to="/dashboard/settings" className="flex items-center gap-2 text-gray-600 hover:text-accent">
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
                 </Link>
               </nav>
               <Button variant="ghost" onClick={handleSignOut} className="gap-2">
