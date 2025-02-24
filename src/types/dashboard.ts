@@ -4,13 +4,19 @@ import type { Database } from "@/integrations/supabase/types";
 export interface Student {
   id: string;
   name: string;
-  roll_number: string;
+  email: string | null;
+  gr_number: string;  // Changed from roll_number to gr_number to match database
+  parent_name: string | null;
+  parent_contact: string | null;
+  department: string;
   created_at: string;
 }
 
 export interface Subject {
   id: string;
   name: string;
+  subject_code: string;
+  semester: number;
   created_at: string;
 }
 

@@ -20,14 +20,12 @@ export default function Check() {
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [newKeyTitle, setNewKeyTitle] = useState("");
 
-  // Fetch data when component mounts
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      // Fetch students
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('*')
@@ -36,7 +34,6 @@ export default function Check() {
       if (studentsError) throw studentsError;
       if (studentsData) setStudents(studentsData);
 
-      // Fetch subjects
       const { data: subjectsData, error: subjectsError } = await supabase
         .from('subjects')
         .select('*')
@@ -45,7 +42,6 @@ export default function Check() {
       if (subjectsError) throw subjectsError;
       if (subjectsData) setSubjects(subjectsData);
 
-      // Fetch answer keys
       const { data: keysData, error: keysError } = await supabase
         .from('answer_keys')
         .select('*')
@@ -78,7 +74,6 @@ export default function Check() {
 
     setIsLoading(true);
     try {
-      // Upload answer sheet
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       
@@ -88,12 +83,10 @@ export default function Check() {
 
       if (uploadError) throw uploadError;
 
-      // Get the file URL
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(`answer-sheets/${fileName}`);
 
-      // Create assessment
       const { error: assessmentError } = await supabase
         .from('assessments')
         .insert({
@@ -107,7 +100,6 @@ export default function Check() {
       if (assessmentError) throw assessmentError;
 
       toast.success('Answer sheet uploaded successfully');
-      // Reset form
       setFile(null);
       setSelectedStudent("");
       setSelectedSubject("");
@@ -140,7 +132,7 @@ export default function Check() {
       toast.success('Answer key added successfully');
       setIsAddingKey(false);
       setNewKeyTitle("");
-      fetchData(); // Refresh the list
+      fetchData();
     } catch (error: any) {
       toast.error(error.message);
       console.error('Error adding answer key:', error);
@@ -238,7 +230,7 @@ export default function Check() {
                 <option value="">Select Student</option>
                 {students.map((student) => (
                   <option key={student.id} value={student.id}>
-                    {student.name} ({student.roll_number})
+                    {student.name} ({student.gr_number})
                   </option>
                 ))}
               </select>
