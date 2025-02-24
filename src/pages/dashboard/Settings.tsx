@@ -1,10 +1,9 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings as SettingsIcon, User, Bell, Lock, Globe } from "lucide-react";
+import { Settings as SettingsIcon, User, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,16 +14,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import countries from "../../utils/countries";
+import type { Profile } from "@/types/database";
 
 export default function Settings() {
-  const [userDetails, setUserDetails] = useState({
+  const [userDetails, setUserDetails] = useState<{
+    email: string;
+    userId: string;
+  } & Partial<Profile>>({
     email: "",
+    userId: "",
     name: "",
     mobile: "",
     post: "",
     subject: "",
     nationality: "",
-    userId: "",
   });
   const [loading, setLoading] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -44,11 +47,16 @@ export default function Settings() {
         }));
         
         // Fetch additional user details from profiles table
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
+          
+        if (error) {
+          console.error('Error fetching profile:', error);
+          return;
+        }
           
         if (profile) {
           setUserDetails(prev => ({
@@ -112,11 +120,11 @@ export default function Settings() {
         .from('profiles')
         .upsert({
           id: userDetails.userId,
-          name: userDetails.name,
-          mobile: userDetails.mobile,
-          post: userDetails.post,
-          subject: userDetails.subject,
-          nationality: userDetails.nationality,
+          name: userDetails.name || null,
+          mobile: userDetails.mobile || null,
+          post: userDetails.post || null,
+          subject: userDetails.subject || null,
+          nationality: userDetails.nationality || null,
           updated_at: new Date().toISOString(),
         });
 

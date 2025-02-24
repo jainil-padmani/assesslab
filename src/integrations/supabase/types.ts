@@ -96,6 +96,36 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          id: string
+          mobile: string | null
+          name: string | null
+          nationality: string | null
+          post: string | null
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          mobile?: string | null
+          name?: string | null
+          nationality?: string | null
+          post?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          mobile?: string | null
+          name?: string | null
+          nationality?: string | null
+          post?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           created_at: string
