@@ -10,10 +10,19 @@ import {
   Settings,
   User,
   Book,
+  LayoutDashboard,
+  LogOut,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const links = [
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    href: "/dashboard",
+  },
   {
     title: "Students",
     icon: User,
@@ -44,11 +53,18 @@ const links = [
     icon: BarChart3,
     href: "/dashboard/performance",
   },
+  {
+    title: "Settings",
+    icon: Settings,
+    href: "/dashboard/settings",
+  },
 ];
 
-interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {
+  onSignOut: () => void;
+}
 
-export function DashboardNav({ className, ...props }: DashboardNavProps) {
+export function DashboardNav({ className, onSignOut, ...props }: DashboardNavProps) {
   return (
     <div className={cn("relative", className)} {...props}>
       <ScrollArea className="h-[calc(100vh-64px)] pb-10">
@@ -72,6 +88,14 @@ export function DashboardNav({ className, ...props }: DashboardNavProps) {
                     <span>{link.title}</span>
                   </NavLink>
                 ))}
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={onSignOut}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
               </nav>
             </div>
           </div>
