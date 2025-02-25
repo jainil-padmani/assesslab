@@ -104,36 +104,87 @@ export type Database = {
         }
         Relationships: []
       }
+      student_subjects: {
+        Row: {
+          created_at: string
+          grade: string | null
+          id: string
+          student_id: string | null
+          subject_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          grade?: string | null
+          id?: string
+          student_id?: string | null
+          subject_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          grade?: string | null
+          id?: string
+          student_id?: string | null
+          subject_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_subjects_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
+          class: string | null
           created_at: string
           department: string
           email: string | null
           gr_number: string
           id: string
           name: string
+          overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
+          roll_number: string | null
+          year: number | null
         }
         Insert: {
+          class?: string | null
           created_at?: string
           department: string
           email?: string | null
           gr_number: string
           id?: string
           name: string
+          overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          roll_number?: string | null
+          year?: number | null
         }
         Update: {
+          class?: string | null
           created_at?: string
           department?: string
           email?: string | null
           gr_number?: string
           id?: string
           name?: string
+          overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          roll_number?: string | null
+          year?: number | null
         }
         Relationships: []
       }

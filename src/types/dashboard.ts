@@ -5,10 +5,22 @@ export interface Student {
   id: string;
   name: string;
   email: string | null;
-  gr_number: string;  // Changed from roll_number to gr_number to match database
+  gr_number: string;
+  roll_number: string | null;
+  year: number | null;
+  class: string | null;
+  overall_percentage: number | null;
   parent_name: string | null;
   parent_contact: string | null;
   department: string;
+  created_at: string;
+}
+
+export interface StudentSubject {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  grade: string | null;
   created_at: string;
 }
 
