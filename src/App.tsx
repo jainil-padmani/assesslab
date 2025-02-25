@@ -16,6 +16,10 @@ import AnalysisResult from "./pages/dashboard/AnalysisResult";
 import Check from "./pages/dashboard/Check";
 import Performance from "./pages/dashboard/Performance";
 import Settings from "./pages/dashboard/Settings";
+import Students from "./pages/dashboard/Students";
+import StudentDetail from "./pages/dashboard/StudentDetail";
+import Subjects from "./pages/dashboard/Subjects";
+import SubjectDetail from "./pages/dashboard/SubjectDetail";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +34,10 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<Dashboard />} />
+            <Route path="students" element={<Students />} />
+            <Route path="students/:id" element={<StudentDetail />} />
+            <Route path="subjects" element={<Subjects />} />
+            <Route path="subjects/:id" element={<SubjectDetail />} />
             <Route path="generate" element={<Generate />} />
             <Route path="questions" element={<Questions />} />
             <Route path="analysis" element={<Analysis />} />
