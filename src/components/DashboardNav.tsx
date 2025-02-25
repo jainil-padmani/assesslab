@@ -12,6 +12,8 @@ import {
   Book,
   LayoutDashboard,
   LogOut,
+  GraduationCap,  // Added for Students
+  Notebook,        // Added for Subjects
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,12 +27,12 @@ const links = [
   },
   {
     title: "Students",
-    icon: User,
+    icon: GraduationCap,
     href: "/dashboard/students",
   },
   {
     title: "Subjects",
-    icon: Book,
+    icon: Notebook,
     href: "/dashboard/subjects",
   },
   {
