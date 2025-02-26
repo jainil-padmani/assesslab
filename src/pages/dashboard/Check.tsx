@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,29 @@ export default function Check() {
     fetchData();
   }, []);
 
+  const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy => {
+    const defaultLevel = { delivery: 0, evaluation: 0 };
+    const defaultTaxonomy: BloomsTaxonomy = {
+      remember: defaultLevel,
+      understand: defaultLevel,
+      apply: defaultLevel,
+      analyze: defaultLevel,
+      evaluate: defaultLevel,
+      create: defaultLevel
+    };
+
+    if (!data || typeof data !== 'object') return defaultTaxonomy;
+
+    return {
+      remember: { ...defaultLevel, ...data.remember },
+      understand: { ...defaultLevel, ...data.understand },
+      apply: { ...defaultLevel, ...data.apply },
+      analyze: { ...defaultLevel, ...data.analyze },
+      evaluate: { ...defaultLevel, ...data.evaluate },
+      create: { ...defaultLevel, ...data.create }
+    };
+  };
+
   const fetchData = async () => {
     try {
       const { data: studentsData, error: studentsError } = await supabase
@@ -49,7 +73,11 @@ export default function Check() {
       
       if (keysError) throw keysError;
       if (keysData) {
-        setAnswerKeys(keysData);
+        const transformedKeys: AnswerKey[] = keysData.map(key => ({
+          ...key,
+          blooms_taxonomy: validateAndTransformBloomsTaxonomy(key.blooms_taxonomy)
+        }));
+        setAnswerKeys(transformedKeys);
       }
     } catch (error: any) {
       toast.error('Failed to fetch data');
@@ -121,7 +149,7 @@ export default function Check() {
     }
 
     try {
-      const defaultBloomsTaxonomy: BloomsTaxonomy = {
+      const defaultBloomsTaxonomy = {
         remember: { delivery: 0, evaluation: 0 },
         understand: { delivery: 0, evaluation: 0 },
         apply: { delivery: 0, evaluation: 0 },
@@ -135,7 +163,7 @@ export default function Check() {
         .insert({
           title: newKeyTitle,
           subject_id: selectedSubject,
-          content: {}, // Initialize with empty content
+          content: {},
           blooms_taxonomy: defaultBloomsTaxonomy
         });
 
