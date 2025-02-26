@@ -1,11 +1,12 @@
 
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Subject } from "@/types/dashboard";
+import { Subject, CourseOutcome } from "@/types/dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -14,12 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, FileDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ArrowLeft, FileDown, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SubjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isAddCODialogOpen, setIsAddCODialogOpen] = useState(false);
+  const [editingCO, setEditingCO] = useState<CourseOutcome | null>(null);
 
   // Fetch subject details
   const { data: subject } = useQuery({
@@ -32,6 +43,20 @@ export default function SubjectDetail() {
         .single();
       if (error) throw error;
       return data as Subject;
+    },
+  });
+
+  // Fetch course outcomes
+  const { data: courseOutcomes } = useQuery({
+    queryKey: ["course-outcomes", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("course_outcomes")
+        .select("*")
+        .eq("subject_id", id)
+        .order("code");
+      if (error) throw error;
+      return data as CourseOutcome[];
     },
   });
 
@@ -57,6 +82,59 @@ export default function SubjectDetail() {
         .order("students.name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Add/Update Course Outcome mutation
+  const coMutation = useMutation({
+    mutationFn: async (co: Partial<CourseOutcome>) => {
+      if (co.id) {
+        const { data, error } = await supabase
+          .from("course_outcomes")
+          .update({ code: co.code, description: co.description })
+          .eq("id", co.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase
+          .from("course_outcomes")
+          .insert([{ ...co, subject_id: id }])
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course-outcomes", id] });
+      setIsAddCODialogOpen(false);
+      setEditingCO(null);
+      toast.success(
+        editingCO ? "Course outcome updated" : "Course outcome added"
+      );
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to save course outcome: " + error.message);
+    },
+  });
+
+  // Delete Course Outcome mutation
+  const deleteCOMutation = useMutation({
+    mutationFn: async (coId: string) => {
+      const { error } = await supabase
+        .from("course_outcomes")
+        .delete()
+        .eq("id", coId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course-outcomes", id] });
+      toast.success("Course outcome deleted");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete course outcome: " + error.message);
     },
   });
 
@@ -105,6 +183,17 @@ export default function SubjectDetail() {
     document.body.removeChild(a);
   };
 
+  const handleCOSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const coData = {
+      id: editingCO?.id,
+      code: formData.get("code") as string,
+      description: formData.get("description") as string,
+    };
+    coMutation.mutate(coData);
+  };
+
   if (!subject) {
     return <div>Loading...</div>;
   }
@@ -134,6 +223,113 @@ export default function SubjectDetail() {
           </Button>
         </div>
 
+        {/* Course Outcomes Section */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Course Outcomes</h2>
+            <Dialog open={isAddCODialogOpen} onOpenChange={setIsAddCODialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setEditingCO(null)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Course Outcome
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingCO ? "Edit Course Outcome" : "Add Course Outcome"}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCOSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label htmlFor="code">CO Code</label>
+                    <Input
+                      id="code"
+                      name="code"
+                      defaultValue={editingCO?.code}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="description">Description</label>
+                    <Textarea
+                      id="description"
+                      name="description"
+                      defaultValue={editingCO?.description}
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsAddCODialogOpen(false);
+                        setEditingCO(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingCO ? "Update" : "Add"} Course Outcome
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>CO Code</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {courseOutcomes?.map((co) => (
+                  <TableRow key={co.id}>
+                    <TableCell className="font-medium">{co.code}</TableCell>
+                    <TableCell>{co.description}</TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingCO(co);
+                            setIsAddCODialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Are you sure you want to delete this course outcome?"
+                              )
+                            ) {
+                              deleteCOMutation.mutate(co.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        {/* Students and Grades Section */}
         <div className="border rounded-lg">
           <Table>
             <TableHeader>

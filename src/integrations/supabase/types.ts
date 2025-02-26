@@ -12,6 +12,7 @@ export type Database = {
       answer_keys: {
         Row: {
           content: Json | null
+          course_outcomes: Json | null
           created_at: string
           id: string
           subject_id: string | null
@@ -19,6 +20,7 @@ export type Database = {
         }
         Insert: {
           content?: Json | null
+          course_outcomes?: Json | null
           created_at?: string
           id?: string
           subject_id?: string | null
@@ -26,6 +28,7 @@ export type Database = {
         }
         Update: {
           content?: Json | null
+          course_outcomes?: Json | null
           created_at?: string
           id?: string
           subject_id?: string | null
@@ -37,6 +40,7 @@ export type Database = {
         Row: {
           answer_key_id: string | null
           answer_sheet_url: string | null
+          co_analysis: Json | null
           created_at: string
           id: string
           score: number | null
@@ -47,6 +51,7 @@ export type Database = {
         Insert: {
           answer_key_id?: string | null
           answer_sheet_url?: string | null
+          co_analysis?: Json | null
           created_at?: string
           id?: string
           score?: number | null
@@ -57,6 +62,7 @@ export type Database = {
         Update: {
           answer_key_id?: string | null
           answer_sheet_url?: string | null
+          co_analysis?: Json | null
           created_at?: string
           id?: string
           score?: number | null
@@ -70,6 +76,38 @@ export type Database = {
             columns: ["answer_key_id"]
             isOneToOne: false
             referencedRelation: "answer_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_outcomes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          subject_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description: string
+          id?: string
+          subject_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_outcomes_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]
