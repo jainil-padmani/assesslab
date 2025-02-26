@@ -1,4 +1,3 @@
-
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,26 @@ import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recha
 import type { BloomsTaxonomy } from "@/types/dashboard";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }: any) => {
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN) * 1.3;
+  const y = cy + radius * Math.sin(-midAngle * RADIAN) * 1.3;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#888"
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      fontSize="12"
+    >
+      {`${name} ${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
 
 export default function AnalysisResult() {
   const location = useLocation();
@@ -58,7 +77,7 @@ export default function AnalysisResult() {
             <CardTitle>Difficulty Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
+            <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -66,17 +85,20 @@ export default function AnalysisResult() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
+                    label={renderCustomLabel}
+                    outerRadius={120}
                     fill="#8884d8"
                     dataKey="value"
+                    paddingAngle={2}
                   >
                     {analysis.difficulty.map((_: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip 
+                    formatter={(value: any) => [`${value.toFixed(1)}%`, 'Percentage']}
+                  />
+                  <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -88,7 +110,7 @@ export default function AnalysisResult() {
             <CardTitle>Bloom's Taxonomy Comparison</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] w-full">
+            <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -96,11 +118,12 @@ export default function AnalysisResult() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    innerRadius={40}
+                    label={renderCustomLabel}
+                    outerRadius={90}
+                    innerRadius={60}
                     fill="#8884d8"
                     dataKey="value"
+                    paddingAngle={2}
                   >
                     {bloomsChartData.map((_: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -113,18 +136,25 @@ export default function AnalysisResult() {
                       cy="50%"
                       labelLine={false}
                       label={({ name, percent }) => `Expected ${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={120}
-                      innerRadius={90}
+                      outerRadius={140}
+                      innerRadius={110}
                       fill="#82ca9d"
                       dataKey="value"
+                      paddingAngle={2}
                     >
                       {expectedBloomsChartData.map((_: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
                       ))}
                     </Pie>
                   )}
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip 
+                    formatter={(value: any) => [`${value.toFixed(1)}%`, 'Percentage']}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    formatter={(value) => (value.startsWith('Expected ') ? value.substring(9) : value)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
