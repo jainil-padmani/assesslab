@@ -1,21 +1,51 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Upload, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import type { Subject, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function Generate() {
   const [file, setFile] = useState<File | null>(null);
   const [questionType, setQuestionType] = useState<string>("mcq");
   const [numQuestions, setNumQuestions] = useState<number>(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [bloomsLevels, setBloomsLevels] = useState<BloomsTaxonomy>({
+    remember: 0,
+    understand: 0,
+    apply: 0,
+    analyze: 0,
+    evaluate: 0,
+    create: 0
+  });
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchSubjects();
+  }, []);
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      if (data) setSubjects(data);
+    } catch (error) {
+      toast.error('Failed to fetch subjects');
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -35,15 +65,27 @@ export default function Generate() {
     }
   };
 
+  const handleBloomLevelChange = (level: keyof BloomsTaxonomy, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setBloomsLevels(prev => ({
+      ...prev,
+      [level]: numValue
+    }));
+  };
+
   const handleGenerate = async () => {
     if (!file) {
       toast.error('Please upload a file first');
       return;
     }
 
+    if (!selectedSubject) {
+      toast.error('Please select a subject');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Upload file to Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       
@@ -53,7 +95,6 @@ export default function Generate() {
 
       if (uploadError) throw uploadError;
 
-      // Get the file URL
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(fileName);
@@ -67,18 +108,23 @@ export default function Generate() {
           content: {
             fileUrl: publicUrl,
             questionType,
-            numQuestions
+            numQuestions,
+            bloomsTaxonomy: bloomsLevels,
+            subjectId: selectedSubject
           }
         })
       });
 
       if (!response.ok) throw new Error('Failed to generate questions');
 
+      const responseData = await response.json();
+
       // Navigate to results page
       navigate('/dashboard/questions', { 
         state: { 
-          questions: await response.json(),
-          documentUrl: publicUrl
+          questions: responseData,
+          documentUrl: publicUrl,
+          bloomsTaxonomy: bloomsLevels
         } 
       });
     } catch (error: any) {
@@ -99,6 +145,24 @@ export default function Generate() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="subject">Select Subject</Label>
+            <Select
+              value={selectedSubject}
+              onValueChange={(value) => setSelectedSubject(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="file">Upload File (PDF, PPT, DOCX)</Label>
             <Input 
@@ -143,6 +207,22 @@ export default function Generate() {
               value={numQuestions}
               onChange={(e) => setNumQuestions(parseInt(e.target.value))}
             />
+          </div>
+          <div className="space-y-4">
+            <Label>Bloom's Taxonomy Distribution</Label>
+            {Object.entries(bloomsLevels).map(([level, value]) => (
+              <div key={level} className="grid gap-2">
+                <Label htmlFor={level} className="capitalize">{level}</Label>
+                <Input
+                  id={level}
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={value}
+                  onChange={(e) => handleBloomLevelChange(level as keyof BloomsTaxonomy, e.target.value)}
+                />
+              </div>
+            ))}
           </div>
           <Button 
             className="w-full bg-accent hover:bg-accent/90"
