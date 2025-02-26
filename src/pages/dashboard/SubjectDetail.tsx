@@ -89,18 +89,27 @@ export default function SubjectDetail() {
   const coMutation = useMutation({
     mutationFn: async (co: Partial<CourseOutcome>) => {
       if (co.id) {
+        // Update existing course outcome
         const { data, error } = await supabase
           .from("course_outcomes")
-          .update({ code: co.code, description: co.description })
+          .update({ 
+            code: co.code as string,
+            description: co.description as string 
+          })
           .eq("id", co.id)
           .select()
           .single();
         if (error) throw error;
         return data;
       } else {
+        // Insert new course outcome
         const { data, error } = await supabase
           .from("course_outcomes")
-          .insert([{ ...co, subject_id: id }])
+          .insert({
+            subject_id: id as string,
+            code: co.code as string,
+            description: co.description as string
+          })
           .select()
           .single();
         if (error) throw error;
@@ -111,9 +120,7 @@ export default function SubjectDetail() {
       queryClient.invalidateQueries({ queryKey: ["course-outcomes", id] });
       setIsAddCODialogOpen(false);
       setEditingCO(null);
-      toast.success(
-        editingCO ? "Course outcome updated" : "Course outcome added"
-      );
+      toast.success(editingCO ? "Course outcome updated" : "Course outcome added");
     },
     onError: (error: Error) => {
       toast.error("Failed to save course outcome: " + error.message);

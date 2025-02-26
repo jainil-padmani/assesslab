@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,14 @@ export default function Check() {
         .order('created_at');
       
       if (keysError) throw keysError;
-      if (keysData) setAnswerKeys(keysData);
+      if (keysData) {
+        // Transform the data to match AnswerKey type
+        const transformedKeys: AnswerKey[] = keysData.map(key => ({
+          ...key,
+          course_outcomes: key.course_outcomes as CourseOutcomeMapping[] || []
+        }));
+        setAnswerKeys(transformedKeys);
+      }
     } catch (error: any) {
       toast.error('Failed to fetch data');
       console.error('Error fetching data:', error);
