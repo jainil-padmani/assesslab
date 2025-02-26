@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import type { BloomsTaxonomy } from '../../../src/types/dashboard.ts';
@@ -101,8 +100,6 @@ async function fetchTextFromUrl(url: string): Promise<string> {
 }
 
 function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
-  // Extract Bloom's taxonomy percentages from the analysis
-  // This is a simplified version - you'll need to implement proper parsing
   const distribution = {
     remember: 0,
     understand: 0,
@@ -112,10 +109,9 @@ function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
     create: 0
   };
 
-  // Parse the analysis text to find percentage values
-  // You might want to use regex or other parsing methods
-  const lines = analysis.split('\n');
-  for (const line of lines) {
+  const bloomsSection = analysis.split(/bloom'?s taxonomy distribution/i)[1]?.split('\n') || [];
+  
+  for (const line of bloomsSection) {
     const lower = line.toLowerCase();
     if (lower.includes('remember')) {
       distribution.remember = extractPercentage(line);
@@ -136,23 +132,29 @@ function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
 }
 
 function extractPercentage(text: string): number {
-  const match = text.match(/(\d+(\.\d+)?)\s*%/);
-  return match ? parseFloat(match[1]) : 0;
+  const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%?/);
+  if (percentMatch) {
+    return parseFloat(percentMatch[1]);
+  }
+  return 0;
 }
 
 function extractTopics(analysis: string): Array<{ name: string; questionCount: number }> {
-  // Extract topics and their question counts
-  // Implement proper parsing based on the AI response format
   const topics: Array<{ name: string; questionCount: number }> = [];
-  const topicsSection = analysis.split('Topics covered:')[1]?.split('\n') || [];
+  
+  const topicsMatch = analysis.match(/topics covered:?(.*?)(?=\n\s*\n|\n[A-Z]|$)/is);
+  if (!topicsMatch) return topics;
+  
+  const topicsSection = topicsMatch[1].split('\n');
   
   for (const line of topicsSection) {
-    const match = line.match(/(.*?)\s*:\s*(\d+)/);
+    const match = line.match(/([^():]+?)(?:\s*[:(-]\s*(\d+)|.*?(\d+)\s*questions?)/i);
     if (match) {
-      topics.push({
-        name: match[1].trim(),
-        questionCount: parseInt(match[2])
-      });
+      const name = match[1].trim();
+      const count = parseInt(match[2] || match[3]);
+      if (name && !isNaN(count)) {
+        topics.push({ name, questionCount: count });
+      }
     }
   }
 
@@ -160,18 +162,24 @@ function extractTopics(analysis: string): Array<{ name: string; questionCount: n
 }
 
 function extractDifficulty(analysis: string): Array<{ name: string; value: number }> {
-  // Extract difficulty distribution
-  // Implement proper parsing based on the AI response format
   const difficulties: Array<{ name: string; value: number }> = [];
-  const difficultySection = analysis.split('Difficulty distribution:')[1]?.split('\n') || [];
+  
+  const difficultyMatch = analysis.match(/difficulty distribution:?(.*?)(?=\n\s*\n|\n[A-Z]|$)/is);
+  if (!difficultyMatch) return difficulties;
+  
+  const difficultySection = difficultyMatch[1].split('\n');
+  
+  const difficultyLevels = ['Easy', 'Medium', 'Hard', 'Advanced'];
   
   for (const line of difficultySection) {
-    const match = line.match(/(Easy|Medium|Hard|Advanced):\s*(\d+(\.\d+)?)\s*%/);
-    if (match) {
-      difficulties.push({
-        name: match[1],
-        value: parseFloat(match[2])
-      });
+    for (const level of difficultyLevels) {
+      if (line.toLowerCase().includes(level.toLowerCase())) {
+        const value = extractPercentage(line);
+        if (value > 0) {
+          difficulties.push({ name: level, value });
+        }
+        break;
+      }
     }
   }
 
@@ -179,16 +187,18 @@ function extractDifficulty(analysis: string): Array<{ name: string; value: numbe
 }
 
 function extractOverallAssessment(analysis: string): string {
-  // Extract the overall assessment section
-  const assessmentMatch = analysis.match(/Overall assessment:(.*?)(?=\n\n|\n[A-Z]|$)/s);
+  const assessmentMatch = analysis.match(/(?:overall assessment|general assessment|summary):?(.*?)(?=\n\s*\n|\n[A-Z]|$)/is);
   return assessmentMatch ? assessmentMatch[1].trim() : '';
 }
 
 function extractRecommendations(analysis: string): string[] {
-  // Extract recommendations
-  const recommendationsSection = analysis.split('Recommendations:')[1] || '';
-  return recommendationsSection
+  const recommendationsMatch = analysis.match(/recommendations:?(.*?)(?=\n\s*\n|\n[A-Z]|$)/is);
+  if (!recommendationsMatch) return [];
+
+  return recommendationsMatch[1]
     .split('\n')
-    .filter(line => line.trim().startsWith('-') || line.trim().startsWith('•'))
-    .map(line => line.replace(/^[-•]\s*/, '').trim());
+    .map(line => line.trim())
+    .filter(line => line.match(/^[-•*]|\d+\./))
+    .map(line => line.replace(/^[-•*]|\d+\.\s*/, '').trim())
+    .filter(line => line.length > 0);
 }
