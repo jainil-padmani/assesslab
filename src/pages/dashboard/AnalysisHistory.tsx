@@ -12,50 +12,30 @@ import { toast } from "sonner";
 
 type AnalysisHistory = Database['public']['Tables']['analysis_history']['Row'];
 
-const generatePDF = (analysis: any) => {
-  // Create the report content
-  const reportContent = `
-Analysis Report
+const generatePDF = async (item: AnalysisHistory) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-report', {
+      body: { analysis: item.analysis }
+    });
 
-Title: ${analysis.title}
-Date: ${format(new Date(analysis.created_at), 'PPpp')}
+    if (error) throw error;
 
-Bloom's Taxonomy Distribution:
-${Object.entries(analysis.analysis.bloomsTaxonomy || {})
-  .map(([level, value]) => `${level.charAt(0).toUpperCase() + level.slice(1)}: ${value}%`)
-  .join('\n')}
-
-Expected Bloom's Taxonomy Distribution:
-${Object.entries(analysis.analysis.expectedBloomsTaxonomy || {})
-  .map(([level, value]) => `${level.charAt(0).toUpperCase() + level.slice(1)}: ${value}%`)
-  .join('\n')}
-
-Topics Covered:
-${(analysis.analysis.topics || [])
-  .map((topic: any) => `- ${topic.name}: ${topic.questionCount} questions`)
-  .join('\n')}
-
-Overall Assessment:
-${analysis.analysis.overallAssessment || 'No assessment available'}
-
-Recommendations:
-${(analysis.analysis.recommendations || [])
-  .map((rec: string) => `- ${rec}`)
-  .join('\n')}
-`;
-
-  // Create a blob and download it
-  const blob = new Blob([reportContent], { type: 'text/plain' });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', `analysis-report-${format(new Date(), 'yyyy-MM-dd')}.txt`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
-  
-  toast.success("Report downloaded successfully");
+    // Create a report file with the AI-generated content
+    const blob = new Blob([data.reportContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `analysis-report-${format(new Date(), 'yyyy-MM-dd')}.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast.success("Report downloaded successfully");
+  } catch (error) {
+    console.error('Error generating report:', error);
+    toast.error("Failed to generate report");
+  }
 };
 
 export default function AnalysisHistory() {
@@ -109,7 +89,7 @@ export default function AnalysisHistory() {
                       onClick={() => navigate('/dashboard/analysis-result', { 
                         state: { 
                           analysis: item.analysis,
-                          expectedBloomsTaxonomy: item.analysis.expectedBloomsTaxonomy 
+                          expectedBloomsTaxonomy: item.analysis?.expectedBloomsTaxonomy 
                         } 
                       })}
                     >
@@ -126,7 +106,7 @@ export default function AnalysisHistory() {
                     {format(new Date(item.created_at), 'PPpp')}
                   </div>
                   
-                  {item.analysis.expectedBloomsTaxonomy && (
+                  {item.analysis?.expectedBloomsTaxonomy && (
                     <>
                       <Separator />
                       <div className="space-y-2">

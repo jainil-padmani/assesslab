@@ -1,5 +1,3 @@
 
 project_id = "aigunjkwusokdunyyfdt"
-
-[functions.process-document]
-verify_jwt = false
+[functions.generate-report]
