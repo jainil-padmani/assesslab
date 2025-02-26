@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -34,12 +33,13 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert in educational assessment. You must analyze questions and identify topics using COMPLETE names only. Never use abbreviations or single letters.
+              content: `You are an expert in educational assessment. Analyze each question individually and identify its specific topic. For each unique topic, count how many questions cover it.
 
 When identifying topics:
-1. Use complete, descriptive names (e.g., "Data Structures" not "DS", "Operating Systems" not "OS")
-2. Be specific about the subtopic (e.g., "Binary Search Trees" not just "Trees")
-3. Group related questions under the same topic name consistently
+1. For each question, identify the MAIN topic it covers
+2. Use complete, descriptive names (no abbreviations)
+3. Be specific (e.g., "Supervised Learning", "Neural Networks", "Prolog Programming")
+4. Keep track of how many questions belong to each topic
 
 Format your response exactly as follows:
 
@@ -49,8 +49,12 @@ Difficulty Distribution:
 - Hard: X%
 
 Topics Covered:
-- [Full Topic Name]: [Number] questions
-(List EVERY topic using its complete name, no abbreviations allowed)
+For each question, indicate its topic. Then summarize as:
+- [Complete Topic Name]: [X] questions
+(List every topic with exact question count, for example:
+- Supervised Learning: 3 questions
+- Neural Network Architecture: 2 questions
+- Prolog Programming: 1 question)
 
 Overall Assessment:
 [Provide a detailed assessment of the question paper's quality, balance, and effectiveness]
@@ -68,20 +72,16 @@ Bloom's Taxonomy Distribution:
 - Evaluate: X%
 - Create: X%
 
-Examples of proper topic naming:
-✓ "Database Management Systems" (not "DBMS")
-✓ "Computer Networks and Protocols" (not "CN")
-✓ "Artificial Intelligence and Machine Learning" (not "AI/ML")
-✓ "Software Engineering Principles" (not "SE")`
+IMPORTANT: Always use full topic names, and ensure each question is assigned to exactly one main topic for accurate counting.`
             },
             {
               role: 'user',
-              content: `Analyze these questions thoroughly. For each question, identify its complete topic name and ensure it's listed in the Topics Covered section:
+              content: `For each of these questions, identify its main topic and ensure accurate counting in the Topics Covered section:
 
 ${textToAnalyze}`
             }
           ],
-          temperature: 0.7,
+          temperature: 0.5,
         }),
       });
 
@@ -168,11 +168,11 @@ function extractTopics(analysis: string): Array<{ name: string; questionCount: n
         break;
       }
       
-      // Match different possible formats of topic listings
-      const matches = line.match(/^[-•*]?\s*([^:]+?)(?::\s*(\d+)|.*?(\d+)\s*questions?)/i);
+      // Improved regex to match topic patterns
+      const matches = line.match(/^[-•*]?\s*([^:]+?):\s*(\d+)\s*questions?/i);
       if (matches) {
         const name = matches[1].trim();
-        const count = parseInt(matches[2] || matches[3]);
+        const count = parseInt(matches[2]);
         if (name && !isNaN(count)) {
           topics.push({ name, questionCount: count });
         }
