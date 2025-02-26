@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Edit2 } from "lucide-react";
 import type { Subject, Student, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function SubjectDetail() {
@@ -11,6 +14,8 @@ export default function SubjectDetail() {
   const [subject, setSubject] = useState<Subject | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomy | null>(null);
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
     if (!data || typeof data !== 'object') return null;
@@ -42,6 +47,58 @@ export default function SubjectDetail() {
       fetchSubjectData();
     }
   }, [id]);
+
+  const handleEditValue = (level: string, type: 'delivery' | 'evaluation', value: string) => {
+    if (!editedBloomsData) return;
+    
+    const numValue = Number(value);
+    if (isNaN(numValue)) return;
+
+    setEditedBloomsData({
+      ...editedBloomsData,
+      [level]: {
+        ...editedBloomsData[level as keyof BloomsTaxonomy],
+        [type]: numValue
+      }
+    });
+  };
+
+  const handleStartEditing = () => {
+    setEditedBloomsData(bloomsData || {
+      remember: { delivery: 0, evaluation: 0 },
+      understand: { delivery: 0, evaluation: 0 },
+      apply: { delivery: 0, evaluation: 0 },
+      analyze: { delivery: 0, evaluation: 0 },
+      evaluate: { delivery: 0, evaluation: 0 },
+      create: { delivery: 0, evaluation: 0 }
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveBloomsTaxonomy = async () => {
+    if (!editedBloomsData || !id) return;
+
+    try {
+      // Create a new answer key with the updated Bloom's taxonomy
+      const { error } = await supabase
+        .from('answer_keys')
+        .insert({
+          subject_id: id,
+          title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
+          content: {},
+          blooms_taxonomy: editedBloomsData
+        });
+
+      if (error) throw error;
+
+      toast.success("Bloom's taxonomy updated successfully");
+      setIsEditing(false);
+      fetchSubjectData(); // Refresh the data
+    } catch (error: any) {
+      toast.error('Failed to update Bloom\'s taxonomy');
+      console.error('Error:', error);
+    }
+  };
 
   const fetchSubjectData = async () => {
     try {
@@ -109,26 +166,69 @@ export default function SubjectDetail() {
           </CardContent>
         </Card>
 
-        {bloomsData && (
-          <Card>
-            <CardHeader>
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
               <CardTitle>Bloom's Taxonomy Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(bloomsData).map(([level, data]) => (
-                  <div key={level} className="grid grid-cols-2 gap-4">
-                    <p className="capitalize"><strong>{level}:</strong></p>
-                    <div>
-                      <p>Delivery: {data.delivery}%</p>
-                      <p>Evaluation: {data.evaluation}%</p>
+              {!isEditing && (
+                <Button variant="ghost" size="sm" onClick={handleStartEditing}>
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {isEditing ? (
+                <>
+                  {editedBloomsData && Object.entries(editedBloomsData).map(([level, data]) => (
+                    <div key={level} className="space-y-2">
+                      <p className="capitalize font-medium">{level}</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm">Delivery %</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={data.delivery}
+                            onChange={(e) => handleEditValue(level, 'delivery', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm">Evaluation %</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={data.evaluation}
+                            onChange={(e) => handleEditValue(level, 'evaluation', e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
+                  ))}
+                  <div className="flex justify-end space-x-2 mt-4">
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                    <Button onClick={handleSaveBloomsTaxonomy}>Save</Button>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  {bloomsData && Object.entries(bloomsData).map(([level, data]) => (
+                    <div key={level} className="grid grid-cols-2 gap-4">
+                      <p className="capitalize"><strong>{level}:</strong></p>
+                      <div>
+                        <p>Delivery: {data.delivery}%</p>
+                        <p>Evaluation: {data.evaluation}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
