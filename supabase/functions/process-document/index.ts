@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import type { BloomsTaxonomy } from '../../../src/types/dashboard.ts';
@@ -34,7 +33,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert in educational assessment. Analyze the given questions and provide a detailed response in the following format:
+              content: `You are an expert in educational assessment. Given a set of questions, identify the core topics covered, difficulty levels, and Bloom's Taxonomy levels. Format your response exactly as follows:
 
 Difficulty Distribution:
 - Easy: X%
@@ -42,8 +41,8 @@ Difficulty Distribution:
 - Hard: X%
 
 Topics Covered:
-[List all topics and the number of questions for each topic]
-- Topic Name: N questions
+- [Topic Name]: [Number] questions
+(List every distinct topic covered in the questions, with the exact count of questions for each topic)
 
 Overall Assessment:
 [Provide a detailed assessment of the question paper's quality, balance, and effectiveness]
@@ -59,15 +58,18 @@ Bloom's Taxonomy Distribution:
 - Apply: X%
 - Analyze: X%
 - Evaluate: X%
-- Create: X%`
+- Create: X%
+
+Important: For Topics Covered, analyze each question's content and list ALL distinct topics mentioned or implied. For example, in a Deep Learning paper, topics might include Neural Networks, Activation Functions, Optimization, etc.`
             },
             {
               role: 'user',
-              content: `Analyze these questions thoroughly and provide a complete analysis following the exact format specified:
+              content: `Analyze these questions thoroughly. For each question, identify its topic and ensure it's listed in the Topics Covered section:
 
 ${textToAnalyze}`
             }
           ],
+          temperature: 0.7,
         }),
       });
 
@@ -139,27 +141,33 @@ function extractDifficulty(analysis: string): Array<{ name: string; value: numbe
 function extractTopics(analysis: string): Array<{ name: string; questionCount: number }> {
   const topics: Array<{ name: string; questionCount: number }> = [];
   const sections = analysis.split('\n');
-  const topicsIndex = sections.findIndex(line => 
-    line.toLowerCase().includes('topics covered:')
-  );
-
-  if (topicsIndex !== -1) {
-    for (let i = topicsIndex + 1; i < sections.length; i++) {
-      const line = sections[i].trim();
-      if (!line || line.toLowerCase().includes('overall assessment:')) break;
-
-      // Match both formats: "Topic Name: N questions" and "Topic Name (N questions)"
-      const match = line.match(/^[•\-\*]?\s*([^:(]+)(?::|[\s(]+)(\d+)(?:\s*questions?|\))/i);
-      if (match) {
-        const name = match[1].trim();
-        const count = parseInt(match[2]);
+  let topicsSection = false;
+  
+  for (let i = 0; i < sections.length; i++) {
+    const line = sections[i].trim();
+    
+    if (line.toLowerCase().includes('topics covered:')) {
+      topicsSection = true;
+      continue;
+    }
+    
+    if (topicsSection) {
+      if (line === '' || line.toLowerCase().includes('overall assessment:')) {
+        break;
+      }
+      
+      // Match different possible formats of topic listings
+      const matches = line.match(/^[-•*]?\s*([^:]+?)(?::\s*(\d+)|.*?(\d+)\s*questions?)/i);
+      if (matches) {
+        const name = matches[1].trim();
+        const count = parseInt(matches[2] || matches[3]);
         if (name && !isNaN(count)) {
           topics.push({ name, questionCount: count });
         }
       }
     }
   }
-
+  
   return topics;
 }
 

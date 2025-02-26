@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,8 +87,8 @@ export default function Analysis() {
         throw new Error('Please upload a file or enter text to analyze');
       }
 
-      // Fetch the subject's Bloom's Taxonomy data first
-      const { data: subjectBloomsData, error: bloomsError } = await supabase
+      // Fetch the subject's Bloom's Taxonomy data
+      const { data: subjectData, error: bloomsError } = await supabase
         .from('answer_keys')
         .select('blooms_taxonomy')
         .eq('subject_id', selectedSubject)
@@ -98,7 +97,7 @@ export default function Analysis() {
         .single();
 
       if (bloomsError && bloomsError.code !== 'PGRST116') {
-        throw bloomsError;
+        console.error('Error fetching Bloom\'s taxonomy:', bloomsError);
       }
 
       // Add the subject ID and Bloom's taxonomy data to the analysis request
@@ -107,29 +106,20 @@ export default function Analysis() {
           action: 'analyze_paper',
           content,
           subjectId: selectedSubject,
-          expectedBloomsTaxonomy: subjectBloomsData?.blooms_taxonomy || null
+          expectedBloomsTaxonomy: subjectData?.blooms_taxonomy || null
         }
       });
 
       console.log('Analysis response:', data);
 
-      if (error) {
-        console.error('Analysis error:', error);
-        throw new Error(error.message || 'Failed to analyze paper');
-      }
+      if (error) throw error;
+      if (!data) throw new Error('No analysis data received');
 
-      if (!data) {
-        throw new Error('No analysis data received');
-      }
-
-      // Navigate with the analysis data
+      // Navigate with both analysis data and expected Bloom's taxonomy
       navigate('/dashboard/analysis-result', { 
         state: { 
-          analysis: {
-            ...data,
-            subjectId: selectedSubject,
-            expectedBloomsTaxonomy: subjectBloomsData?.blooms_taxonomy || null
-          }
+          analysis: data,
+          expectedBloomsTaxonomy: subjectData?.blooms_taxonomy || null
         } 
       });
     } catch (error: any) {
