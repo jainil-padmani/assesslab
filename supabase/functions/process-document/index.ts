@@ -16,15 +16,13 @@ serve(async (req) => {
   }
 
   try {
-    const { action, content, subjectId, expectedBloomsTaxonomy } = await req.json();
+    const { action, content, subjectId } = await req.json();
 
     if (action === 'analyze_paper') {
-      // Extract text from the uploaded file or use provided text
       const textToAnalyze = content.text || await fetchTextFromUrl(content.fileUrl);
 
       console.log("Analyzing text:", textToAnalyze);
 
-      // Analyze the text using GPT-4
       const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -36,26 +34,16 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert in educational assessment and Bloom's Taxonomy. Analyze the given questions and provide a detailed response in the following format:
-
-Bloom's Taxonomy Distribution:
-- Remember: X%
-- Understand: X%
-- Apply: X%
-- Analyze: X%
-- Evaluate: X%
-- Create: X%
-
-Topics Covered:
-- Topic 1: N questions
-- Topic 2: N questions
-[List all topics with their question counts]
+              content: `You are an expert in educational assessment. Analyze the given questions and provide a detailed response in the following format:
 
 Difficulty Distribution:
 - Easy: X%
 - Medium: X%
 - Hard: X%
-- Advanced: X%
+
+Topics Covered:
+[List all topics and the number of questions for each topic]
+- Topic Name: N questions
 
 Overall Assessment:
 [Provide a detailed assessment of the question paper's quality, balance, and effectiveness]
@@ -63,15 +51,21 @@ Overall Assessment:
 Recommendations:
 - [Specific recommendation 1]
 - [Specific recommendation 2]
-[List actionable recommendations for improvement]`
+[List actionable recommendations for improvement]
+
+Bloom's Taxonomy Distribution:
+- Remember: X%
+- Understand: X%
+- Apply: X%
+- Analyze: X%
+- Evaluate: X%
+- Create: X%`
             },
             {
               role: 'user',
               content: `Analyze these questions thoroughly and provide a complete analysis following the exact format specified:
 
-${textToAnalyze}
-
-Expected Bloom's Taxonomy distribution for reference: ${JSON.stringify(expectedBloomsTaxonomy)}`
+${textToAnalyze}`
             }
           ],
         }),
@@ -82,19 +76,13 @@ Expected Bloom's Taxonomy distribution for reference: ${JSON.stringify(expectedB
 
       console.log("AI Response:", analysis);
 
-      // Parse the analysis to extract structured data
-      const bloomsDistribution = extractBloomsDistribution(analysis);
-      const topicsCovered = extractTopics(analysis);
-      const difficultyDistribution = extractDifficulty(analysis);
-      const overallAssessment = extractOverallAssessment(analysis);
-      const recommendations = extractRecommendations(analysis);
-
+      // Parse the analysis sections
       const result = {
-        bloomsTaxonomy: bloomsDistribution,
-        topics: topicsCovered,
-        difficulty: difficultyDistribution,
-        overallAssessment,
-        recommendations,
+        difficulty: extractDifficulty(analysis),
+        topics: extractTopics(analysis),
+        overallAssessment: extractOverallAssessment(analysis),
+        recommendations: extractRecommendations(analysis),
+        bloomsTaxonomy: extractBloomsDistribution(analysis),
       };
 
       console.log("Processed result:", JSON.stringify(result, null, 2));
@@ -120,11 +108,59 @@ Expected Bloom's Taxonomy distribution for reference: ${JSON.stringify(expectedB
   }
 });
 
-// Helper functions
-async function fetchTextFromUrl(url: string): Promise<string> {
-  const response = await fetch(url);
-  const text = await response.text();
-  return text;
+function extractDifficulty(analysis: string): Array<{ name: string; value: number }> {
+  const difficulties: Array<{ name: string; value: number }> = [];
+  const sections = analysis.split('\n');
+  const difficultyIndex = sections.findIndex(line => 
+    line.toLowerCase().includes('difficulty distribution:')
+  );
+
+  if (difficultyIndex !== -1) {
+    const difficultyLevels = ['Easy', 'Medium', 'Hard'];
+    
+    for (let i = difficultyIndex + 1; i < sections.length; i++) {
+      const line = sections[i].trim().toLowerCase();
+      if (!line || line.includes('topics covered:')) break;
+
+      difficultyLevels.forEach(level => {
+        if (line.includes(level.toLowerCase())) {
+          const value = extractPercentage(line);
+          if (!isNaN(value)) {
+            difficulties.push({ name: level, value });
+          }
+        }
+      });
+    }
+  }
+
+  return difficulties;
+}
+
+function extractTopics(analysis: string): Array<{ name: string; questionCount: number }> {
+  const topics: Array<{ name: string; questionCount: number }> = [];
+  const sections = analysis.split('\n');
+  const topicsIndex = sections.findIndex(line => 
+    line.toLowerCase().includes('topics covered:')
+  );
+
+  if (topicsIndex !== -1) {
+    for (let i = topicsIndex + 1; i < sections.length; i++) {
+      const line = sections[i].trim();
+      if (!line || line.toLowerCase().includes('overall assessment:')) break;
+
+      // Match both formats: "Topic Name: N questions" and "Topic Name (N questions)"
+      const match = line.match(/^[•\-\*]?\s*([^:(]+)(?::|[\s(]+)(\d+)(?:\s*questions?|\))/i);
+      if (match) {
+        const name = match[1].trim();
+        const count = parseInt(match[2]);
+        if (name && !isNaN(count)) {
+          topics.push({ name, questionCount: count });
+        }
+      }
+    }
+  }
+
+  return topics;
 }
 
 function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
@@ -138,15 +174,14 @@ function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
   };
 
   const sections = analysis.toLowerCase().split('\n');
-  const bloomsSection = sections.findIndex(line => 
-    line.includes("bloom's taxonomy distribution:") || 
-    line.includes("blooms taxonomy distribution:")
+  const bloomsIndex = sections.findIndex(line => 
+    line.includes("bloom's taxonomy distribution:")
   );
 
-  if (bloomsSection !== -1) {
-    for (let i = bloomsSection + 1; i < sections.length; i++) {
+  if (bloomsIndex !== -1) {
+    for (let i = bloomsIndex + 1; i < sections.length; i++) {
       const line = sections[i].trim();
-      if (!line || line.includes('topics covered:')) break;
+      if (!line) break;
 
       Object.keys(distribution).forEach(key => {
         if (line.includes(key)) {
@@ -162,60 +197,6 @@ function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
 function extractPercentage(text: string): number {
   const match = text.match(/(\d+(?:\.\d+)?)\s*%?/);
   return match ? parseFloat(match[1]) : 0;
-}
-
-function extractTopics(analysis: string): Array<{ name: string; questionCount: number }> {
-  const topics: Array<{ name: string; questionCount: number }> = [];
-  const sections = analysis.split('\n');
-  const topicsIndex = sections.findIndex(line => 
-    line.toLowerCase().includes('topics covered:')
-  );
-
-  if (topicsIndex !== -1) {
-    for (let i = topicsIndex + 1; i < sections.length; i++) {
-      const line = sections[i].trim();
-      if (!line || line.toLowerCase().includes('difficulty distribution:')) break;
-
-      const match = line.match(/^[•\-\*]?\s*([^:]+):\s*(\d+)/);
-      if (match) {
-        const name = match[1].trim();
-        const count = parseInt(match[2]);
-        if (name && !isNaN(count)) {
-          topics.push({ name, questionCount: count });
-        }
-      }
-    }
-  }
-
-  return topics;
-}
-
-function extractDifficulty(analysis: string): Array<{ name: string; value: number }> {
-  const difficulties: Array<{ name: string; value: number }> = [];
-  const sections = analysis.split('\n');
-  const difficultyIndex = sections.findIndex(line => 
-    line.toLowerCase().includes('difficulty distribution:')
-  );
-
-  if (difficultyIndex !== -1) {
-    const difficultyLevels = ['Easy', 'Medium', 'Hard', 'Advanced'];
-    
-    for (let i = difficultyIndex + 1; i < sections.length; i++) {
-      const line = sections[i].trim();
-      if (!line || line.toLowerCase().includes('overall assessment:')) break;
-
-      difficultyLevels.forEach(level => {
-        if (line.toLowerCase().includes(level.toLowerCase())) {
-          const value = extractPercentage(line);
-          if (value > 0) {
-            difficulties.push({ name: level, value });
-          }
-        }
-      });
-    }
-  }
-
-  return difficulties;
 }
 
 function extractOverallAssessment(analysis: string): string {
@@ -246,7 +227,7 @@ function extractRecommendations(analysis: string): string[] {
   if (recommendationsIndex !== -1) {
     for (let i = recommendationsIndex + 1; i < sections.length; i++) {
       const line = sections[i].trim();
-      if (!line) break;
+      if (!line || line.toLowerCase().includes("bloom's taxonomy")) break;
       
       // Remove bullet points and numbers from the start of the line
       const cleanLine = line.replace(/^[•\-\*]\s*|\d+\.\s*/, '').trim();
@@ -257,4 +238,10 @@ function extractRecommendations(analysis: string): string[] {
   }
 
   return recommendations;
+}
+
+async function fetchTextFromUrl(url: string): Promise<string> {
+  const response = await fetch(url);
+  const text = await response.text();
+  return text;
 }
