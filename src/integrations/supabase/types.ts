@@ -198,6 +198,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          information_pdf_url: string | null
           name: string
           semester: number
           subject_code: string
@@ -205,6 +206,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          information_pdf_url?: string | null
           name: string
           semester: number
           subject_code: string
@@ -212,6 +214,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          information_pdf_url?: string | null
           name?: string
           semester?: number
           subject_code?: string

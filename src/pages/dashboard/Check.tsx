@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,25 +25,24 @@ export default function Check() {
   }, []);
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy => {
-    const defaultLevel = { delivery: 0, evaluation: 0 };
     const defaultTaxonomy: BloomsTaxonomy = {
-      remember: defaultLevel,
-      understand: defaultLevel,
-      apply: defaultLevel,
-      analyze: defaultLevel,
-      evaluate: defaultLevel,
-      create: defaultLevel
+      remember: 0,
+      understand: 0,
+      apply: 0,
+      analyze: 0,
+      evaluate: 0,
+      create: 0
     };
 
     if (!data || typeof data !== 'object') return defaultTaxonomy;
 
     return {
-      remember: { ...defaultLevel, ...data.remember },
-      understand: { ...defaultLevel, ...data.understand },
-      apply: { ...defaultLevel, ...data.apply },
-      analyze: { ...defaultLevel, ...data.analyze },
-      evaluate: { ...defaultLevel, ...data.evaluate },
-      create: { ...defaultLevel, ...data.create }
+      remember: typeof data.remember === 'number' ? data.remember : 0,
+      understand: typeof data.understand === 'number' ? data.understand : 0,
+      apply: typeof data.apply === 'number' ? data.apply : 0,
+      analyze: typeof data.analyze === 'number' ? data.analyze : 0,
+      evaluate: typeof data.evaluate === 'number' ? data.evaluate : 0,
+      create: typeof data.create === 'number' ? data.create : 0
     };
   };
 
@@ -150,12 +148,12 @@ export default function Check() {
 
     try {
       const defaultBloomsTaxonomy = {
-        remember: { delivery: 0, evaluation: 0 },
-        understand: { delivery: 0, evaluation: 0 },
-        apply: { delivery: 0, evaluation: 0 },
-        analyze: { delivery: 0, evaluation: 0 },
-        evaluate: { delivery: 0, evaluation: 0 },
-        create: { delivery: 0, evaluation: 0 }
+        remember: 0,
+        understand: 0,
+        apply: 0,
+        analyze: 0,
+        evaluate: 0,
+        create: 0
       };
 
       const { error } = await supabase

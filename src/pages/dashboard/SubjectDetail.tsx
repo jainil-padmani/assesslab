@@ -16,7 +16,6 @@ export default function SubjectDetail() {
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomy | null>(null);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
     if (!data || typeof data !== 'object') return null;
@@ -73,14 +72,24 @@ export default function SubjectDetail() {
     if (!editedBloomsData || !id) return;
 
     try {
+      // Convert BloomsTaxonomy to a plain object for Supabase
+      const bloomsTaxonomyJson = {
+        remember: editedBloomsData.remember,
+        understand: editedBloomsData.understand,
+        apply: editedBloomsData.apply,
+        analyze: editedBloomsData.analyze,
+        evaluate: editedBloomsData.evaluate,
+        create: editedBloomsData.create
+      };
+
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           subject_id: id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: editedBloomsData
-        });
+          blooms_taxonomy: bloomsTaxonomyJson
+        } as any); // Type assertion needed due to Supabase types
 
       if (error) throw error;
 
@@ -98,7 +107,6 @@ export default function SubjectDetail() {
     if (!file || !id) return;
 
     try {
-      // Upload PDF to Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}-${Date.now()}.${fileExt}`;
       
@@ -108,15 +116,13 @@ export default function SubjectDetail() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: publicUrlData } = supabase.storage
         .from('subject-information')
         .getPublicUrl(fileName);
 
-      // Update subject with PDF URL
       const { error: updateError } = await supabase
         .from('subjects')
-        .update({ information_pdf_url: publicUrlData.publicUrl })
+        .update({ information_pdf_url: publicUrlData.publicUrl } as any)
         .eq('id', id);
 
       if (updateError) throw updateError;
