@@ -33,7 +33,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert in educational assessment. Given a set of questions, identify the core topics covered, difficulty levels, and Bloom's Taxonomy levels. Format your response exactly as follows:
+              content: `You are an expert in educational assessment. When analyzing questions, identify the specific topics by their full names (no abbreviations), and follow this exact format:
 
 Difficulty Distribution:
 - Easy: X%
@@ -41,8 +41,8 @@ Difficulty Distribution:
 - Hard: X%
 
 Topics Covered:
-- [Topic Name]: [Number] questions
-(List every distinct topic covered in the questions, with the exact count of questions for each topic)
+- [Full Topic Name]: [Number] questions
+(List every distinct topic with its complete name, no abbreviations)
 
 Overall Assessment:
 [Provide a detailed assessment of the question paper's quality, balance, and effectiveness]
@@ -60,7 +60,7 @@ Bloom's Taxonomy Distribution:
 - Evaluate: X%
 - Create: X%
 
-Important: For Topics Covered, analyze each question's content and list ALL distinct topics mentioned or implied. For example, in a Deep Learning paper, topics might include Neural Networks, Activation Functions, Optimization, etc.`
+Important: Write full topic names, never use abbreviations or single letters. For example, use "Machine Learning" not "ML", "Artificial Intelligence" not "AI", etc.`
             },
             {
               role: 'user',
