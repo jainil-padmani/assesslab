@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import countries from "../../utils/countries";
-import type { Profile } from "@/types/database";
+import type { Database } from "@/integrations/supabase/types";
+
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export default function Settings() {
   const [userDetails, setUserDetails] = useState<{
