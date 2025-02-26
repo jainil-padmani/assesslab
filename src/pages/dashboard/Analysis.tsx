@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Brain, Upload } from "lucide-react";
+import { Brain, Upload, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -100,7 +101,6 @@ export default function Analysis() {
         console.error('Error fetching Bloom\'s taxonomy:', bloomsError);
       }
 
-      // Add the subject ID and Bloom's taxonomy data to the analysis request
       const { data, error } = await supabase.functions.invoke('process-document', {
         body: {
           action: 'analyze_paper',
@@ -110,12 +110,23 @@ export default function Analysis() {
         }
       });
 
-      console.log('Analysis response:', data);
-
       if (error) throw error;
       if (!data) throw new Error('No analysis data received');
 
-      // Navigate with both analysis data and expected Bloom's taxonomy
+      // Save the analysis to history
+      const { error: saveError } = await supabase
+        .from('analysis_history')
+        .insert({
+          title: file ? file.name : 'Text Analysis',
+          analysis: data,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+
+      if (saveError) {
+        console.error('Error saving to history:', saveError);
+        toast.error('Analysis completed but failed to save to history');
+      }
+
       navigate('/dashboard/analysis-result', { 
         state: { 
           analysis: data,
@@ -132,7 +143,17 @@ export default function Analysis() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Question Paper Analysis</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Question Paper Analysis</h1>
+        <Button 
+          variant="outline"
+          onClick={() => navigate("/dashboard/analysis-history")}
+        >
+          <History className="mr-2 h-4 w-4" />
+          View History
+        </Button>
+      </div>
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Select Subject</CardTitle>
