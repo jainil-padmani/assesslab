@@ -1,6 +1,6 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import type { BloomsTaxonomy } from '../../../src/types/dashboard.ts';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
@@ -10,6 +10,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -33,7 +34,14 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are an expert in educational assessment. When analyzing questions, identify the specific topics by their full names (no abbreviations), and follow this exact format:
+              content: `You are an expert in educational assessment. You must analyze questions and identify topics using COMPLETE names only. Never use abbreviations or single letters.
+
+When identifying topics:
+1. Use complete, descriptive names (e.g., "Data Structures" not "DS", "Operating Systems" not "OS")
+2. Be specific about the subtopic (e.g., "Binary Search Trees" not just "Trees")
+3. Group related questions under the same topic name consistently
+
+Format your response exactly as follows:
 
 Difficulty Distribution:
 - Easy: X%
@@ -42,7 +50,7 @@ Difficulty Distribution:
 
 Topics Covered:
 - [Full Topic Name]: [Number] questions
-(List every distinct topic with its complete name, no abbreviations)
+(List EVERY topic using its complete name, no abbreviations allowed)
 
 Overall Assessment:
 [Provide a detailed assessment of the question paper's quality, balance, and effectiveness]
@@ -60,11 +68,15 @@ Bloom's Taxonomy Distribution:
 - Evaluate: X%
 - Create: X%
 
-Important: Write full topic names, never use abbreviations or single letters. For example, use "Machine Learning" not "ML", "Artificial Intelligence" not "AI", etc.`
+Examples of proper topic naming:
+✓ "Database Management Systems" (not "DBMS")
+✓ "Computer Networks and Protocols" (not "CN")
+✓ "Artificial Intelligence and Machine Learning" (not "AI/ML")
+✓ "Software Engineering Principles" (not "SE")`
             },
             {
               role: 'user',
-              content: `Analyze these questions thoroughly. For each question, identify its topic and ensure it's listed in the Topics Covered section:
+              content: `Analyze these questions thoroughly. For each question, identify its complete topic name and ensure it's listed in the Topics Covered section:
 
 ${textToAnalyze}`
             }
@@ -171,29 +183,23 @@ function extractTopics(analysis: string): Array<{ name: string; questionCount: n
   return topics;
 }
 
-function extractBloomsDistribution(analysis: string): BloomsTaxonomy {
-  const distribution = {
-    remember: 0,
-    understand: 0,
-    apply: 0,
-    analyze: 0,
-    evaluate: 0,
-    create: 0
-  };
-
+function extractBloomsDistribution(analysis: string): Record<string, number> {
+  const distribution: Record<string, number> = {};
   const sections = analysis.toLowerCase().split('\n');
   const bloomsIndex = sections.findIndex(line => 
     line.includes("bloom's taxonomy distribution:")
   );
 
   if (bloomsIndex !== -1) {
+    const levels = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'];
+    
     for (let i = bloomsIndex + 1; i < sections.length; i++) {
-      const line = sections[i].trim();
+      const line = sections[i].trim().toLowerCase();
       if (!line) break;
 
-      Object.keys(distribution).forEach(key => {
-        if (line.includes(key)) {
-          distribution[key as keyof BloomsTaxonomy] = extractPercentage(line);
+      levels.forEach(level => {
+        if (line.includes(level)) {
+          distribution[level] = extractPercentage(line);
         }
       });
     }
