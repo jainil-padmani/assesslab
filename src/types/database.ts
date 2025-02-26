@@ -142,6 +142,34 @@ export interface Database {
           subject_id: string;
         };
       };
+      analysis_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          analysis: any;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          analysis: any;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          analysis?: any;
+        };
+        Select: {
+          id: string;
+          user_id: string;
+          title: string;
+          analysis: any;
+          created_at: string;
+        };
+      };
     };
   };
 }

@@ -9,6 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      analysis_history: {
+        Row: {
+          analysis: Json
+          created_at: string
+          id: string
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          analysis: Json
+          created_at?: string
+          id?: string
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          id?: string
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       answer_keys: {
         Row: {
           blooms_taxonomy: Json
