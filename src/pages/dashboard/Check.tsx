@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, CheckCircle, Plus, Pencil, Trash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Student, Subject, AnswerKey } from "@/types/dashboard";
+import type { Student, Subject, AnswerKey, CourseOutcomeMapping } from "@/types/dashboard";
 
 export default function Check() {
   const [selectedStudent, setSelectedStudent] = useState("");
