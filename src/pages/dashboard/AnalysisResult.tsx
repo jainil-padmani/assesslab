@@ -1,3 +1,4 @@
+
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,22 +8,27 @@ import type { BloomsTaxonomy } from "@/types/dashboard";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
-const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }: any) => {
+// Improved custom label for better readability
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percent, value }: any) => {
   const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN) * 1.3;
-  const y = cy + radius * Math.sin(-midAngle * RADIAN) * 1.3;
+  const radius = innerRadius + (outerRadius - innerRadius) * 1.1; // Increased spacing
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  
+  // Only show label if percentage is significant enough
+  if (percent < 0.05) return null;
 
   return (
     <text
       x={x}
       y={y}
-      fill="#888"
+      fill="#374151"
       textAnchor={x > cx ? 'start' : 'end'}
       dominantBaseline="central"
       fontSize="12"
+      fontWeight="500"
     >
-      {`${name} ${(percent * 100).toFixed(0)}%`}
+      {`${name}: ${(percent * 100).toFixed(1)}%`}
     </text>
   );
 };
@@ -44,19 +50,17 @@ export default function AnalysisResult() {
     );
   }
 
-  const bloomsChartData = Object.entries(analysis.bloomsTaxonomy || {}).map(
-    ([name, value]) => ({
+  // Transform and sort Bloom's taxonomy data by value
+  const bloomsChartData = Object.entries(analysis.bloomsTaxonomy || {})
+    .map(([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),
       value: typeof value === 'number' ? value : 0
-    })
-  );
+    }))
+    .sort((a, b) => b.value - a.value);
 
-  const expectedBloomsChartData = Object.entries(analysis.expectedBloomsTaxonomy || {}).map(
-    ([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value: typeof value === 'number' ? value : 0
-    })
-  );
+  // Transform and sort difficulty distribution data
+  const difficultyData = (analysis.difficulty || [])
+    .sort((a: any, b: any) => b.value - a.value);
 
   return (
     <div className="space-y-6">
@@ -72,45 +76,51 @@ export default function AnalysisResult() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Difficulty Distribution Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Difficulty Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[400px] w-full">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={analysis.difficulty}
+                    data={difficultyData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
                     label={renderCustomLabel}
-                    outerRadius={120}
+                    outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
-                    paddingAngle={2}
+                    paddingAngle={4}
                   >
-                    {analysis.difficulty.map((_: any, index: number) => (
+                    {difficultyData.map((_: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip 
                     formatter={(value: any) => [`${value.toFixed(1)}%`, 'Percentage']}
                   />
-                  <Legend verticalAlign="bottom" height={36} />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    formatter={(value) => value}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
+        {/* Bloom's Taxonomy Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Bloom's Taxonomy Comparison</CardTitle>
+            <CardTitle>Bloom's Taxonomy Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[400px] w-full">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -119,41 +129,22 @@ export default function AnalysisResult() {
                     cy="50%"
                     labelLine={false}
                     label={renderCustomLabel}
-                    outerRadius={90}
-                    innerRadius={60}
+                    outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
-                    paddingAngle={2}
+                    paddingAngle={4}
                   >
                     {bloomsChartData.map((_: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  {analysis.expectedBloomsTaxonomy && (
-                    <Pie
-                      data={expectedBloomsChartData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `Expected ${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={140}
-                      innerRadius={110}
-                      fill="#82ca9d"
-                      dataKey="value"
-                      paddingAngle={2}
-                    >
-                      {expectedBloomsChartData.map((_: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
-                      ))}
-                    </Pie>
-                  )}
                   <Tooltip 
                     formatter={(value: any) => [`${value.toFixed(1)}%`, 'Percentage']}
                   />
                   <Legend 
                     verticalAlign="bottom" 
                     height={36}
-                    formatter={(value) => (value.startsWith('Expected ') ? value.substring(9) : value)}
+                    formatter={(value) => value}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -161,39 +152,56 @@ export default function AnalysisResult() {
           </CardContent>
         </Card>
 
+        {/* Topics Card */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Topics Covered</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {analysis.topics.map((topic: any, index: number) => (
-                <div key={index} className="flex items-center justify-between">
-                  <span>{topic.name}</span>
-                  <span className="text-sm text-gray-600">
-                    {topic.questionCount} questions
-                  </span>
-                </div>
-              ))}
-            </div>
+            {analysis.topics && analysis.topics.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {analysis.topics.map((topic: any, index: number) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                  >
+                    <span className="font-medium">{topic.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {topic.questionCount} {topic.questionCount === 1 ? 'question' : 'questions'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No topics data available.</p>
+            )}
           </CardContent>
         </Card>
 
+        {/* Detailed Analysis Card */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Detailed Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose max-w-none">
-              <h3>Overall Assessment</h3>
-              <p>{analysis.overallAssessment}</p>
+            <div className="space-y-6">
+              {analysis.overallAssessment && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Overall Assessment</h3>
+                  <p className="text-muted-foreground">{analysis.overallAssessment}</p>
+                </div>
+              )}
               
-              <h3>Recommendations</h3>
-              <ul>
-                {analysis.recommendations.map((rec: string, index: number) => (
-                  <li key={index}>{rec}</li>
-                ))}
-              </ul>
+              {analysis.recommendations && analysis.recommendations.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Recommendations</h3>
+                  <ul className="list-disc list-inside space-y-1">
+                    {analysis.recommendations.map((rec: string, index: number) => (
+                      <li key={index} className="text-muted-foreground">{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
