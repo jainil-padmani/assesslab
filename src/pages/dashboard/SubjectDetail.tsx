@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +15,7 @@ export default function SubjectDetail() {
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomy | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
     if (!data || typeof data !== 'object') return null;
@@ -72,7 +72,6 @@ export default function SubjectDetail() {
     if (!editedBloomsData || !id) return;
 
     try {
-      // Convert BloomsTaxonomy to a plain object for Supabase
       const bloomsTaxonomyJson = {
         remember: editedBloomsData.remember,
         understand: editedBloomsData.understand,
@@ -89,7 +88,7 @@ export default function SubjectDetail() {
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
           blooms_taxonomy: bloomsTaxonomyJson
-        } as any); // Type assertion needed due to Supabase types
+        } as any);
 
       if (error) throw error;
 
@@ -106,23 +105,32 @@ export default function SubjectDetail() {
     const file = event.target.files?.[0];
     if (!file || !id) return;
 
+    if (file.type !== 'application/pdf') {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+
+    setIsUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}-${Date.now()}.${fileExt}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('subject-information')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('subject-information')
         .getPublicUrl(fileName);
 
       const { error: updateError } = await supabase
         .from('subjects')
-        .update({ information_pdf_url: publicUrlData.publicUrl } as any)
+        .update({ information_pdf_url: publicUrl })
         .eq('id', id);
 
       if (updateError) throw updateError;
@@ -130,8 +138,10 @@ export default function SubjectDetail() {
       toast.success('PDF uploaded successfully');
       fetchSubjectData();
     } catch (error: any) {
-      toast.error('Failed to upload PDF');
-      console.error('Error:', error);
+      console.error('Upload error:', error);
+      toast.error(error.message || 'Failed to upload PDF');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -154,7 +164,6 @@ export default function SubjectDetail() {
       if (studentsError) throw studentsError;
       if (studentsData) setStudents(studentsData);
 
-      // Fetch the latest answer key's Bloom's taxonomy data
       const { data: answerKeyData, error: answerKeyError } = await supabase
         .from('answer_keys')
         .select('blooms_taxonomy')
@@ -220,16 +229,22 @@ export default function SubjectDetail() {
                 <div className="mt-2">
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,application/pdf"
                     onChange={handleFileUpload}
                     className="hidden"
                     id="pdf-upload"
+                    disabled={isUploading}
                   />
                   <label htmlFor="pdf-upload">
-                    <Button variant="outline" className="cursor-pointer" asChild>
+                    <Button 
+                      variant="outline" 
+                      className="cursor-pointer" 
+                      disabled={isUploading}
+                      asChild
+                    >
                       <span>
                         <Upload className="h-4 w-4 mr-2" />
-                        {subject.information_pdf_url ? 'Change PDF' : 'Upload PDF'}
+                        {isUploading ? 'Uploading...' : subject.information_pdf_url ? 'Change PDF' : 'Upload PDF'}
                       </span>
                     </Button>
                   </label>
