@@ -36,7 +36,7 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, p
 export default function AnalysisResult() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { analysis } = location.state || {};
+  const { analysis, expectedBloomsTaxonomy } = location.state || {};
 
   if (!analysis) {
     return (
@@ -57,6 +57,14 @@ export default function AnalysisResult() {
       value: typeof value === 'number' ? value : 0
     }))
     .sort((a, b) => b.value - a.value);
+
+  // Transform expected Bloom's taxonomy data
+  const expectedBloomsChartData = expectedBloomsTaxonomy 
+    ? Object.entries(expectedBloomsTaxonomy).map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value: typeof value === 'number' ? value : 0
+      }))
+    : [];
 
   // Transform and sort difficulty distribution data
   const difficultyData = (analysis.difficulty || [])
@@ -153,7 +161,7 @@ export default function AnalysisResult() {
         </Card>
 
         {/* Topics Card */}
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>Topics Covered</CardTitle>
           </CardHeader>
@@ -177,6 +185,46 @@ export default function AnalysisResult() {
             )}
           </CardContent>
         </Card>
+
+        {/* Expected Bloom's Taxonomy Card */}
+        {expectedBloomsTaxonomy && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Expected Bloom's Taxonomy</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expectedBloomsChartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomLabel}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      paddingAngle={4}
+                    >
+                      {expectedBloomsChartData.map((_: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any) => [`${value.toFixed(1)}%`, 'Percentage']}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value) => value}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Detailed Analysis Card */}
         <Card className="md:col-span-2">
