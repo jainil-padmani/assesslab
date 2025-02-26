@@ -12,6 +12,31 @@ export default function SubjectDetail() {
   const [students, setStudents] = useState<Student[]>([]);
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
 
+  const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
+    if (!data || typeof data !== 'object') return null;
+
+    const defaultLevel = { delivery: 0, evaluation: 0 };
+    const requiredLevels = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'];
+    
+    // Check if all required levels exist
+    const hasAllLevels = requiredLevels.every(level => 
+      data[level] && 
+      typeof data[level].delivery === 'number' && 
+      typeof data[level].evaluation === 'number'
+    );
+
+    if (!hasAllLevels) return null;
+
+    return {
+      remember: { ...defaultLevel, ...data.remember },
+      understand: { ...defaultLevel, ...data.understand },
+      apply: { ...defaultLevel, ...data.apply },
+      analyze: { ...defaultLevel, ...data.analyze },
+      evaluate: { ...defaultLevel, ...data.evaluate },
+      create: { ...defaultLevel, ...data.create }
+    };
+  };
+
   useEffect(() => {
     if (id) {
       fetchSubjectData();
@@ -51,7 +76,10 @@ export default function SubjectDetail() {
       }
 
       if (answerKeyData?.blooms_taxonomy) {
-        setBloomsData(answerKeyData.blooms_taxonomy as BloomsTaxonomy);
+        const validatedBloomsData = validateAndTransformBloomsTaxonomy(answerKeyData.blooms_taxonomy);
+        if (validatedBloomsData) {
+          setBloomsData(validatedBloomsData);
+        }
       }
 
     } catch (error: any) {
