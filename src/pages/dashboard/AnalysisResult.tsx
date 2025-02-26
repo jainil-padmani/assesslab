@@ -32,6 +32,13 @@ export default function AnalysisResult() {
     })
   );
 
+  const expectedBloomsChartData = Object.entries(analysis.expectedBloomsTaxonomy || {}).map(
+    ([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value: typeof value === 'number' ? value : 0
+    })
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -78,7 +85,7 @@ export default function AnalysisResult() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Bloom's Taxonomy Distribution</CardTitle>
+            <CardTitle>Bloom's Taxonomy Comparison</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full">
@@ -91,6 +98,7 @@ export default function AnalysisResult() {
                     labelLine={false}
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     outerRadius={80}
+                    innerRadius={40}
                     fill="#8884d8"
                     dataKey="value"
                   >
@@ -98,6 +106,23 @@ export default function AnalysisResult() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
+                  {analysis.expectedBloomsTaxonomy && (
+                    <Pie
+                      data={expectedBloomsChartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `Expected ${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={120}
+                      innerRadius={90}
+                      fill="#82ca9d"
+                      dataKey="value"
+                    >
+                      {expectedBloomsChartData.map((_: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                  )}
                   <Tooltip />
                   <Legend />
                 </PieChart>
