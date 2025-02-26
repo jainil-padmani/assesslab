@@ -25,6 +25,23 @@ export default function Check() {
     fetchData();
   }, []);
 
+  const validateCourseOutcomeMapping = (data: any): CourseOutcomeMapping[] => {
+    if (!Array.isArray(data)) return [];
+    
+    return data.filter((item): item is CourseOutcomeMapping => {
+      return (
+        typeof item === 'object' &&
+        item !== null &&
+        'question_number' in item &&
+        'co_id' in item &&
+        'marks' in item &&
+        typeof item.question_number === 'number' &&
+        typeof item.co_id === 'string' &&
+        typeof item.marks === 'number'
+      );
+    });
+  };
+
   const fetchData = async () => {
     try {
       const { data: studentsData, error: studentsError } = await supabase
@@ -50,10 +67,14 @@ export default function Check() {
       
       if (keysError) throw keysError;
       if (keysData) {
-        // Transform the data to match AnswerKey type
+        // Transform the data to match AnswerKey type with proper validation
         const transformedKeys: AnswerKey[] = keysData.map(key => ({
-          ...key,
-          course_outcomes: key.course_outcomes as CourseOutcomeMapping[] || []
+          id: key.id,
+          title: key.title,
+          subject_id: key.subject_id,
+          content: key.content,
+          created_at: key.created_at,
+          course_outcomes: validateCourseOutcomeMapping(key.course_outcomes)
         }));
         setAnswerKeys(transformedKeys);
       }
@@ -132,7 +153,8 @@ export default function Check() {
         .insert({
           title: newKeyTitle,
           subject_id: selectedSubject,
-          content: {} // Initialize with empty content
+          content: {}, // Initialize with empty content
+          course_outcomes: [] // Initialize with empty course outcomes
         });
 
       if (error) throw error;
