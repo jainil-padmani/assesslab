@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Edit2 } from "lucide-react";
+import { Edit2, Upload, FileText } from "lucide-react";
 import type { Subject, Student, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function SubjectDetail() {
@@ -16,29 +16,26 @@ export default function SubjectDetail() {
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomy | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
     if (!data || typeof data !== 'object') return null;
 
-    const defaultLevel = { delivery: 0, evaluation: 0 };
     const requiredLevels = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'];
     
-    // Check if all required levels exist
     const hasAllLevels = requiredLevels.every(level => 
-      data[level] && 
-      typeof data[level].delivery === 'number' && 
-      typeof data[level].evaluation === 'number'
+      typeof data[level] === 'number'
     );
 
     if (!hasAllLevels) return null;
 
     return {
-      remember: { ...defaultLevel, ...data.remember },
-      understand: { ...defaultLevel, ...data.understand },
-      apply: { ...defaultLevel, ...data.apply },
-      analyze: { ...defaultLevel, ...data.analyze },
-      evaluate: { ...defaultLevel, ...data.evaluate },
-      create: { ...defaultLevel, ...data.create }
+      remember: data.remember || 0,
+      understand: data.understand || 0,
+      apply: data.apply || 0,
+      analyze: data.analyze || 0,
+      evaluate: data.evaluate || 0,
+      create: data.create || 0
     };
   };
 
@@ -48,7 +45,7 @@ export default function SubjectDetail() {
     }
   }, [id]);
 
-  const handleEditValue = (level: string, type: 'delivery' | 'evaluation', value: string) => {
+  const handleEditValue = (level: keyof BloomsTaxonomy, value: string) => {
     if (!editedBloomsData) return;
     
     const numValue = Number(value);
@@ -56,21 +53,18 @@ export default function SubjectDetail() {
 
     setEditedBloomsData({
       ...editedBloomsData,
-      [level]: {
-        ...editedBloomsData[level as keyof BloomsTaxonomy],
-        [type]: numValue
-      }
+      [level]: numValue
     });
   };
 
   const handleStartEditing = () => {
     setEditedBloomsData(bloomsData || {
-      remember: { delivery: 0, evaluation: 0 },
-      understand: { delivery: 0, evaluation: 0 },
-      apply: { delivery: 0, evaluation: 0 },
-      analyze: { delivery: 0, evaluation: 0 },
-      evaluate: { delivery: 0, evaluation: 0 },
-      create: { delivery: 0, evaluation: 0 }
+      remember: 0,
+      understand: 0,
+      apply: 0,
+      analyze: 0,
+      evaluate: 0,
+      create: 0
     });
     setIsEditing(true);
   };
@@ -79,32 +73,58 @@ export default function SubjectDetail() {
     if (!editedBloomsData || !id) return;
 
     try {
-      // Convert BloomsTaxonomy to a plain object that matches Supabase's Json type
-      const bloomsTaxonomyJson = {
-        remember: { ...editedBloomsData.remember },
-        understand: { ...editedBloomsData.understand },
-        apply: { ...editedBloomsData.apply },
-        analyze: { ...editedBloomsData.analyze },
-        evaluate: { ...editedBloomsData.evaluate },
-        create: { ...editedBloomsData.create }
-      };
-
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           subject_id: id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: bloomsTaxonomyJson
+          blooms_taxonomy: editedBloomsData
         });
 
       if (error) throw error;
 
       toast.success("Bloom's taxonomy updated successfully");
       setIsEditing(false);
-      fetchSubjectData(); // Refresh the data
+      fetchSubjectData();
     } catch (error: any) {
       toast.error('Failed to update Bloom\'s taxonomy');
+      console.error('Error:', error);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !id) return;
+
+    try {
+      // Upload PDF to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${id}-${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('subject-information')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('subject-information')
+        .getPublicUrl(fileName);
+
+      // Update subject with PDF URL
+      const { error: updateError } = await supabase
+        .from('subjects')
+        .update({ information_pdf_url: publicUrlData.publicUrl })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      toast.success('PDF uploaded successfully');
+      fetchSubjectData();
+    } catch (error: any) {
+      toast.error('Failed to upload PDF');
       console.error('Error:', error);
     }
   };
@@ -147,7 +167,6 @@ export default function SubjectDetail() {
           setBloomsData(validatedBloomsData);
         }
       }
-
     } catch (error: any) {
       toast.error('Failed to fetch subject data');
       console.error('Error:', error);
@@ -168,9 +187,48 @@ export default function SubjectDetail() {
             <CardTitle>Subject Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <p><strong>Subject Code:</strong> {subject.subject_code}</p>
-              <p><strong>Semester:</strong> {subject.semester}</p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p><strong>Subject Code:</strong> {subject.subject_code}</p>
+                <p><strong>Semester:</strong> {subject.semester}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Subject Information PDF</p>
+                {subject.information_pdf_url ? (
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={subject.information_pdf_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View PDF
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No PDF uploaded</p>
+                )}
+                
+                <div className="mt-2">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="pdf-upload"
+                  />
+                  <label htmlFor="pdf-upload">
+                    <Button variant="outline" className="cursor-pointer" asChild>
+                      <span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {subject.information_pdf_url ? 'Change PDF' : 'Upload PDF'}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -190,30 +248,17 @@ export default function SubjectDetail() {
             <div className="space-y-4">
               {isEditing ? (
                 <>
-                  {editedBloomsData && Object.entries(editedBloomsData).map(([level, data]) => (
+                  {editedBloomsData && Object.entries(editedBloomsData).map(([level, value]) => (
                     <div key={level} className="space-y-2">
-                      <p className="capitalize font-medium">{level}</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm">Delivery %</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={data.delivery}
-                            onChange={(e) => handleEditValue(level, 'delivery', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm">Evaluation %</label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={data.evaluation}
-                            onChange={(e) => handleEditValue(level, 'evaluation', e.target.value)}
-                          />
-                        </div>
+                      <div>
+                        <label className="text-sm capitalize font-medium">{level} %</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={value}
+                          onChange={(e) => handleEditValue(level as keyof BloomsTaxonomy, e.target.value)}
+                        />
                       </div>
                     </div>
                   ))}
@@ -224,13 +269,10 @@ export default function SubjectDetail() {
                 </>
               ) : (
                 <div className="space-y-2">
-                  {bloomsData && Object.entries(bloomsData).map(([level, data]) => (
+                  {bloomsData && Object.entries(bloomsData).map(([level, value]) => (
                     <div key={level} className="grid grid-cols-2 gap-4">
                       <p className="capitalize"><strong>{level}:</strong></p>
-                      <div>
-                        <p>Delivery: {data.delivery}%</p>
-                        <p>Evaluation: {data.evaluation}%</p>
-                      </div>
+                      <p>{value}%</p>
                     </div>
                   ))}
                 </div>

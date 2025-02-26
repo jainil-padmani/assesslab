@@ -30,20 +30,16 @@ export interface Subject {
   subject_code: string;
   semester: number;
   created_at: string;
-}
-
-export interface BloomsTaxonomyLevel {
-  delivery: number;
-  evaluation: number;
+  information_pdf_url?: string;
 }
 
 export interface BloomsTaxonomy {
-  remember: BloomsTaxonomyLevel;
-  understand: BloomsTaxonomyLevel;
-  apply: BloomsTaxonomyLevel;
-  analyze: BloomsTaxonomyLevel;
-  evaluate: BloomsTaxonomyLevel;
-  create: BloomsTaxonomyLevel;
+  remember: number;
+  understand: number;
+  apply: number;
+  analyze: number;
+  evaluate: number;
+  create: number;
 }
 
 export interface AnswerKey {
