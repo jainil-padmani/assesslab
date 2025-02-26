@@ -9,8 +9,11 @@ import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import type { AnalysisResult } from "@/types/dashboard";
 
-type AnalysisHistory = Database['public']['Tables']['analysis_history']['Row'];
+type AnalysisHistory = Omit<Database['public']['Tables']['analysis_history']['Row'], 'analysis'> & {
+  analysis: AnalysisResult;
+};
 
 const generatePDF = async (item: AnalysisHistory) => {
   try {
@@ -50,7 +53,7 @@ export default function AnalysisHistory() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as AnalysisHistory[];
+      return data as unknown as AnalysisHistory[];
     },
   });
 
@@ -89,7 +92,7 @@ export default function AnalysisHistory() {
                       onClick={() => navigate('/dashboard/analysis-result', { 
                         state: { 
                           analysis: item.analysis,
-                          expectedBloomsTaxonomy: item.analysis?.expectedBloomsTaxonomy 
+                          expectedBloomsTaxonomy: item.analysis.expectedBloomsTaxonomy 
                         } 
                       })}
                     >
@@ -106,7 +109,7 @@ export default function AnalysisHistory() {
                     {format(new Date(item.created_at), 'PPpp')}
                   </div>
                   
-                  {item.analysis?.expectedBloomsTaxonomy && (
+                  {item.analysis.expectedBloomsTaxonomy && (
                     <>
                       <Separator />
                       <div className="space-y-2">

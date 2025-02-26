@@ -1,4 +1,3 @@
-
 import type { Database } from "@/integrations/supabase/types";
 
 export interface Student {
@@ -67,4 +66,19 @@ export interface Assessment {
     };
   };
   created_at: string;
+}
+
+export interface AnalysisResult {
+  bloomsTaxonomy: BloomsTaxonomy;
+  expectedBloomsTaxonomy?: BloomsTaxonomy;
+  topics?: Array<{
+    name: string;
+    questionCount: number;
+  }>;
+  difficulty?: Array<{
+    name: string;
+    value: number;
+  }>;
+  overallAssessment?: string;
+  recommendations?: string[];
 }
