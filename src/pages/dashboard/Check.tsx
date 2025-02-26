@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, CheckCircle, Plus, Pencil, Trash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Student, Subject, AnswerKey, CourseOutcomeMapping } from "@/types/dashboard";
+import type { Student, Subject, AnswerKey, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function Check() {
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -24,23 +23,6 @@ export default function Check() {
   useEffect(() => {
     fetchData();
   }, []);
-
-  const validateCourseOutcomeMapping = (data: any): CourseOutcomeMapping[] => {
-    if (!Array.isArray(data)) return [];
-    
-    return data.filter((item): item is CourseOutcomeMapping => {
-      return (
-        typeof item === 'object' &&
-        item !== null &&
-        'question_number' in item &&
-        'co_id' in item &&
-        'marks' in item &&
-        typeof item.question_number === 'number' &&
-        typeof item.co_id === 'string' &&
-        typeof item.marks === 'number'
-      );
-    });
-  };
 
   const fetchData = async () => {
     try {
@@ -67,16 +49,7 @@ export default function Check() {
       
       if (keysError) throw keysError;
       if (keysData) {
-        // Transform the data to match AnswerKey type with proper validation
-        const transformedKeys: AnswerKey[] = keysData.map(key => ({
-          id: key.id,
-          title: key.title,
-          subject_id: key.subject_id,
-          content: key.content,
-          created_at: key.created_at,
-          course_outcomes: validateCourseOutcomeMapping(key.course_outcomes)
-        }));
-        setAnswerKeys(transformedKeys);
+        setAnswerKeys(keysData);
       }
     } catch (error: any) {
       toast.error('Failed to fetch data');
@@ -148,13 +121,22 @@ export default function Check() {
     }
 
     try {
+      const defaultBloomsTaxonomy: BloomsTaxonomy = {
+        remember: { delivery: 0, evaluation: 0 },
+        understand: { delivery: 0, evaluation: 0 },
+        apply: { delivery: 0, evaluation: 0 },
+        analyze: { delivery: 0, evaluation: 0 },
+        evaluate: { delivery: 0, evaluation: 0 },
+        create: { delivery: 0, evaluation: 0 }
+      };
+
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           title: newKeyTitle,
           subject_id: selectedSubject,
           content: {}, // Initialize with empty content
-          course_outcomes: [] // Initialize with empty course outcomes
+          blooms_taxonomy: defaultBloomsTaxonomy
         });
 
       if (error) throw error;

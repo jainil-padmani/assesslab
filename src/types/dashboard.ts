@@ -32,12 +32,18 @@ export interface Subject {
   created_at: string;
 }
 
-export interface CourseOutcome {
-  id: string;
-  subject_id: string;
-  code: string;
-  description: string;
-  created_at: string;
+export interface BloomsTaxonomyLevel {
+  delivery: number;
+  evaluation: number;
+}
+
+export interface BloomsTaxonomy {
+  remember: BloomsTaxonomyLevel;
+  understand: BloomsTaxonomyLevel;
+  apply: BloomsTaxonomyLevel;
+  analyze: BloomsTaxonomyLevel;
+  evaluate: BloomsTaxonomyLevel;
+  create: BloomsTaxonomyLevel;
 }
 
 export interface AnswerKey {
@@ -45,14 +51,8 @@ export interface AnswerKey {
   title: string;
   subject_id: string;
   content: any;
-  course_outcomes: CourseOutcomeMapping[];
+  blooms_taxonomy: BloomsTaxonomy;
   created_at: string;
-}
-
-export interface CourseOutcomeMapping {
-  question_number: number;
-  co_id: string;
-  marks: number;
 }
 
 export interface Assessment {
