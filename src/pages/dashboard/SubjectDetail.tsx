@@ -79,14 +79,23 @@ export default function SubjectDetail() {
     if (!editedBloomsData || !id) return;
 
     try {
-      // Create a new answer key with the updated Bloom's taxonomy
+      // Convert BloomsTaxonomy to a plain object that matches Supabase's Json type
+      const bloomsTaxonomyJson = {
+        remember: { ...editedBloomsData.remember },
+        understand: { ...editedBloomsData.understand },
+        apply: { ...editedBloomsData.apply },
+        analyze: { ...editedBloomsData.analyze },
+        evaluate: { ...editedBloomsData.evaluate },
+        create: { ...editedBloomsData.create }
+      };
+
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           subject_id: id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: editedBloomsData
+          blooms_taxonomy: bloomsTaxonomyJson
         });
 
       if (error) throw error;
