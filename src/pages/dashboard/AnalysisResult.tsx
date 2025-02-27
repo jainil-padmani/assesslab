@@ -14,6 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useState } from "react";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -44,6 +52,7 @@ export default function AnalysisResult() {
   const location = useLocation();
   const navigate = useNavigate();
   const { analysis } = location.state || {};
+  const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
 
   if (!analysis) {
     return (
@@ -171,7 +180,11 @@ export default function AnalysisResult() {
               </TableHeader>
               <TableBody>
                 {analysis.questions?.map((question: any, index: number) => (
-                  <TableRow key={index}>
+                  <TableRow 
+                    key={index}
+                    className="cursor-pointer hover:bg-muted"
+                    onClick={() => setSelectedQuestion(question)}
+                  >
                     <TableCell>{question.topic}</TableCell>
                     <TableCell>Question {index + 1}</TableCell>
                     <TableCell>{question.difficulty}</TableCell>
@@ -217,6 +230,29 @@ export default function AnalysisResult() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!selectedQuestion} onOpenChange={() => setSelectedQuestion(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Question Details</span>
+              <span className="text-sm font-normal text-muted-foreground">
+                Difficulty: {selectedQuestion?.difficulty} | Bloom's Level: {selectedQuestion?.bloomsLevel}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Topic</h4>
+              <p className="text-muted-foreground">{selectedQuestion?.topic}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Question Text</h4>
+              <p className="text-muted-foreground whitespace-pre-wrap">{selectedQuestion?.questionText}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
