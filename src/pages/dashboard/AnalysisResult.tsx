@@ -5,10 +5,18 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download } from "lucide-react";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 import type { BloomsTaxonomy } from "@/types/dashboard";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
-// Improved custom label for better readability
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }: any) => {
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 1.1;
@@ -35,7 +43,7 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, p
 export default function AnalysisResult() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { analysis, expectedBloomsTaxonomy } = location.state || {};
+  const { analysis } = location.state || {};
 
   if (!analysis) {
     return (
@@ -49,7 +57,6 @@ export default function AnalysisResult() {
     );
   }
 
-  // Transform and sort Bloom's taxonomy data by value
   const bloomsChartData = Object.entries(analysis.bloomsTaxonomy || {})
     .map(([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -57,7 +64,6 @@ export default function AnalysisResult() {
     }))
     .sort((a, b) => b.value - a.value);
 
-  // Transform and sort difficulty distribution data
   const difficultyData = (analysis.difficulty || [])
     .sort((a: any, b: any) => b.value - a.value);
 
@@ -75,7 +81,6 @@ export default function AnalysisResult() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Difficulty Distribution Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Difficulty Distribution</CardTitle>
@@ -113,7 +118,6 @@ export default function AnalysisResult() {
           </CardContent>
         </Card>
 
-        {/* Bloom's Taxonomy Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Bloom's Taxonomy Distribution</CardTitle>
@@ -151,59 +155,34 @@ export default function AnalysisResult() {
           </CardContent>
         </Card>
 
-        {/* Topics Card */}
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Topics Covered</CardTitle>
+            <CardTitle>Questions Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            {analysis.topics && analysis.topics.length > 0 ? (
-              <div className="space-y-2">
-                {analysis.topics.map((topic: any, index: number) => (
-                  <div 
-                    key={index} 
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card text-sm"
-                  >
-                    <span className="font-medium text-primary">{topic.name}</span>
-                    <span className="text-muted-foreground">
-                      {topic.questionCount} {topic.questionCount === 1 ? 'question' : 'questions'}
-                    </span>
-                  </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Topic</TableHead>
+                  <TableHead>Question Number</TableHead>
+                  <TableHead>Difficulty Level</TableHead>
+                  <TableHead>Bloom's Level</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analysis.questions?.map((question: any, index: number) => (
+                  <TableRow key={index}>
+                    <TableCell>{question.topic}</TableCell>
+                    <TableCell>Question {index + 1}</TableCell>
+                    <TableCell>{question.difficulty}</TableCell>
+                    <TableCell>{question.bloomsLevel}</TableCell>
+                  </TableRow>
                 ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No topics data available.</p>
-            )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
-        {/* Expected Bloom's Taxonomy Card */}
-        {expectedBloomsTaxonomy && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Expected Bloom's Taxonomy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(expectedBloomsTaxonomy).map(([level, percentage]) => (
-                  <div 
-                    key={level}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card text-sm"
-                  >
-                    <span className="font-medium text-primary">
-                      {level.charAt(0).toUpperCase() + level.slice(1)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {typeof percentage === 'number' ? `${percentage.toFixed(1)}%` : '0%'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Detailed Analysis Card */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Detailed Analysis</CardTitle>
@@ -225,6 +204,13 @@ export default function AnalysisResult() {
                       <li key={index} className="text-muted-foreground">{rec}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {analysis.suggestedChanges && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Suggested Changes</h3>
+                  <p className="text-muted-foreground">{analysis.suggestedChanges}</p>
                 </div>
               )}
             </div>

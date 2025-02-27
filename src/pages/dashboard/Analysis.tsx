@@ -16,6 +16,7 @@ import type { Subject } from "@/types/dashboard";
 export default function Analysis() {
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState("");
+  const [topicName, setTopicName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -59,6 +60,11 @@ export default function Analysis() {
   const handleAnalyze = async () => {
     if (!selectedSubject) {
       toast.error('Please select a subject first');
+      return;
+    }
+
+    if (!topicName.trim()) {
+      toast.error('Please enter a topic name');
       return;
     }
 
@@ -106,6 +112,7 @@ export default function Analysis() {
           action: 'analyze_paper',
           content,
           subjectId: selectedSubject,
+          topicName: topicName,
           expectedBloomsTaxonomy: subjectData?.blooms_taxonomy || null
         }
       });
@@ -117,7 +124,7 @@ export default function Analysis() {
       const { error: saveError } = await supabase
         .from('analysis_history')
         .insert({
-          title: file ? file.name : 'Text Analysis',
+          title: topicName,
           analysis: data,
           user_id: (await supabase.auth.getUser()).data.user?.id
         });
@@ -156,9 +163,18 @@ export default function Analysis() {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Select Subject</CardTitle>
+          <CardTitle>Analysis Details</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="topic">Topic Name</Label>
+            <Input
+              id="topic"
+              placeholder="Enter topic name"
+              value={topicName}
+              onChange={(e) => setTopicName(e.target.value)}
+            />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="subject">Subject</Label>
             <Select
@@ -206,7 +222,7 @@ export default function Analysis() {
               <Button
                 className="w-full bg-accent hover:bg-accent/90"
                 onClick={handleAnalyze}
-                disabled={isLoading || !selectedSubject}
+                disabled={isLoading || !selectedSubject || !topicName.trim()}
               >
                 {isLoading ? (
                   "Analyzing..."
@@ -242,7 +258,7 @@ export default function Analysis() {
               <Button
                 className="w-full bg-accent hover:bg-accent/90"
                 onClick={handleAnalyze}
-                disabled={isLoading || !selectedSubject}
+                disabled={isLoading || !selectedSubject || !topicName.trim()}
               >
                 {isLoading ? (
                   "Analyzing..."
