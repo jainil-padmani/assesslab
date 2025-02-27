@@ -21,49 +21,56 @@ serve(async (req) => {
 
     const text = content.text || 'Sample text for analysis';
     
-    const systemPrompt = `You are an expert in analyzing question papers. Your task is to analyze the given question paper and return a JSON response in the exact format specified below:
+    const systemPrompt = `You are an AI assistant specialized in analyzing question papers. You must return ONLY a JSON object without any additional text, markdown formatting, or code blocks. The response must strictly follow this structure:
 
 {
   "bloomsTaxonomy": {
-    "remember": number,
-    "understand": number,
-    "apply": number,
-    "analyze": number,
-    "evaluate": number,
-    "create": number
+    "remember": <number 0-100>,
+    "understand": <number 0-100>,
+    "apply": <number 0-100>,
+    "analyze": <number 0-100>,
+    "evaluate": <number 0-100>,
+    "create": <number 0-100>
   },
   "difficulty": [
-    { "name": "Easy", "value": number },
-    { "name": "Medium", "value": number },
-    { "name": "Hard", "value": number }
+    {"name": "Easy", "value": <number 0-100>},
+    {"name": "Medium", "value": <number 0-100>},
+    {"name": "Hard", "value": <number 0-100>}
   ],
   "questions": [
     {
-      "topic": "string",
-      "difficulty": "string (Easy/Medium/Hard)",
-      "bloomsLevel": "string (Remember/Understand/Apply/Analyze/Evaluate/Create)",
-      "questionText": "string"
+      "topic": "<subtopic name>",
+      "difficulty": "<Easy/Medium/Hard>",
+      "bloomsLevel": "<Remember/Understand/Apply/Analyze/Evaluate/Create>",
+      "questionText": "<question text>"
     }
   ],
-  "overallAssessment": "string",
-  "recommendations": ["string"],
-  "suggestedChanges": "string"
+  "overallAssessment": "<comprehensive assessment of the paper>",
+  "recommendations": [
+    "<specific recommendation 1>",
+    "<specific recommendation 2>",
+    "<specific recommendation 3>"
+  ],
+  "suggestedChanges": "<specific suggestions for improving the paper>"
 }
 
-Important:
-- All percentage values should sum to 100
-- Analyze each question carefully for its cognitive level and difficulty
-- Provide specific, actionable recommendations
-- Each question must be categorized by topic, difficulty, and Bloom's taxonomy level
-- The overall assessment should be comprehensive but concise`;
+Rules:
+1. All percentage values (difficulty and bloomsTaxonomy) MUST sum to 100
+2. Only output valid JSON without any markdown or code formatting
+3. Each question must be analyzed for:
+   - The specific subtopic it covers
+   - Its difficulty level
+   - Its Bloom's taxonomy level
+4. Provide actionable recommendations
+5. Include specific suggestions for improvements`;
 
-    const userPrompt = `Analyze this question paper and provide the analysis in the exact JSON format specified. Be specific and detailed in your analysis.
+    const userPrompt = `Based on the following question paper, generate a detailed analysis in the specified JSON format. Do not include any markdown formatting or additional text.
 
 Topic: ${topicName}
 
-Question Paper:
 ${text}`;
 
+    console.log('Sending request to OpenAI...');
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -82,18 +89,21 @@ ${text}`;
             content: userPrompt
           }
         ],
-        temperature: 0.5, // Lower temperature for more consistent output
-        max_tokens: 2000, // Increase max tokens to allow for detailed analysis
+        temperature: 0.3, // Lower temperature for more consistent output
+        max_tokens: 2500, // Increased for longer analyses
+        response_format: { type: "json_object" } // Force JSON response
       }),
     });
 
     const aiResponse = await openaiResponse.json();
+    console.log('Received response from OpenAI');
     
     if (!aiResponse.choices || !aiResponse.choices[0]?.message?.content) {
       throw new Error('Invalid response from OpenAI');
     }
 
     const analysisText = aiResponse.choices[0].message.content;
+    console.log('Analysis text:', analysisText);
     
     try {
       // Parse the AI response as JSON
@@ -112,13 +122,14 @@ ${text}`;
         throw new Error('Percentages do not sum to 100');
       }
 
+      console.log('Successfully parsed and validated analysis');
       return new Response(
         JSON.stringify(analysis),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (error) {
       console.error('Error parsing AI response:', error);
-      console.error('AI response:', analysisText);
+      console.error('Raw AI response:', analysisText);
       
       // Return a formatted error response
       const defaultAnalysis = {
@@ -137,10 +148,10 @@ ${text}`;
         ],
         questions: [
           {
-            topic: "Error",
+            topic: topicName,
             difficulty: "Medium",
             bloomsLevel: "Understand",
-            questionText: "Failed to analyze questions"
+            questionText: "Error analyzing questions: " + error.message
           }
         ],
         overallAssessment: "Failed to analyze the question paper. Error: " + error.message,
