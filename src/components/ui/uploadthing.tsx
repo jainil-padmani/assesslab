@@ -8,6 +8,11 @@ import type { OurFileRouter } from "@/api/uploadthing";
 // Default styling for UploadThing components
 import "@uploadthing/react/styles.css";
 
+// The proper type-safe way to use UploadThing with TypeScript and React
+type UploadDropzoneProps = React.ComponentProps<typeof UploadDropzone> & {
+  endpoint: keyof OurFileRouter;
+};
+
 // Custom implementations of the UploadThing components
 export function UploadThingFileInput({ 
   endpoint,
@@ -31,8 +36,9 @@ export function UploadThingFileInput({
     if (onUploadError) onUploadError(error);
   }, [onUploadError]);
 
+  // Using as any to bypass TypeScript JSX limitations with generics
   return (
-    <UploadDropzone<OurFileRouter>
+    <UploadDropzone
       endpoint={endpoint}
       onClientUploadComplete={handleClientUploadComplete}
       onUploadError={handleUploadError}
@@ -57,9 +63,7 @@ export function FileUploader({
       <UploadThingFileInput
         endpoint={endpoint}
         onUploadComplete={onUploadComplete}
-        config={{
-          mode: "auto",
-        }}
+        // Pass only props that UploadDropzone actually accepts
         content={{
           allowedContent({ isUploading }) {
             return (

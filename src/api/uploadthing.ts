@@ -33,7 +33,7 @@ export const ourFileRouter = {
       return { uploadedBy: metadata.userId, url: file.url };
     }),
 
-  answerSheetUploader: f({ pdf: { maxFileSize: "12MB" } })
+  answerSheetUploader: f({ pdf: { maxFileSize: "8MB" } })
     .middleware(() => {
       return { userId: "user-id" };
     })

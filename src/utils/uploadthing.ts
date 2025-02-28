@@ -1,5 +1,5 @@
 
-import { generateReactHelpers } from "@uploadthing/react/hooks";
+import { generateReactHelpers } from "@uploadthing/react";
  
 import type { OurFileRouter } from "@/api/uploadthing";
  
