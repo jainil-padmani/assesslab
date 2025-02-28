@@ -1,5 +1,5 @@
 
-import { createUploadthing, type FileRouter } from "uploadthing";
+import { createUploadthing, type FileRouter } from "uploadthing/server";
  
 const f = createUploadthing();
  

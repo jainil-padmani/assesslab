@@ -1,6 +1,6 @@
 
 import { UploadDropzone } from "@uploadthing/react";
-import { UploadCloud, FileText } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { OurFileRouter } from "@/api/uploadthing";
@@ -32,7 +32,7 @@ export function UploadThingFileInput({
   }, [onUploadError]);
 
   return (
-    <UploadDropzone
+    <UploadDropzone<OurFileRouter>
       endpoint={endpoint}
       onClientUploadComplete={handleClientUploadComplete}
       onUploadError={handleUploadError}
@@ -57,6 +57,9 @@ export function FileUploader({
       <UploadThingFileInput
         endpoint={endpoint}
         onUploadComplete={onUploadComplete}
+        config={{
+          mode: "auto",
+        }}
         content={{
           allowedContent({ isUploading }) {
             return (
