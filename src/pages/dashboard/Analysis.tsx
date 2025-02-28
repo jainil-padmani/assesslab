@@ -11,8 +11,6 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useUploadThing } from "@/utils/uploadthing";
-import { FileUploader } from "@/components/ui/uploadthing";
 import type { Subject } from "@/types/dashboard";
 
 export default function Analysis() {
@@ -22,9 +20,7 @@ export default function Analysis() {
   const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [fileUrl, setFileUrl] = useState<string>("");
   const navigate = useNavigate();
-  const { startUpload, isUploading } = useUploadThing("documentUploader");
 
   useEffect(() => {
     fetchSubjects();
@@ -61,13 +57,6 @@ export default function Analysis() {
     }
   };
 
-  const handleFileUploadComplete = (res: any) => {
-    if (res && res.length > 0) {
-      setFileUrl(res[0].url);
-      toast.success("File uploaded successfully!");
-    }
-  };
-
   const handleAnalyze = async () => {
     if (!selectedSubject) {
       toast.error('Please select a subject first');
@@ -81,21 +70,26 @@ export default function Analysis() {
 
     setIsLoading(true);
     try {
-      let content: any = {};
+      let content;
 
-      if (file && !fileUrl) {
-        // Upload file using Uploadthing if not already uploaded
-        const uploadResponse = await startUpload([file]);
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
         
-        if (!uploadResponse || uploadResponse.length === 0) {
-          throw new Error("File upload failed");
-        }
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
 
-        content.fileUrl = uploadResponse[0].url;
-      } else if (fileUrl) {
-        content.fileUrl = fileUrl;
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(fileName);
+
+        console.log('File uploaded, URL:', publicUrl);
+        content = { fileUrl: publicUrl };
       } else if (text.trim()) {
-        content.text = text.trim();
+        content = { text: text.trim() };
       } else {
         throw new Error('Please upload a file or enter text to analyze');
       }
@@ -216,20 +210,21 @@ export default function Analysis() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                <Label>Upload File (PDF or DOCX)</Label>
-                <FileUploader 
-                  endpoint="documentUploader" 
-                  onUploadComplete={handleFileUploadComplete}
-                  className="border-2 border-dashed rounded-md"
+              <div className="grid gap-2">
+                <Label htmlFor="file">Upload File (PDF or DOCX)</Label>
+                <Input 
+                  id="file" 
+                  type="file" 
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
                 />
               </div>
               <Button
                 className="w-full bg-accent hover:bg-accent/90"
                 onClick={handleAnalyze}
-                disabled={isLoading || isUploading || (!file && !fileUrl) || !selectedSubject || !topicName.trim()}
+                disabled={isLoading || !selectedSubject || !topicName.trim()}
               >
-                {isLoading || isUploading ? (
+                {isLoading ? (
                   "Analyzing..."
                 ) : (
                   <>

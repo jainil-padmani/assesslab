@@ -9,7 +9,6 @@ import { BookOpen, Upload, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useUploadThing } from "@/utils/uploadthing";
 import type { Subject, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function Generate() {
@@ -29,7 +28,6 @@ export default function Generate() {
   });
 
   const navigate = useNavigate();
-  const { startUpload, isUploading } = useUploadThing("studyMaterialUploader");
 
   useEffect(() => {
     fetchSubjects();
@@ -56,13 +54,11 @@ export default function Generate() {
       const validTypes = [
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'image/jpeg',
-        'image/png'
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       ];
       
       if (!validTypes.includes(fileType)) {
-        toast.error('Please upload PDF, PPT, DOCX, or image files only');
+        toast.error('Please upload PDF, PPT, or DOCX files only');
         return;
       }
       setFile(selectedFile);
@@ -90,14 +86,18 @@ export default function Generate() {
 
     setIsLoading(true);
     try {
-      // Upload file using Uploadthing
-      const uploadResponse = await startUpload([file]);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
       
-      if (!uploadResponse || uploadResponse.length === 0) {
-        throw new Error("File upload failed");
-      }
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file);
 
-      const fileUrl = uploadResponse[0].url;
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
 
       // Process with OpenAI
       const response = await fetch('/api/process-document', {
@@ -106,7 +106,7 @@ export default function Generate() {
         body: JSON.stringify({
           action: 'generate_questions',
           content: {
-            fileUrl: fileUrl,
+            fileUrl: publicUrl,
             questionType,
             numQuestions,
             bloomsTaxonomy: bloomsLevels,
@@ -123,12 +123,12 @@ export default function Generate() {
       navigate('/dashboard/questions', { 
         state: { 
           questions: responseData,
-          documentUrl: fileUrl,
+          documentUrl: publicUrl,
           bloomsTaxonomy: bloomsLevels
         } 
       });
     } catch (error: any) {
-      toast.error(error.message || "Failed to generate questions");
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -164,17 +164,13 @@ export default function Generate() {
             </Select>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="file">Upload File (PDF, PPT, DOCX, Image)</Label>
+            <Label htmlFor="file">Upload File (PDF, PPT, DOCX)</Label>
             <Input 
               id="file" 
               type="file" 
-              accept=".pdf,.pptx,.docx,.jpg,.jpeg,.png"
+              accept=".pdf,.pptx,.docx"
               onChange={handleFileChange}
-              disabled={isUploading}
             />
-            {isUploading && (
-              <p className="text-sm text-muted-foreground">Uploading file...</p>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -231,10 +227,10 @@ export default function Generate() {
           <Button 
             className="w-full bg-accent hover:bg-accent/90"
             onClick={handleGenerate}
-            disabled={isLoading || isUploading}
+            disabled={isLoading}
           >
-            {isLoading || isUploading ? (
-              "Processing..."
+            {isLoading ? (
+              "Generating..."
             ) : (
               <>
                 <FileText className="mr-2 h-4 w-4" />
