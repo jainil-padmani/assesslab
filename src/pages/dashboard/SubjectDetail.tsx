@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Edit2, Upload, FileText } from "lucide-react";
+import { useUploadThing } from "@/utils/uploadthing";
+import { FileUploader } from "@/components/ui/uploadthing";
 import type { Subject, Student, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function SubjectDetail() {
@@ -16,6 +19,7 @@ export default function SubjectDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomy | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const { startUpload } = useUploadThing("documentUploader");
 
   const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
     if (!data || typeof data !== 'object') return null;
@@ -101,36 +105,15 @@ export default function SubjectDetail() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !id) return;
-
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload a PDF file');
-      return;
-    }
-
-    setIsUploading(true);
+  const handleFileUploadComplete = async (res: any) => {
+    if (!id || !res || res.length === 0) return;
+    
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${id}-${Date.now()}.${fileExt}`;
+      const fileUrl = res[0].url;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('subject-information')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('subject-information')
-        .getPublicUrl(fileName);
-
       const { error: updateError } = await supabase
         .from('subjects')
-        .update({ information_pdf_url: publicUrl })
+        .update({ information_pdf_url: fileUrl })
         .eq('id', id);
 
       if (updateError) throw updateError;
@@ -139,9 +122,7 @@ export default function SubjectDetail() {
       fetchSubjectData();
     } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error(error.message || 'Failed to upload PDF');
-    } finally {
-      setIsUploading(false);
+      toast.error(error.message || 'Failed to update subject with PDF URL');
     }
   };
 
@@ -226,28 +207,13 @@ export default function SubjectDetail() {
                   <p className="text-sm text-gray-500">No PDF uploaded</p>
                 )}
                 
-                <div className="mt-2">
-                  <input
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="pdf-upload"
-                    disabled={isUploading}
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-2">Upload PDF</p>
+                  <FileUploader 
+                    endpoint="documentUploader" 
+                    onUploadComplete={handleFileUploadComplete}
+                    className="border-2 border-dashed rounded-md"
                   />
-                  <label htmlFor="pdf-upload">
-                    <Button 
-                      variant="outline" 
-                      className="cursor-pointer" 
-                      disabled={isUploading}
-                      asChild
-                    >
-                      <span>
-                        <Upload className="h-4 w-4 mr-2" />
-                        {isUploading ? 'Uploading...' : subject.information_pdf_url ? 'Change PDF' : 'Upload PDF'}
-                      </span>
-                    </Button>
-                  </label>
                 </div>
               </div>
             </div>
