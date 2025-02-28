@@ -9,18 +9,18 @@ import type { OurFileRouter } from "@/api/uploadthing";
 import "@uploadthing/react/styles.css";
 
 // Custom implementations of the UploadThing components
-export const UploadThingFileInput = <T extends keyof OurFileRouter>({ 
+export function UploadThingFileInput({ 
   endpoint,
   onUploadComplete,
   onUploadError,
   className,
   ...props
 }: {
-  endpoint: T;
+  endpoint: keyof OurFileRouter;
   onUploadComplete?: (res: any) => void;
   onUploadError?: (error: Error) => void;
   className?: string;
-}) => {
+}) {
   const handleClientUploadComplete = useCallback((res: any) => {
     toast.success("Upload completed successfully!");
     if (onUploadComplete) onUploadComplete(res);
@@ -32,7 +32,7 @@ export const UploadThingFileInput = <T extends keyof OurFileRouter>({
   }, [onUploadError]);
 
   return (
-    <UploadDropzone<OurFileRouter, T>
+    <UploadDropzone
       endpoint={endpoint}
       onClientUploadComplete={handleClientUploadComplete}
       onUploadError={handleUploadError}
@@ -40,15 +40,15 @@ export const UploadThingFileInput = <T extends keyof OurFileRouter>({
       {...props}
     />
   );
-};
+}
 
 // This component can be used anywhere in the app to handle file uploads
-export function FileUploader<T extends keyof OurFileRouter>({
+export function FileUploader({
   endpoint,
   onUploadComplete,
   className,
 }: {
-  endpoint: T;
+  endpoint: keyof OurFileRouter;
   onUploadComplete?: (res: any) => void;
   className?: string;
 }) {
