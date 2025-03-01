@@ -13,7 +13,6 @@ import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
 import { UTUploadDropzone } from "@/integrations/uploadthing/uploadthing-provider";
 import type { OurFileRouter } from "@/integrations/uploadthing/uploadthing";
 import { type UploadStep, type UploadEndpoint, type FileUploadState } from '@/types/fileUpload';
-import { supabase } from "@/integrations/supabase/client";
 
 interface UploadFormProps {
   currentStep: UploadStep;
