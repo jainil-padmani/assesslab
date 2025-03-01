@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,7 +96,10 @@ export default function Generate() {
       <div className="container mx-auto py-6 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Generate Content</CardTitle>
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <CardTitle>Generate Content</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="from-documents" className="w-full">
