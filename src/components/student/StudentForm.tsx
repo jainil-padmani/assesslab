@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
@@ -20,13 +20,6 @@ interface StudentFormProps {
   onClose: () => void;
   classes?: { id: string; name: string; department: string | null; year: number | null }[];
   isClassesLoading?: boolean;
-}
-
-interface Class {
-  id: string;
-  name: string;
-  department: string | null;
-  year: number | null;
 }
 
 export default function StudentForm({ student, onClose, classes, isClassesLoading }: StudentFormProps) {
