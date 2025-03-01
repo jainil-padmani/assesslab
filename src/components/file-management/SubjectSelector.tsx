@@ -15,7 +15,7 @@ import {
   TableCell 
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, Upload, FolderOpen } from "lucide-react";
+import { FileText, Upload, FolderOpen, Plus } from "lucide-react";
 import { Subject } from "@/types/dashboard";
 
 interface SubjectSelectorProps {

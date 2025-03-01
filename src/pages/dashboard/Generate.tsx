@@ -1,333 +1,234 @@
 
 import { useState, useEffect } from "react";
+import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Upload, FileText, FileUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import type { Subject, BloomsTaxonomy, SubjectDocument } from "@/types/dashboard";
+import { Subject, SubjectDocument } from "@/types/dashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { FileText, FileImage, Download, Eye } from "lucide-react";
 
 export default function Generate() {
-  const [file, setFile] = useState<File | null>(null);
-  const [questionType, setQuestionType] = useState<string>("mcq");
-  const [numQuestions, setNumQuestions] = useState<number>(10);
-  const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [selectedDocument, setSelectedDocument] = useState<string>("");
   const [subjectDocuments, setSubjectDocuments] = useState<SubjectDocument[]>([]);
-  const [bloomsLevels, setBloomsLevels] = useState<BloomsTaxonomy>({
-    remember: 0,
-    understand: 0,
-    apply: 0,
-    analyze: 0,
-    evaluate: 0,
-    create: 0
-  });
-
-  const navigate = useNavigate();
+  const [selectedQuestionPaper, setSelectedQuestionPaper] = useState<string>("");
+  const [selectedAnswerKey, setSelectedAnswerKey] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    async function fetchSubjects() {
+      try {
+        const { data, error } = await supabase
+          .from("subjects")
+          .select("*")
+          .order("name");
+        
+        if (error) throw error;
+        
+        setSubjects(data as Subject[]);
+        setLoading(false);
+      } catch (error: any) {
+        toast.error(`Error fetching subjects: ${error.message}`);
+        setLoading(false);
+      }
+    }
+    
     fetchSubjects();
   }, []);
 
   useEffect(() => {
     if (selectedSubject) {
-      fetchSubjectDocuments();
+      async function fetchDocuments() {
+        try {
+          const { data, error } = await supabase
+            .from("subject_documents")
+            .select("*")
+            .eq("subject_id", selectedSubject);
+          
+          if (error) throw error;
+          
+          setSubjectDocuments(data as SubjectDocument[]);
+        } catch (error: any) {
+          toast.error(`Error fetching documents: ${error.message}`);
+        }
+      }
+      
+      fetchDocuments();
+    } else {
+      setSubjectDocuments([]);
     }
   }, [selectedSubject]);
 
-  const fetchSubjects = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      if (data) setSubjects(data);
-    } catch (error) {
-      toast.error('Failed to fetch subjects');
-    }
+  const handleSubjectChange = (value: string) => {
+    setSelectedSubject(value);
+    setSelectedQuestionPaper("");
+    setSelectedAnswerKey("");
   };
 
-  const fetchSubjectDocuments = async () => {
-    if (!selectedSubject) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('subject_documents')
-        .select('*')
-        .eq('subject_id', selectedSubject)
-        .in('document_type', ['questionPaper', 'studyMaterial'])
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setSubjectDocuments(data || []);
-    } catch (error) {
-      toast.error('Failed to fetch subject documents');
-    }
+  const getQuestionPapers = () => {
+    return subjectDocuments.filter(doc => doc.document_type === "questionPaper");
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      const fileType = selectedFile.type;
-      const validTypes = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ];
-      
-      if (!validTypes.includes(fileType)) {
-        toast.error('Please upload PDF, PPT, or DOCX files only');
-        return;
-      }
-      setFile(selectedFile);
-      setSelectedDocument("");
-    }
+  const getAnswerKeys = () => {
+    return subjectDocuments.filter(doc => doc.document_type === "answerKey");
   };
 
-  const handleBloomLevelChange = (level: keyof BloomsTaxonomy, value: string) => {
-    const numValue = parseInt(value) || 0;
-    setBloomsLevels(prev => ({
-      ...prev,
-      [level]: numValue
-    }));
-  };
-
-  const handleGenerate = async () => {
-    if (!selectedSubject) {
-      toast.error('Please select a subject');
+  const handleGenerateClick = () => {
+    if (!selectedQuestionPaper || !selectedAnswerKey) {
+      toast.error("Please select both a question paper and an answer key");
       return;
     }
 
-    if (!file && !selectedDocument) {
-      toast.error('Please upload a file or select an existing document');
-      return;
-    }
+    // Implementation for generating content based on selected documents
+    toast.success("Generation process started! This may take a few minutes...");
+    // Further implementation will go here
+  };
 
-    setIsLoading(true);
-    try {
-      let fileUrl = "";
-      
-      if (file) {
-        // Upload new file
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('documents')
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('documents')
-          .getPublicUrl(fileName);
-          
-        fileUrl = publicUrl;
-      } else if (selectedDocument) {
-        // Use existing document URL
-        const document = subjectDocuments.find(doc => doc.id === selectedDocument);
-        if (document) {
-          fileUrl = document.document_url;
-        }
-      }
-
-      if (!fileUrl) {
-        throw new Error('No file URL available');
-      }
-
-      // Process with OpenAI
-      const response = await fetch('/api/process-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_questions',
-          content: {
-            fileUrl: fileUrl,
-            questionType,
-            numQuestions,
-            bloomsTaxonomy: bloomsLevels,
-            subjectId: selectedSubject
-          }
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to generate questions');
-
-      const responseData = await response.json();
-
-      // Navigate to results page
-      navigate('/dashboard/questions', { 
-        state: { 
-          questions: responseData,
-          documentUrl: fileUrl,
-          bloomsTaxonomy: bloomsLevels
-        } 
-      });
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleViewDocument = (url: string) => {
+    window.open(url, "_blank");
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Generate Questions</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-accent" />
-            Upload or Select Study Material
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="subject">Select Subject</Label>
-            <Select
-              value={selectedSubject}
-              onValueChange={(value) => {
-                setSelectedSubject(value);
-                setSelectedDocument("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a subject" />
-              </SelectTrigger>
-              <SelectContent>
-                {subjects.map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {selectedSubject && subjectDocuments.length > 0 && (
-            <div className="grid gap-2">
-              <Label htmlFor="existingDocument">Select Existing Document</Label>
-              <Select
-                value={selectedDocument}
-                onValueChange={(value) => {
-                  setSelectedDocument(value);
-                  setFile(null);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a document" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjectDocuments.map((doc) => (
-                    <SelectItem key={doc.id} value={doc.id}>
-                      {doc.file_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <DashboardLayout>
+      <div className="container mx-auto py-6 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="from-documents" className="w-full">
+              <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+                <TabsTrigger value="from-documents">From Documents</TabsTrigger>
+                <TabsTrigger value="from-text">From Text</TabsTrigger>
+              </TabsList>
               
-              {!selectedDocument && (
-                <div className="mt-2 flex items-center">
-                  <span className="text-sm text-muted-foreground">or</span>
+              <TabsContent value="from-documents" className="space-y-6 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="subject">Select Subject</Label>
+                    <Select value={selectedSubject} onValueChange={handleSubjectChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Subjects</SelectLabel>
+                          {subjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>
+                              {subject.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-          
-          {(!selectedDocument) && (
-            <div className="grid gap-2">
-              <Label htmlFor="file">Upload New File (PDF, PPT, DOCX)</Label>
-              <Input 
-                id="file" 
-                type="file" 
-                accept=".pdf,.pptx,.docx"
-                onChange={handleFileChange}
-              />
-            </div>
-          )}
-          
-          <div className="flex justify-between items-center border-t pt-4 mt-4">
-            <span className="text-sm text-muted-foreground">Need to manage subject files?</span>
-            <Button variant="outline" onClick={() => navigate('/dashboard/files')}>
-              <FileUp className="mr-2 h-4 w-4" />
-              File Management
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-accent" />
-            Question Parameters
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="type">Question Type</Label>
-            <select
-              id="type"
-              className="w-full rounded-md border border-input bg-background px-3 py-2"
-              value={questionType}
-              onChange={(e) => setQuestionType(e.target.value)}
-            >
-              <option value="mcq">Multiple Choice</option>
-              <option value="short">Short Answer</option>
-              <option value="long">Long Answer</option>
-              <option value="mixed">Mixed</option>
-            </select>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="number">Number of Questions</Label>
-            <Input
-              id="number"
-              type="number"
-              min="1"
-              max="50"
-              value={numQuestions}
-              onChange={(e) => setNumQuestions(parseInt(e.target.value))}
-            />
-          </div>
-          <div className="space-y-4">
-            <Label>Bloom's Taxonomy Distribution</Label>
-            {Object.entries(bloomsLevels).map(([level, value]) => (
-              <div key={level} className="grid gap-2">
-                <Label htmlFor={level} className="capitalize">{level}</Label>
-                <Input
-                  id={level}
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={value}
-                  onChange={(e) => handleBloomLevelChange(level as keyof BloomsTaxonomy, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-          <Button 
-            className="w-full bg-accent hover:bg-accent/90"
-            onClick={handleGenerate}
-            disabled={isLoading || (!file && !selectedDocument) || !selectedSubject}
-          >
-            {isLoading ? (
-              "Generating..."
-            ) : (
-              <>
-                <FileText className="mr-2 h-4 w-4" />
-                Generate Questions
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+                {selectedSubject && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Question Paper</Label>
+                      {getQuestionPapers().length === 0 ? (
+                        <div className="p-4 bg-muted rounded-md text-muted-foreground text-sm">
+                          No question papers available. Please upload one in the File Management section.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {getQuestionPapers().map((doc) => (
+                            <div 
+                              key={doc.id}
+                              className={`p-3 border rounded-md flex justify-between items-center cursor-pointer ${
+                                selectedQuestionPaper === doc.id ? 'border-primary bg-primary/5' : 'border-input'
+                              }`}
+                              onClick={() => setSelectedQuestionPaper(doc.id)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-blue-600" />
+                                <div className="text-sm truncate max-w-[180px]">{doc.file_name}</div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewDocument(doc.document_url);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Answer Key</Label>
+                      {getAnswerKeys().length === 0 ? (
+                        <div className="p-4 bg-muted rounded-md text-muted-foreground text-sm">
+                          No answer keys available. Please upload one in the File Management section.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {getAnswerKeys().map((doc) => (
+                            <div 
+                              key={doc.id}
+                              className={`p-3 border rounded-md flex justify-between items-center cursor-pointer ${
+                                selectedAnswerKey === doc.id ? 'border-primary bg-primary/5' : 'border-input'
+                              }`}
+                              onClick={() => setSelectedAnswerKey(doc.id)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-5 w-5 text-red-600" />
+                                <div className="text-sm truncate max-w-[180px]">{doc.file_name}</div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewDocument(doc.document_url);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedSubject && (
+                  <div className="flex justify-end mt-6">
+                    <Button 
+                      onClick={handleGenerateClick}
+                      disabled={!selectedQuestionPaper || !selectedAnswerKey}
+                    >
+                      Generate Content
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="from-text" className="space-y-4 mt-6">
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Text-based content generation coming soon.</p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 }

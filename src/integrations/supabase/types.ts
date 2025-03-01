@@ -218,6 +218,47 @@ export type Database = {
         }
         Relationships: []
       }
+      subject_documents: {
+        Row: {
+          created_at: string
+          document_type: string
+          document_url: string
+          file_name: string
+          file_size: number
+          file_type: string
+          id: string
+          subject_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_type: string
+          document_url: string
+          file_name: string
+          file_size: number
+          file_type: string
+          id?: string
+          subject_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_type?: string
+          document_url?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          subject_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subject_documents_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subjects: {
         Row: {
           created_at: string

@@ -1,176 +1,179 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Trash2, ExternalLink, FileUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Eye, Download, Trash2, FileText, FileImage, FileArchive } from "lucide-react";
 import { toast } from "sonner";
-import { Subject } from "@/types/dashboard";
-
-interface SubjectDocument {
-  id: string;
-  subject_id: string;
-  document_type: string;
-  document_url: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  created_at: string;
-}
+import { Subject, SubjectDocument } from "@/types/dashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
 interface SubjectDocumentListProps {
   subject: Subject;
-  onUploadNew: () => void;
+  onBackClick: () => void;
 }
 
-export function SubjectDocumentList({ subject, onUploadNew }: SubjectDocumentListProps) {
+function getFileIcon(fileType: string) {
+  if (fileType.includes("pdf")) return <FileText className="text-red-500" />;
+  if (fileType.includes("image")) return <FileImage className="text-blue-500" />;
+  if (fileType.includes("word")) return <FileText className="text-blue-600" />;
+  return <FileArchive className="text-gray-500" />;
+}
+
+export function SubjectDocumentList({ subject, onBackClick }: SubjectDocumentListProps) {
   const [documents, setDocuments] = useState<SubjectDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    async function fetchDocuments() {
+      try {
+        const { data, error } = await supabase
+          .from("subject_documents")
+          .select("*")
+          .eq("subject_id", subject.id);
+        
+        if (error) throw error;
+        
+        setDocuments(data as SubjectDocument[]);
+      } catch (error: any) {
+        toast.error(`Error fetching documents: ${error.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
     fetchDocuments();
   }, [subject.id]);
 
-  const fetchDocuments = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('subject_documents')
-        .select('*')
-        .eq('subject_id', subject.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setDocuments(data || []);
-    } catch (error: any) {
-      toast.error(`Failed to fetch documents: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleViewDocument = (url: string) => {
+    window.open(url, "_blank");
   };
 
-  const handleDeleteDocument = async (document: SubjectDocument) => {
-    if (!confirm(`Are you sure you want to delete ${document.file_name}?`)) {
-      return;
-    }
+  const handleDownloadDocument = (url: string, fileName: string) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
+  const handleDeleteDocument = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    
     try {
-      // Extract file path from URL
-      const fileUrl = new URL(document.document_url);
+      const docToDelete = documents.find(doc => doc.id === id);
+      if (!docToDelete) return;
+      
+      // Delete from database
+      const { error } = await supabase
+        .from("subject_documents")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      // Remove the file name from the URL to get storage path
+      const fileUrl = new URL(docToDelete.document_url);
       const filePath = fileUrl.pathname.split('/').pop();
       
       if (filePath) {
+        // Delete from storage
         const { error: storageError } = await supabase.storage
-          .from('subject-documents')
+          .from("subject-documents")
           .remove([filePath]);
-          
+        
         if (storageError) throw storageError;
       }
-
-      const { error } = await supabase
-        .from('subject_documents')
-        .delete()
-        .eq('id', document.id);
-
-      if (error) throw error;
-
-      toast.success('Document deleted successfully');
-      fetchDocuments();
+      
+      setDocuments(documents.filter(doc => doc.id !== id));
+      toast.success("Document deleted successfully");
     } catch (error: any) {
-      toast.error(`Failed to delete document: ${error.message}`);
+      toast.error(`Error deleting document: ${error.message}`);
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getDocumentTypeLabel = (type: string): string => {
-    switch (type) {
-      case 'questionPaper': return 'Question Paper';
-      case 'answerKey': return 'Answer Key';
-      case 'handwrittenPaper': return 'Handwritten Paper';
+  const getDocumentTypeLabel = (type: string) => {
+    switch(type) {
+      case "questionPaper": return "Question Paper";
+      case "answerKey": return "Answer Key";
+      case "handwrittenPaper": return "Handwritten Paper";
       default: return type;
     }
   };
 
-  if (isLoading) {
-    return <div>Loading documents...</div>;
-  }
-
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-accent" />
-          Documents for {subject.name}
-        </CardTitle>
-        <Button onClick={onUploadNew} className="bg-accent hover:bg-accent/90">
-          <FileUp className="mr-2 h-4 w-4" />
-          Upload New Documents
+        <CardTitle>Documents for {subject.name}</CardTitle>
+        <Button variant="outline" onClick={onBackClick}>
+          Back to Subjects
         </Button>
       </CardHeader>
       <CardContent>
-        {documents.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-8">Loading documents...</div>
+        ) : documents.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">No documents uploaded yet.</p>
-            <Button onClick={onUploadNew}>
-              <FileUp className="mr-2 h-4 w-4" />
-              Upload Documents
-            </Button>
+            <p className="text-muted-foreground">No documents found for this subject.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {['questionPaper', 'answerKey', 'handwrittenPaper'].map(docType => {
-              const typeDocuments = documents.filter(doc => doc.document_type === docType);
-              
-              if (typeDocuments.length === 0) return null;
-              
-              return (
-                <div key={docType} className="space-y-2">
-                  <h3 className="text-lg font-medium">{getDocumentTypeLabel(docType)}</h3>
-                  <div className="border rounded-md divide-y">
-                    {typeDocuments.map(doc => (
-                      <div key={doc.id} className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-8 w-8 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium">{doc.file_name}</p>
-                            <div className="flex items-center text-xs text-muted-foreground gap-2">
-                              <span>{formatFileSize(doc.file_size)}</span>
-                              <span>•</span>
-                              <span>{new Date(doc.created_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={doc.document_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={doc.document_url} download={doc.file_name}>
-                              <Download className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm"
-                            onClick={() => handleDeleteDocument(doc)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>File Name</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Uploaded</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {documents.map((doc) => (
+                <TableRow key={doc.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {getFileIcon(doc.file_type)}
+                      {getDocumentTypeLabel(doc.document_type)}
+                    </div>
+                  </TableCell>
+                  <TableCell>{doc.file_name}</TableCell>
+                  <TableCell>
+                    {doc.file_size < 1024 * 1024
+                      ? `${Math.round(doc.file_size / 1024)} KB`
+                      : `${Math.round((doc.file_size / 1024 / 1024) * 10) / 10} MB`}
+                  </TableCell>
+                  <TableCell>{formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewDocument(doc.document_url)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDownloadDocument(doc.document_url, doc.file_name)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

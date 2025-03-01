@@ -1,4 +1,3 @@
-
 import type { Database } from "@/integrations/supabase/types";
 
 export interface Student {
