@@ -65,13 +65,19 @@ export interface AnalysisResult {
   created_at: string;
   result_json: Record<string, any>;
   blooms_taxonomy?: BloomsTaxonomy;
+  expectedBloomsTaxonomy?: BloomsTaxonomy;
+  questions?: any[];
+  difficulty?: any[];
+  overallAssessment?: string;
+  recommendations?: string[];
+  suggestedChanges?: string;
 }
 
 export interface AnswerKey {
   id: string;
-  subject_id: string;
+  subject_id: string | null;
   title: string;
-  content: Record<string, any>;
+  content: Record<string, any> | null;
   blooms_taxonomy?: BloomsTaxonomy;
   created_at: string;
 }

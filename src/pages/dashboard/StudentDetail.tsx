@@ -81,6 +81,7 @@ export default function StudentDetail() {
       const { data, error } = await supabase
         .from("subject_enrollments")
         .select(`
+          id,
           subject_id,
           subjects (
             id,

@@ -73,6 +73,7 @@ export default function Check() {
       if (keysData) {
         const transformedKeys: AnswerKey[] = keysData.map(key => ({
           ...key,
+          content: key.content as Record<string, any> | null,
           blooms_taxonomy: validateAndTransformBloomsTaxonomy(key.blooms_taxonomy)
         }));
         setAnswerKeys(transformedKeys);
