@@ -57,7 +57,7 @@ export const UploadForm = ({
       <CardContent>
         <div className="space-y-4">
           {!getCurrentFileUrl(currentStep) ? (
-            <UTUploadDropzone<OurFileRouter>
+            <UTUploadDropzone<OurFileRouter, OurFileRouter[keyof OurFileRouter]>
               endpoint={currentStep.endpoint}
               onClientUploadComplete={(res) => {
                 if (res && res.length > 0) {
