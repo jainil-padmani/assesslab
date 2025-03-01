@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -103,7 +104,7 @@ export default function SubjectDetail() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{subject.name}</h1>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[400px]">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-[400px]">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="info">Subject Info</TabsTrigger>
             <TabsTrigger value="papers">Subject Papers</TabsTrigger>
@@ -111,27 +112,27 @@ export default function SubjectDetail() {
         </Tabs>
       </div>
       
-      <TabsContent value="info" className="mt-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <SubjectInfo 
+      <div className="mt-6">
+        {activeTab === "info" ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <SubjectInfo 
+              subject={subject} 
+              fetchSubjectData={fetchSubjectData} 
+            />
+            <BloomsTaxonomyComponent 
+              subject={subject} 
+              bloomsData={bloomsData} 
+              fetchSubjectData={fetchSubjectData} 
+            />
+          </div>
+        ) : (
+          <PapersManagement 
             subject={subject} 
-            fetchSubjectData={fetchSubjectData} 
+            subjectFiles={subjectFiles} 
+            fetchSubjectFiles={fetchAndSetSubjectFiles} 
           />
-          <BloomsTaxonomyComponent 
-            subject={subject} 
-            bloomsData={bloomsData} 
-            fetchSubjectData={fetchSubjectData} 
-          />
-        </div>
-      </TabsContent>
-      
-      <TabsContent value="papers" className="mt-6">
-        <PapersManagement 
-          subject={subject} 
-          subjectFiles={subjectFiles} 
-          fetchSubjectFiles={fetchAndSetSubjectFiles} 
-        />
-      </TabsContent>
+        )}
+      </div>
     </div>
   );
 }
