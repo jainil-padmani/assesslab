@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -13,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
 import { toast } from "sonner";
 import { UTUploadDropzone } from "@/integrations/uploadthing/uploadthing-provider";
+import type { OurFileRouter } from "@/integrations/uploadthing/uploadthing";
 
 // Define the upload step interface
 type UploadStep = {
@@ -229,7 +229,7 @@ const FileManagement = () => {
           <CardContent>
             <div className="space-y-4">
               {!getCurrentFileUrl(currentStep) ? (
-                <UTUploadDropzone
+                <UTUploadDropzone<OurFileRouter>
                   endpoint={currentStep.endpoint}
                   onClientUploadComplete={(res) => {
                     if (res && res.length > 0) {
