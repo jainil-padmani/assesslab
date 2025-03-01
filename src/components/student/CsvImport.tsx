@@ -223,7 +223,7 @@ export default function CsvImport({ onClose }: CsvImportProps) {
                         <SelectValue placeholder="Map to field" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">-- Skip this field --</SelectItem>
+                        <SelectItem value="skip">-- Skip this field --</SelectItem>
                         <SelectItem value="name">Name *</SelectItem>
                         <SelectItem value="gr_number">GR Number *</SelectItem>
                         <SelectItem value="roll_number">Roll Number</SelectItem>
