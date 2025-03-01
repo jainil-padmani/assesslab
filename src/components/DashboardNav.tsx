@@ -14,7 +14,8 @@ import {
   LogOut,
   GraduationCap,
   Notebook,
-  FileUp,  // Added for File Management
+  FileUp,
+  School
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,11 @@ const links = [
     title: "Students",
     icon: GraduationCap,
     href: "/dashboard/students",
+  },
+  {
+    title: "Classes",
+    icon: School,
+    href: "/dashboard/classes",
   },
   {
     title: "Subjects",

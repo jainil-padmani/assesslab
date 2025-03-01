@@ -23,7 +23,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
+
+interface Class {
+  id: string;
+  name: string;
+  department: string | null;
+  year: number | null;
+}
 
 export default function Students() {
   const navigate = useNavigate();
@@ -31,22 +45,35 @@ export default function Students() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Fetch students
+  // Fetch students with class info
   const { data: students, isLoading } = useQuery({
     queryKey: ["students"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("*")
+        .select("*, classes(name)")
         .order("name");
       if (error) throw error;
-      return data as Student[];
+      return data as (Student & { classes: { name: string } | null })[];
+    },
+  });
+
+  // Fetch classes for the dropdown
+  const { data: classes, isLoading: isClassesLoading } = useQuery({
+    queryKey: ["classes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, name, department, year")
+        .order("name");
+      if (error) throw error;
+      return data as Class[];
     },
   });
 
   // Add student mutation
   const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: Omit<Student, "id" | "created_at">) => {
+    mutationFn: async (newStudent: Omit<Student, "id" | "created_at"> & { class_id?: string | null }) => {
       const { data, error } = await supabase
         .from("students")
         .insert([newStudent])
@@ -67,7 +94,7 @@ export default function Students() {
 
   // Update student mutation
   const updateStudentMutation = useMutation({
-    mutationFn: async (student: Partial<Student> & { id: string }) => {
+    mutationFn: async (student: Partial<Student> & { id: string, class_id?: string | null }) => {
       const { data, error } = await supabase
         .from("students")
         .update(student)
@@ -111,10 +138,11 @@ export default function Students() {
       name: formData.get("name") as string,
       gr_number: formData.get("gr_number") as string,
       roll_number: formData.get("roll_number") as string,
-      year: parseInt(formData.get("year") as string),
+      year: parseInt(formData.get("year") as string) || null,
       class: formData.get("class") as string,
       department: formData.get("department") as string,
       overall_percentage: parseFloat(formData.get("overall_percentage") as string) || null,
+      class_id: formData.get("class_id") as string || null,
     };
 
     if (editingStudent) {
@@ -183,12 +211,31 @@ export default function Students() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="class">Class</Label>
+                  <Label htmlFor="class">Class Section</Label>
                   <Input
                     id="class"
                     name="class"
                     defaultValue={editingStudent?.class || ""}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="class_id">Class</Label>
+                  <Select
+                    name="class_id"
+                    defaultValue={editingStudent?.class_id || ""}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No class assigned</SelectItem>
+                      {classes?.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.name} {cls.year ? `- Year ${cls.year}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="department">Department</Label>
@@ -256,7 +303,9 @@ export default function Students() {
                 <TableCell>{student.gr_number}</TableCell>
                 <TableCell>{student.roll_number}</TableCell>
                 <TableCell>{student.year}</TableCell>
-                <TableCell>{student.class}</TableCell>
+                <TableCell>
+                  {student.classes?.name || student.class || "-"}
+                </TableCell>
                 <TableCell>{student.department}</TableCell>
                 <TableCell>{student.overall_percentage}%</TableCell>
                 <TableCell>

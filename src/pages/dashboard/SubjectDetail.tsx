@@ -1,13 +1,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Subject, Student, BloomsTaxonomy, SubjectFile } from "@/types/dashboard";
 import { SubjectInfo } from "@/components/subject/SubjectInfo";
 import { BloomsTaxonomy as BloomsTaxonomyComponent } from "@/components/subject/BloomsTaxonomy";
 import { PapersManagement } from "@/components/subject/PapersManagement";
+import { SubjectStudents } from "@/components/subject/SubjectStudents";
 import { fetchSubjectFiles } from "@/utils/subjectFilesUtils";
 
 export default function SubjectDetail() {
@@ -104,10 +105,11 @@ export default function SubjectDetail() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{subject.name}</h1>
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-[400px]">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-[500px]">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="info">Subject Info</TabsTrigger>
-            <TabsTrigger value="papers">Subject Papers</TabsTrigger>
+            <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="papers">Papers</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -125,6 +127,11 @@ export default function SubjectDetail() {
               fetchSubjectData={fetchSubjectData} 
             />
           </div>
+        ) : activeTab === "students" ? (
+          <SubjectStudents
+            subject={subject}
+            fetchSubjectData={fetchSubjectData}
+          />
         ) : (
           <PapersManagement 
             subject={subject} 
