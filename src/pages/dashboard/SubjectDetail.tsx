@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -8,6 +7,7 @@ import type { Subject, Student, BloomsTaxonomy, SubjectFile } from "@/types/dash
 import { SubjectInfo } from "@/components/subject/SubjectInfo";
 import { BloomsTaxonomy as BloomsTaxonomyComponent } from "@/components/subject/BloomsTaxonomy";
 import { PapersManagement } from "@/components/subject/PapersManagement";
+import { fetchSubjectFiles } from "@/utils/subjectFilesUtils";
 
 export default function SubjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -41,7 +41,7 @@ export default function SubjectDetail() {
   useEffect(() => {
     if (id) {
       fetchSubjectData();
-      fetchSubjectFiles();
+      fetchAndSetSubjectFiles();
     }
   }, [id]);
 
@@ -88,60 +88,10 @@ export default function SubjectDetail() {
     }
   };
 
-  const fetchSubjectFiles = async () => {
-    try {
-      const { data: storageData, error: storageError } = await supabase
-        .storage
-        .from('files')
-        .list();
-
-      if (storageError) throw storageError;
-
-      const filesMap = new Map<string, SubjectFile>();
-      
-      if (storageData && id) {
-        storageData.forEach(file => {
-          const parts = file.name.split('_');
-          if (parts.length >= 3 && parts[0] === id) {
-            const topic = parts[1];
-            const fileType = parts[2].split('.')[0];
-            const groupKey = `${id}_${topic}`;
-            
-            const { data: { publicUrl } } = supabase
-              .storage
-              .from('files')
-              .getPublicUrl(file.name);
-            
-            if (!filesMap.has(groupKey)) {
-              filesMap.set(groupKey, {
-                id: groupKey,
-                subject_id: id,
-                topic: topic,
-                question_paper_url: fileType === 'questionPaper' ? publicUrl : '',
-                answer_key_url: fileType === 'answerKey' ? publicUrl : '',
-                created_at: file.created_at || new Date().toISOString()
-              });
-            } else {
-              const existingFile = filesMap.get(groupKey)!;
-              if (fileType === 'questionPaper') {
-                existingFile.question_paper_url = publicUrl;
-              } else if (fileType === 'answerKey') {
-                existingFile.answer_key_url = publicUrl;
-              }
-              filesMap.set(groupKey, existingFile);
-            }
-          }
-        });
-      }
-      
-      const files = Array.from(filesMap.values()).filter(
-        file => file.question_paper_url && file.answer_key_url
-      );
-      
+  const fetchAndSetSubjectFiles = async () => {
+    if (id) {
+      const files = await fetchSubjectFiles(id);
       setSubjectFiles(files);
-    } catch (error: any) {
-      console.error('Error fetching subject files:', error);
-      toast.error('Failed to fetch subject files');
     }
   };
 
@@ -179,7 +129,7 @@ export default function SubjectDetail() {
         <PapersManagement 
           subject={subject} 
           subjectFiles={subjectFiles} 
-          fetchSubjectFiles={fetchSubjectFiles} 
+          fetchSubjectFiles={fetchAndSetSubjectFiles} 
         />
       </TabsContent>
     </div>
