@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   name: string;
@@ -9,6 +8,9 @@ export interface Student {
   class_id: string | null;
   department: string;
   overall_percentage: number | null;
+  email: string | null;
+  parent_name: string | null;
+  parent_contact: string | null;
   created_at: string;
 }
 
