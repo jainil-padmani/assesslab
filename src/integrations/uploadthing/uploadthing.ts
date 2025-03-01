@@ -2,27 +2,38 @@
 import { createUploadthing, type FileRouter } from "uploadthing/server";
  
 const f = createUploadthing();
- 
-// Define file types and permissions
+
+// FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
-  // Define different file upload types with different size limits
-  questionPaper: f({ pdf: { maxFileSize: "4MB" }, image: { maxFileSize: "4MB" }, text: { maxFileSize: "1MB" } })
-    .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete for question paper", file.url);
-      // Handle the possibly undefined metadata
-      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
+  // Define as many FileRoutes as you like, each with a unique route key
+  questionPaper: f({ image: { maxFileSize: "4MB", maxFileCount: 1 }, pdf: { maxFileSize: "4MB", maxFileCount: 1 } })
+    // Set permissions and file types for this FileRoute
+    .middleware(({ req }) => {
+      // This code runs on your server before upload
+      return { userId: "user-id" }; // Add user ID or other metadata here
+    })
+    .onUploadComplete(({ metadata, file }) => {
+      // This code RUNS ON YOUR SERVER after upload
+      console.log("Upload complete for userId:", metadata?.userId);
+      console.log("File URL:", file.url);
     }),
-  answerKey: f({ pdf: { maxFileSize: "4MB" }, image: { maxFileSize: "4MB" }, text: { maxFileSize: "1MB" } })
-    .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete for answer key", file.url);
-      // Handle the possibly undefined metadata
-      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
+
+  answerKey: f({ image: { maxFileSize: "4MB", maxFileCount: 1 }, pdf: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .middleware(({ req }) => {
+      return { userId: "user-id" };
+    })
+    .onUploadComplete(({ metadata, file }) => {
+      console.log("Upload complete for userId:", metadata?.userId);
+      console.log("File URL:", file.url);
     }),
-  handwrittenPaper: f({ pdf: { maxFileSize: "8MB" }, image: { maxFileSize: "8MB" } })
-    .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete for handwritten paper", file.url);
-      // Handle the possibly undefined metadata
-      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
+
+  handwrittenPaper: f({ image: { maxFileSize: "4MB", maxFileCount: 3 }, pdf: { maxFileSize: "8MB", maxFileCount: 1 } })
+    .middleware(({ req }) => {
+      return { userId: "user-id" };
+    })
+    .onUploadComplete(({ metadata, file }) => {
+      console.log("Upload complete for userId:", metadata?.userId);
+      console.log("File URL:", file.url);
     }),
 } satisfies FileRouter;
  
