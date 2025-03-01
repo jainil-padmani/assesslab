@@ -12,8 +12,9 @@ import {
   Book,
   LayoutDashboard,
   LogOut,
-  GraduationCap,  // Added for Students
-  Notebook,        // Added for Subjects
+  GraduationCap,
+  Notebook,
+  FileUp,  // Added for File Management
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,6 +40,11 @@ const links = [
     title: "Generate Questions",
     icon: BookOpen,
     href: "/dashboard/generate",
+  },
+  {
+    title: "File Management",
+    icon: FileUp,
+    href: "/dashboard/file-management",
   },
   {
     title: "Analysis",
