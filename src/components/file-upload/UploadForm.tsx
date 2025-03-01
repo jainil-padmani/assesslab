@@ -13,6 +13,7 @@ import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
 import { UTUploadDropzone } from "@/integrations/uploadthing/uploadthing-provider";
 import type { OurFileRouter } from "@/integrations/uploadthing/uploadthing";
 import { type UploadStep, type UploadEndpoint, type FileUploadState } from '@/types/fileUpload';
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadFormProps {
   currentStep: UploadStep;
@@ -22,7 +23,7 @@ interface UploadFormProps {
   handleNextStep: () => void;
   handleSkipStep: () => void;
   handleSubmitFiles: () => void;
-  handleUploadComplete: (endpoint: UploadEndpoint, res: { url: string }) => void;
+  handleUploadComplete: (endpoint: UploadEndpoint, res: { url: string, name: string, size: number, type: string }) => void;
   handleUploadError: (error: Error) => void;
   handleRemoveFile: (step: UploadStep) => void;
   getCurrentFileUrl: (step: UploadStep) => string | null;
@@ -61,7 +62,13 @@ export const UploadForm = ({
               endpoint={currentStep.endpoint}
               onClientUploadComplete={(res) => {
                 if (res && res.length > 0) {
-                  handleUploadComplete(currentStep.endpoint, { url: res[0].url });
+                  const fileInfo = {
+                    url: res[0].url,
+                    name: res[0].name,
+                    size: res[0].size,
+                    type: res[0].type || `${res[0].name.split('.').pop()}`
+                  };
+                  handleUploadComplete(currentStep.endpoint, fileInfo);
                 }
               }}
               onUploadError={(error) => {
