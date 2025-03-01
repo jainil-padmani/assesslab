@@ -104,6 +104,36 @@ export type Database = {
           },
         ]
       }
+      file_uploads: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id: string
+          upload_type: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          id?: string
+          upload_type: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          upload_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           id: string
