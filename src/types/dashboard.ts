@@ -1,3 +1,4 @@
+
 import type { Database } from "@/integrations/supabase/types";
 
 export interface Student {
@@ -30,6 +31,16 @@ export interface Subject {
   semester: number;
   created_at: string;
   information_pdf_url?: string;
+  files?: SubjectFile[];
+}
+
+export interface SubjectFile {
+  id: string;
+  subject_id: string;
+  topic: string;
+  question_paper_url: string;
+  answer_key_url: string;
+  created_at: string;
 }
 
 export interface BloomsTaxonomy {
