@@ -12,9 +12,8 @@ import {
   Book,
   LayoutDashboard,
   LogOut,
-  GraduationCap,
-  Notebook,
-  Upload,  // Added for Upload button
+  GraduationCap,  // Added for Students
+  Notebook,        // Added for Subjects
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,11 +34,6 @@ const links = [
     title: "Subjects",
     icon: Notebook,
     href: "/dashboard/subjects",
-  },
-  {
-    title: "Upload Files",
-    icon: Upload,
-    href: "/dashboard/upload",
   },
   {
     title: "Generate Questions",

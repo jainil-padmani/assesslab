@@ -1,178 +1,245 @@
+
 import { useState, useEffect } from "react";
-import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { FileText, Settings, Upload, FileUp } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BookOpen, Upload, FileText } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import type { Subject, BloomsTaxonomy } from "@/types/dashboard";
 
 export default function Generate() {
-  const [activeTab, setActiveTab] = useState("from-documents");
-  const [documentContent, setDocumentContent] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [generatedContent, setGeneratedContent] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [questionType, setQuestionType] = useState<string>("mcq");
+  const [numQuestions, setNumQuestions] = useState<number>(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [bloomsLevels, setBloomsLevels] = useState<BloomsTaxonomy>({
+    remember: 0,
+    understand: 0,
+    apply: 0,
+    analyze: 0,
+    evaluate: 0,
+    create: 0
+  });
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchSubjects();
+  }, []);
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      if (data) setSubjects(data);
+    } catch (error) {
+      toast.error('Failed to fetch subjects');
+    }
   };
 
-  const handleGenerateContent = async () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const fileType = selectedFile.type;
+      const validTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      
+      if (!validTypes.includes(fileType)) {
+        toast.error('Please upload PDF, PPT, or DOCX files only');
+        return;
+      }
+      setFile(selectedFile);
+    }
+  };
+
+  const handleBloomLevelChange = (level: keyof BloomsTaxonomy, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setBloomsLevels(prev => ({
+      ...prev,
+      [level]: numValue
+    }));
+  };
+
+  const handleGenerate = async () => {
+    if (!file) {
+      toast.error('Please upload a file first');
+      return;
+    }
+
+    if (!selectedSubject) {
+      toast.error('Please select a subject');
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setGeneratedContent("This is the generated content based on your input.");
-    setIsLoading(false);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      // Process with OpenAI
+      const response = await fetch('/api/process-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_questions',
+          content: {
+            fileUrl: publicUrl,
+            questionType,
+            numQuestions,
+            bloomsTaxonomy: bloomsLevels,
+            subjectId: selectedSubject
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to generate questions');
+
+      const responseData = await response.json();
+
+      // Navigate to results page
+      navigate('/dashboard/questions', { 
+        state: { 
+          questions: responseData,
+          documentUrl: publicUrl,
+          bloomsTaxonomy: bloomsLevels
+        } 
+      });
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <DashboardLayout>
-      <div className="container mx-auto py-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              <CardTitle>Generate Content</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="from-documents" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-                <TabsTrigger value="from-documents">
-                  <FileText className="mr-2 h-4 w-4" />
-                  From Documents
-                </TabsTrigger>
-                <TabsTrigger value="from-prompt">
-                  <Settings className="mr-2 h-4 w-4" />
-                  From Prompt
-                </TabsTrigger>
-                <TabsTrigger value="upload-file">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload File
-                </TabsTrigger>
-                <TabsTrigger value="settings">
-                  <FileUp className="mr-2 h-4 w-4" />
-                  Settings
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="from-documents" className="mt-6">
-                <div className="grid gap-4">
-                  <div>
-                    <Label htmlFor="document-content">Document Content</Label>
-                    <Textarea
-                      id="document-content"
-                      placeholder="Enter document content here"
-                      value={documentContent}
-                      onChange={(e) => setDocumentContent(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Button onClick={handleGenerateContent} disabled={isLoading}>
-                      {isLoading ? "Generating..." : "Generate Content"}
-                    </Button>
-                  </div>
-                  {generatedContent && (
-                    <div>
-                      <Label htmlFor="generated-content">Generated Content</Label>
-                      <Textarea
-                        id="generated-content"
-                        readOnly
-                        value={generatedContent}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="from-prompt" className="mt-6">
-                <div className="grid gap-4">
-                  <div>
-                    <Label htmlFor="prompt">Prompt</Label>
-                    <Input
-                      id="prompt"
-                      placeholder="Enter your prompt here"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Button onClick={handleGenerateContent} disabled={isLoading}>
-                      {isLoading ? "Generating..." : "Generate Content"}
-                    </Button>
-                  </div>
-                  {generatedContent && (
-                    <div>
-                      <Label htmlFor="generated-content">Generated Content</Label>
-                      <Textarea
-                        id="generated-content"
-                        readOnly
-                        value={generatedContent}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="upload-file" className="mt-6">
-                <div className="grid gap-4">
-                  <div>
-                    <Label htmlFor="upload">Upload File</Label>
-                    <Input type="file" id="upload" />
-                  </div>
-                  <div>
-                    <Button onClick={handleGenerateContent} disabled={isLoading}>
-                      {isLoading ? "Generating..." : "Generate Content"}
-                    </Button>
-                  </div>
-                  {generatedContent && (
-                    <div>
-                      <Label htmlFor="generated-content">Generated Content</Label>
-                      <Textarea
-                        id="generated-content"
-                        readOnly
-                        value={generatedContent}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="settings" className="mt-6">
-                <div className="grid gap-4">
-                  <div>
-                    <Label htmlFor="settings">Settings</Label>
-                    <Textarea id="settings" placeholder="Settings" />
-                  </div>
-                  <div>
-                    <Button onClick={handleGenerateContent} disabled={isLoading}>
-                      {isLoading ? "Generating..." : "Generate Content"}
-                    </Button>
-                  </div>
-                  {generatedContent && (
-                    <div>
-                      <Label htmlFor="generated-content">Generated Content</Label>
-                      <Textarea
-                        id="generated-content"
-                        readOnly
-                        value={generatedContent}
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
-  );
-}
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Generate Questions</h1>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5 text-accent" />
+            Upload Study Material
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="subject">Select Subject</Label>
+            <Select
+              value={selectedSubject}
+              onValueChange={(value) => setSelectedSubject(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="file">Upload File (PDF, PPT, DOCX)</Label>
+            <Input 
+              id="file" 
+              type="file" 
+              accept=".pdf,.pptx,.docx"
+              onChange={handleFileChange}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-function Label(props: { htmlFor: string; children: React.ReactNode }) {
-  return (
-    <label
-      htmlFor={props.htmlFor}
-      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-    >
-      {props.children}
-    </label>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-accent" />
+            Question Parameters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="type">Question Type</Label>
+            <select
+              id="type"
+              className="w-full rounded-md border border-input bg-background px-3 py-2"
+              value={questionType}
+              onChange={(e) => setQuestionType(e.target.value)}
+            >
+              <option value="mcq">Multiple Choice</option>
+              <option value="short">Short Answer</option>
+              <option value="long">Long Answer</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="number">Number of Questions</Label>
+            <Input
+              id="number"
+              type="number"
+              min="1"
+              max="50"
+              value={numQuestions}
+              onChange={(e) => setNumQuestions(parseInt(e.target.value))}
+            />
+          </div>
+          <div className="space-y-4">
+            <Label>Bloom's Taxonomy Distribution</Label>
+            {Object.entries(bloomsLevels).map(([level, value]) => (
+              <div key={level} className="grid gap-2">
+                <Label htmlFor={level} className="capitalize">{level}</Label>
+                <Input
+                  id={level}
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={value}
+                  onChange={(e) => handleBloomLevelChange(level as keyof BloomsTaxonomy, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          <Button 
+            className="w-full bg-accent hover:bg-accent/90"
+            onClick={handleGenerate}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              "Generating..."
+            ) : (
+              <>
+                <FileText className="mr-2 h-4 w-4" />
+                Generate Questions
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
