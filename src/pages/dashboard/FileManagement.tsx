@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,12 +63,10 @@ export default function FileManagement() {
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle>
-                <div className="flex items-center gap-2">
-                  <Folders className="h-5 w-5 text-accent" />
-                  <span>File Management</span>
-                </div>
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Folders className="h-5 w-5 text-accent" />
+                <CardTitle>File Management</CardTitle>
+              </div>
               {selectedSubject && view === "documents" && (
                 <div className="flex items-center gap-2">
                   <div className="text-sm text-muted-foreground">
