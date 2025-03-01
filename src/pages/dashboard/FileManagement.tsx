@@ -9,8 +9,10 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
 import { toast } from "sonner";
+import { UTUploadDropzone } from "@/integrations/uploadthing/uploadthing-provider";
 
 // Define the upload step interface
 type UploadStep = {
@@ -19,13 +21,14 @@ type UploadStep = {
   description: string;
   fileTypes: string[];
   isRequired: boolean;
+  endpoint: "questionPaper" | "answerKey" | "handwrittenPaper";
 }
 
 // Define the file upload form state
 type FileUploadState = {
-  questionPaper: File | null;
-  answerKey: File | null;
-  handwrittenPaper: File | null;
+  questionPaperUrl: string | null;
+  answerKeyUrl: string | null;
+  handwrittenPaperUrl: string | null;
   currentStep: number;
 }
 
@@ -37,52 +40,34 @@ const FileManagement = () => {
       title: "Add Question Paper",
       description: "Upload the question paper file. This is required to proceed.",
       fileTypes: [".pdf", ".docx", ".png", ".jpeg", ".jpg"],
-      isRequired: true
+      isRequired: true,
+      endpoint: "questionPaper"
     },
     {
       id: 2,
       title: "Add Answer Key",
       description: "Upload the answer key file. This is required to proceed.",
       fileTypes: [".pdf", ".docx", ".png", ".jpeg", ".jpg"],
-      isRequired: true
+      isRequired: true,
+      endpoint: "answerKey"
     },
     {
       id: 3,
       title: "Add Handwritten Paper (Optional)",
       description: "Upload handwritten answer sheets. You can skip this step if not applicable.",
       fileTypes: [".pdf", ".png", ".jpeg", ".jpg"],
-      isRequired: false
+      isRequired: false,
+      endpoint: "handwrittenPaper"
     }
   ];
 
   // Initialize state for file upload
   const [fileUploadState, setFileUploadState] = useState<FileUploadState>({
-    questionPaper: null,
-    answerKey: null,
-    handwrittenPaper: null,
+    questionPaperUrl: null,
+    answerKeyUrl: null,
+    handwrittenPaperUrl: null,
     currentStep: 1
   });
-
-  // Handle file selection
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, stepId: number) => {
-    if (!event.target.files || event.target.files.length === 0) {
-      return;
-    }
-
-    const file = event.target.files[0];
-    
-    switch (stepId) {
-      case 1:
-        setFileUploadState({ ...fileUploadState, questionPaper: file });
-        break;
-      case 2:
-        setFileUploadState({ ...fileUploadState, answerKey: file });
-        break;
-      case 3:
-        setFileUploadState({ ...fileUploadState, handwrittenPaper: file });
-        break;
-    }
-  };
 
   // Handle next step
   const handleNextStep = () => {
@@ -113,17 +98,33 @@ const FileManagement = () => {
 
   // Handle file submission
   const handleSubmitFiles = () => {
-    // Here we would integrate with UploadThing's API
-    // For now, just show a success toast
     toast.success("Files uploaded successfully!");
     
     // Reset the form state
     setFileUploadState({
-      questionPaper: null,
-      answerKey: null,
-      handwrittenPaper: null,
+      questionPaperUrl: null,
+      answerKeyUrl: null,
+      handwrittenPaperUrl: null,
       currentStep: 1
     });
+  };
+
+  // Handle upload complete
+  const handleUploadComplete = (endpoint: "questionPaper" | "answerKey" | "handwrittenPaper", res: { url: string }) => {
+    toast.success(`${endpoint} uploaded successfully!`);
+
+    if (endpoint === "questionPaper") {
+      setFileUploadState({ ...fileUploadState, questionPaperUrl: res.url });
+    } else if (endpoint === "answerKey") {
+      setFileUploadState({ ...fileUploadState, answerKeyUrl: res.url });
+    } else if (endpoint === "handwrittenPaper") {
+      setFileUploadState({ ...fileUploadState, handwrittenPaperUrl: res.url });
+    }
+  };
+
+  // Handle upload error
+  const handleUploadError = (error: Error) => {
+    toast.error(`Upload failed: ${error.message}`);
   };
 
   // Get the current step
@@ -137,14 +138,44 @@ const FileManagement = () => {
     
     switch (step.id) {
       case 1:
-        return !!fileUploadState.questionPaper;
+        return !!fileUploadState.questionPaperUrl;
       case 2:
-        return !!fileUploadState.answerKey;
+        return !!fileUploadState.answerKeyUrl;
       case 3:
         return true; // This step is optional
       default:
         return false;
     }
+  };
+
+  // Get current file URL based on step
+  const getCurrentFileUrl = (step: UploadStep) => {
+    switch (step.id) {
+      case 1:
+        return fileUploadState.questionPaperUrl;
+      case 2:
+        return fileUploadState.answerKeyUrl;
+      case 3:
+        return fileUploadState.handwrittenPaperUrl;
+      default:
+        return null;
+    }
+  };
+
+  // Handle file removal
+  const handleRemoveFile = (step: UploadStep) => {
+    switch (step.id) {
+      case 1:
+        setFileUploadState({ ...fileUploadState, questionPaperUrl: null });
+        break;
+      case 2:
+        setFileUploadState({ ...fileUploadState, answerKeyUrl: null });
+        break;
+      case 3:
+        setFileUploadState({ ...fileUploadState, handwrittenPaperUrl: null });
+        break;
+    }
+    toast.info(`${step.title} has been removed.`);
   };
 
   return (
@@ -197,64 +228,46 @@ const FileManagement = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
-                <FileUp className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-                <p className="mb-2 text-sm font-medium">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Supported file types: {currentStep.fileTypes.join(', ')}
-                </p>
-                <input
-                  type="file"
-                  id={`file-upload-${currentStep.id}`}
-                  className="hidden"
-                  accept={currentStep.fileTypes.join(',')}
-                  onChange={(e) => handleFileSelect(e, currentStep.id)}
+              {!getCurrentFileUrl(currentStep) ? (
+                <UTUploadDropzone
+                  endpoint={currentStep.endpoint}
+                  onClientUploadComplete={(res) => {
+                    if (res && res.length > 0) {
+                      handleUploadComplete(currentStep.endpoint, { url: res[0].url });
+                    }
+                  }}
+                  onUploadError={(error) => {
+                    handleUploadError(error);
+                  }}
+                  className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ut-uploading:opacity-50"
+                  config={{ mode: "auto" }}
                 />
-                <Button
-                  onClick={() => document.getElementById(`file-upload-${currentStep.id}`)?.click()}
-                  variant="outline"
-                >
-                  Select File
-                </Button>
-              </div>
-
-              {/* Display selected file */}
-              {(
-                (currentStep.id === 1 && fileUploadState.questionPaper) ||
-                (currentStep.id === 2 && fileUploadState.answerKey) ||
-                (currentStep.id === 3 && fileUploadState.handwrittenPaper)
-              ) && (
+              ) : (
                 <div className="p-4 border rounded-lg bg-background">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <FileUp className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">
-                        {currentStep.id === 1 && fileUploadState.questionPaper?.name}
-                        {currentStep.id === 2 && fileUploadState.answerKey?.name}
-                        {currentStep.id === 3 && fileUploadState.handwrittenPaper?.name}
+                        File uploaded successfully
                       </span>
                     </div>
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      onClick={() => {
-                        switch (currentStep.id) {
-                          case 1:
-                            setFileUploadState({ ...fileUploadState, questionPaper: null });
-                            break;
-                          case 2:
-                            setFileUploadState({ ...fileUploadState, answerKey: null });
-                            break;
-                          case 3:
-                            setFileUploadState({ ...fileUploadState, handwrittenPaper: null });
-                            break;
-                        }
-                      }}
+                      onClick={() => handleRemoveFile(currentStep)}
                     >
                       <FileX className="h-4 w-4" />
                     </Button>
+                  </div>
+                  <div className="mt-2">
+                    <a 
+                      href={getCurrentFileUrl(currentStep) || '#'} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      View uploaded file
+                    </a>
                   </div>
                 </div>
               )}
