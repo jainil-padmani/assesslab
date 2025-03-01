@@ -1,3 +1,4 @@
+
 import type { Database } from "@/integrations/supabase/types";
 
 export interface Student {
@@ -81,4 +82,15 @@ export interface AnalysisResult {
   }>;
   overallAssessment?: string;
   recommendations?: string[];
+}
+
+export interface SubjectDocument {
+  id: string;
+  subject_id: string;
+  document_type: string;
+  document_url: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
 }

@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Upload, FileText } from "lucide-react";
+import { BookOpen, Upload, FileText, FileUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import type { Subject, BloomsTaxonomy } from "@/types/dashboard";
+import type { Subject, BloomsTaxonomy, SubjectDocument } from "@/types/dashboard";
 
 export default function Generate() {
   const [file, setFile] = useState<File | null>(null);
@@ -18,6 +18,8 @@ export default function Generate() {
   const [isLoading, setIsLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedDocument, setSelectedDocument] = useState<string>("");
+  const [subjectDocuments, setSubjectDocuments] = useState<SubjectDocument[]>([]);
   const [bloomsLevels, setBloomsLevels] = useState<BloomsTaxonomy>({
     remember: 0,
     understand: 0,
@@ -33,6 +35,12 @@ export default function Generate() {
     fetchSubjects();
   }, []);
 
+  useEffect(() => {
+    if (selectedSubject) {
+      fetchSubjectDocuments();
+    }
+  }, [selectedSubject]);
+
   const fetchSubjects = async () => {
     try {
       const { data, error } = await supabase
@@ -44,6 +52,24 @@ export default function Generate() {
       if (data) setSubjects(data);
     } catch (error) {
       toast.error('Failed to fetch subjects');
+    }
+  };
+
+  const fetchSubjectDocuments = async () => {
+    if (!selectedSubject) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('subject_documents')
+        .select('*')
+        .eq('subject_id', selectedSubject)
+        .in('document_type', ['questionPaper', 'studyMaterial'])
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSubjectDocuments(data || []);
+    } catch (error) {
+      toast.error('Failed to fetch subject documents');
     }
   };
 
@@ -62,6 +88,7 @@ export default function Generate() {
         return;
       }
       setFile(selectedFile);
+      setSelectedDocument("");
     }
   };
 
@@ -74,30 +101,47 @@ export default function Generate() {
   };
 
   const handleGenerate = async () => {
-    if (!file) {
-      toast.error('Please upload a file first');
-      return;
-    }
-
     if (!selectedSubject) {
       toast.error('Please select a subject');
       return;
     }
 
+    if (!file && !selectedDocument) {
+      toast.error('Please upload a file or select an existing document');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      let fileUrl = "";
       
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(fileName, file);
+      if (file) {
+        // Upload new file
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+        if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(fileName);
+          
+        fileUrl = publicUrl;
+      } else if (selectedDocument) {
+        // Use existing document URL
+        const document = subjectDocuments.find(doc => doc.id === selectedDocument);
+        if (document) {
+          fileUrl = document.document_url;
+        }
+      }
+
+      if (!fileUrl) {
+        throw new Error('No file URL available');
+      }
 
       // Process with OpenAI
       const response = await fetch('/api/process-document', {
@@ -106,7 +150,7 @@ export default function Generate() {
         body: JSON.stringify({
           action: 'generate_questions',
           content: {
-            fileUrl: publicUrl,
+            fileUrl: fileUrl,
             questionType,
             numQuestions,
             bloomsTaxonomy: bloomsLevels,
@@ -123,7 +167,7 @@ export default function Generate() {
       navigate('/dashboard/questions', { 
         state: { 
           questions: responseData,
-          documentUrl: publicUrl,
+          documentUrl: fileUrl,
           bloomsTaxonomy: bloomsLevels
         } 
       });
@@ -141,7 +185,7 @@ export default function Generate() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-accent" />
-            Upload Study Material
+            Upload or Select Study Material
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -149,7 +193,10 @@ export default function Generate() {
             <Label htmlFor="subject">Select Subject</Label>
             <Select
               value={selectedSubject}
-              onValueChange={(value) => setSelectedSubject(value)}
+              onValueChange={(value) => {
+                setSelectedSubject(value);
+                setSelectedDocument("");
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a subject" />
@@ -163,14 +210,55 @@ export default function Generate() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="file">Upload File (PDF, PPT, DOCX)</Label>
-            <Input 
-              id="file" 
-              type="file" 
-              accept=".pdf,.pptx,.docx"
-              onChange={handleFileChange}
-            />
+          
+          {selectedSubject && subjectDocuments.length > 0 && (
+            <div className="grid gap-2">
+              <Label htmlFor="existingDocument">Select Existing Document</Label>
+              <Select
+                value={selectedDocument}
+                onValueChange={(value) => {
+                  setSelectedDocument(value);
+                  setFile(null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a document" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjectDocuments.map((doc) => (
+                    <SelectItem key={doc.id} value={doc.id}>
+                      {doc.file_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {!selectedDocument && (
+                <div className="mt-2 flex items-center">
+                  <span className="text-sm text-muted-foreground">or</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {(!selectedDocument) && (
+            <div className="grid gap-2">
+              <Label htmlFor="file">Upload New File (PDF, PPT, DOCX)</Label>
+              <Input 
+                id="file" 
+                type="file" 
+                accept=".pdf,.pptx,.docx"
+                onChange={handleFileChange}
+              />
+            </div>
+          )}
+          
+          <div className="flex justify-between items-center border-t pt-4 mt-4">
+            <span className="text-sm text-muted-foreground">Need to manage subject files?</span>
+            <Button variant="outline" onClick={() => navigate('/dashboard/files')}>
+              <FileUp className="mr-2 h-4 w-4" />
+              File Management
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -227,7 +315,7 @@ export default function Generate() {
           <Button 
             className="w-full bg-accent hover:bg-accent/90"
             onClick={handleGenerate}
-            disabled={isLoading}
+            disabled={isLoading || (!file && !selectedDocument) || !selectedSubject}
           >
             {isLoading ? (
               "Generating..."
