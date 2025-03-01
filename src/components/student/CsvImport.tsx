@@ -72,6 +72,31 @@ export default function CsvImport({ onClose }: CsvImportProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Function to automatically map CSV headers to student fields
+  const autoMapFields = (headers: string[]): CsvMappingField[] => {
+    return headers.map(header => {
+      const lowerHeader = header.toLowerCase();
+      
+      // Map common CSV header patterns to student fields
+      if (lowerHeader.includes('name')) {
+        return { csvHeader: header, studentField: "name" };
+      } else if (lowerHeader.includes('gr') || lowerHeader === 'gr_number') {
+        return { csvHeader: header, studentField: "gr_number" };
+      } else if (lowerHeader.includes('roll') || lowerHeader === 'roll_number') {
+        return { csvHeader: header, studentField: "roll_number" };
+      } else if (lowerHeader.includes('year')) {
+        return { csvHeader: header, studentField: "year" };
+      } else if (lowerHeader.includes('dept') || lowerHeader === 'department') {
+        return { csvHeader: header, studentField: "department" };
+      } else if (lowerHeader.includes('percentage') || lowerHeader === 'overall_percentage') {
+        return { csvHeader: header, studentField: "overall_percentage" };
+      } else {
+        // Skip fields that don't match any pattern
+        return { csvHeader: header, studentField: "" };
+      }
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -87,12 +112,9 @@ export default function CsvImport({ onClose }: CsvImportProps) {
           setCsvData(results.data);
           setCsvPreview(results.data.slice(0, 5));
           
-          // Initialize field mapping with correct typing
-          const initialMapping: CsvMappingField[] = headers.map(header => ({
-            csvHeader: header,
-            studentField: "" // Empty string as default
-          }));
-          setFieldMapping(initialMapping);
+          // Auto-map fields based on header names
+          const mappedFields = autoMapFields(headers);
+          setFieldMapping(mappedFields);
         },
         error: (error) => {
           toast.error("Error parsing CSV file: " + error.message);
@@ -200,8 +222,8 @@ export default function CsvImport({ onClose }: CsvImportProps) {
           
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Map CSV Fields to Student Data</h3>
-            <p className="text-xs text-gray-500">
-              Required fields: Name, GR Number, Department
+            <p className="text-xs text-gray-500 mb-2">
+              Required fields: Name, GR Number, Department (Auto-mapped based on your CSV headers)
             </p>
             
             <div className="grid grid-cols-2 gap-4 max-h-64 overflow-y-auto p-2">
