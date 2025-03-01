@@ -109,7 +109,7 @@ export default function Students() {
                 Add Student
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>
                   {editingStudent ? "Edit Student" : "Add New Student"}

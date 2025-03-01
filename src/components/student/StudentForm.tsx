@@ -149,7 +149,7 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
               <SelectValue placeholder="Select year" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No year selected</SelectItem>
+              {/* Removed the SelectItem with empty value */}
               {years.map(year => (
                 <SelectItem key={year} value={year.toString()}>
                   {year}
@@ -162,13 +162,14 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
           <Label htmlFor="class_id">Class</Label>
           <Select
             name="class_id"
-            defaultValue={student?.class_id || ""}
+            defaultValue={student?.class_id || undefined}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a class" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No class assigned</SelectItem>
+              {/* Changed the empty value to "none" */}
+              <SelectItem value="none">No class assigned</SelectItem>
               {filteredClasses?.map((cls) => (
                 <SelectItem key={cls.id} value={cls.id}>
                   {cls.name} {cls.year ? `- Year ${cls.year}` : ""}
