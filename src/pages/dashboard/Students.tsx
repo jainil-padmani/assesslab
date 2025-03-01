@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Trash2, UploadCloud, Download } from "lucide-react";
@@ -244,10 +243,10 @@ export default function Students() {
           setCsvData(results.data);
           setCsvPreview(results.data.slice(0, 5));
           
-          // Initialize field mapping with type-safe empty strings
+          // Initialize field mapping with correct typing
           const initialMapping: CsvMappingField[] = headers.map(header => ({
             csvHeader: header,
-            studentField: "" as "" | keyof Student
+            studentField: "" // Empty string as default
           }));
           setFieldMapping(initialMapping);
         },
