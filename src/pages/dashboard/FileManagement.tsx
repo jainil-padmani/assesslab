@@ -23,7 +23,14 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { Subject } from "@/types/dashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type UploadStep = {
   id: number;
@@ -121,71 +128,86 @@ const FileManagement = () => {
 
   const fetchUploadedFiles = async () => {
     try {
-      // First, let's add the required columns to our file_uploads table if they don't exist
-      // We'll get all files and manually organize them based on file type
-      const { data, error } = await supabase
-        .from('file_uploads')
-        .select(`
-          id,
-          file_name,
-          file_url,
-          file_type,
-          upload_type,
-          created_at
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
+      // Get all files from storage.objects
+      const { data: storageData, error: storageError } = await supabase
+        .storage
+        .from('files')
+        .list();
 
-      // Since our file_uploads table doesn't have subject_id and topic columns,
-      // we'll extract this information from the file_name or create a separate grouping
+      if (storageError) throw storageError;
+
+      // Group files by prefix (we'll use subject_topic_ as a prefix pattern)
+      const fileGroups: { [key: string]: UploadedFile } = {};
       
-      // Group files by naming pattern (e.g., if file names contain subject/topic info)
-      // For simplicity, let's assume file_name includes some identifier we can group by
+      if (storageData) {
+        storageData.forEach(file => {
+          // Extract metadata from filename (if it follows our pattern)
+          const fileName = file.name;
+          
+          // Check if it's one of our uploaded file types
+          const fileType = determineFileType(fileName);
+          if (!fileType) return; // Skip files that don't match our patterns
+          
+          // Get the group key (should be at the start of the file name)
+          const parts = fileName.split('_');
+          if (parts.length < 3) return; // Skip files without proper naming
+          
+          const subjectId = parts[0];
+          const topic = parts[1];
+          const groupKey = `${subjectId}_${topic}`;
+          
+          // Find subject name
+          const subject = subjects.find(s => s.id === subjectId);
+          const subjectName = subject ? subject.name : 'Unknown Subject';
+          
+          // Create group if it doesn't exist
+          if (!fileGroups[groupKey]) {
+            fileGroups[groupKey] = {
+              id: groupKey,
+              subject_id: subjectId,
+              subject_name: subjectName,
+              topic: topic,
+              question_paper_url: '',
+              answer_key_url: '',
+              handwritten_paper_url: null,
+              created_at: file.created_at || new Date().toISOString()
+            };
+          }
+          
+          // Get public URL
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('files')
+            .getPublicUrl(fileName);
+          
+          // Update the appropriate URL based on file type
+          if (fileType === 'questionPaper') {
+            fileGroups[groupKey].question_paper_url = publicUrl;
+          } else if (fileType === 'answerKey') {
+            fileGroups[groupKey].answer_key_url = publicUrl;
+          } else if (fileType === 'handwrittenPaper') {
+            fileGroups[groupKey].handwritten_paper_url = publicUrl;
+          }
+        });
+      }
       
-      const fileGroups: {[key: string]: any} = {};
-      
-      data.forEach(file => {
-        // Create a simple grouping key - in a real application, you might
-        // want to use metadata or other attributes to group related files
-        const groupKey = file.upload_type; // Using upload_type as a simple grouping key
-        
-        if (!fileGroups[groupKey]) {
-          fileGroups[groupKey] = {
-            id: file.id,
-            subject_id: "unknown", // Placeholder since we don't have this data
-            subject_name: "General Files", // Placeholder
-            topic: groupKey, // Using upload_type as topic
-            question_paper_url: "",
-            answer_key_url: "",
-            handwritten_paper_url: null,
-            created_at: file.created_at
-          };
-        }
-        
-        // Update the appropriate URL based on upload_type
-        if (file.upload_type === 'questionPaper') {
-          fileGroups[groupKey].question_paper_url = file.file_url;
-        } else if (file.upload_type === 'answerKey') {
-          fileGroups[groupKey].answer_key_url = file.file_url;
-        } else if (file.upload_type === 'handwrittenPaper') {
-          fileGroups[groupKey].handwritten_paper_url = file.file_url;
-        }
-      });
-      
-      // Convert the groups to an array of UploadedFile objects
-      const transformedFiles: UploadedFile[] = Object.values(fileGroups);
-      
-      // Only show files that have at least a question paper and answer key
-      const completeFiles = transformedFiles.filter(file => 
-        file.question_paper_url && file.answer_key_url
+      // Convert groups to array and filter out incomplete entries
+      const files = Object.values(fileGroups).filter(
+        file => file.question_paper_url && file.answer_key_url
       );
-
-      setUploadedFiles(completeFiles);
+      
+      setUploadedFiles(files);
     } catch (error) {
       console.error('Error fetching uploaded files:', error);
       toast.error('Failed to fetch uploaded files');
     }
+  };
+  
+  const determineFileType = (fileName: string): string | null => {
+    if (fileName.includes('_questionPaper_')) return 'questionPaper';
+    if (fileName.includes('_answerKey_')) return 'answerKey';
+    if (fileName.includes('_handwrittenPaper_')) return 'handwrittenPaper';
+    return null;
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, stepId: number) => {
@@ -237,35 +259,18 @@ const FileManagement = () => {
   const uploadFile = async (file: File, uploadType: string) => {
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      const filePath = `${uploadType}/${fileName}`;
+      // Create a filename pattern that contains metadata
+      const fileName = `${fileUploadState.subjectId}_${fileUploadState.topic}_${uploadType}_${Date.now()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
         .from('files')
-        .upload(filePath, file);
+        .upload(fileName, file);
 
       if (error) throw error;
 
       const { data: { publicUrl } } = supabase.storage
         .from('files')
-        .getPublicUrl(filePath);
-
-      // Since our file_uploads table doesn't have subject_id and topic, 
-      // we'll include this info in the filename or a metadata field if needed
-      // For now, let's use the file_name to store the subject and topic info
-      const fileNameWithMetadata = `${fileUploadState.subjectId}_${fileUploadState.topic}_${file.name}`;
-
-      const { error: dbError } = await supabase
-        .from('file_uploads')
-        .insert({
-          file_name: fileNameWithMetadata,
-          file_size: file.size,
-          file_type: file.type,
-          file_url: publicUrl,
-          upload_type: uploadType
-        });
-
-      if (dbError) throw dbError;
+        .getPublicUrl(fileName);
 
       return publicUrl;
     } catch (error) {
@@ -323,20 +328,37 @@ const FileManagement = () => {
     }
   };
 
-  const handleDeleteFile = async (fileId: string) => {
+  const handleDeleteFile = async (fileGroup: UploadedFile) => {
     try {
-      const { error } = await supabase
-        .from('file_uploads')
-        .delete()
-        .match({ id: fileId });
+      // Get all files from storage with this group prefix
+      const { data: storageFiles, error: listError } = await supabase
+        .storage
+        .from('files')
+        .list();
+        
+      if (listError) throw listError;
+      
+      // Filter files by the group prefix
+      const groupPrefix = `${fileGroup.subject_id}_${fileGroup.topic}_`;
+      const filesToDelete = storageFiles?.filter(file => 
+        file.name.startsWith(groupPrefix)
+      ) || [];
+        
+      // Delete each file
+      for (const file of filesToDelete) {
+        const { error: deleteError } = await supabase
+          .storage
+          .from('files')
+          .remove([file.name]);
+            
+        if (deleteError) throw deleteError;
+      }
 
-      if (error) throw error;
-
-      toast.success("File deleted successfully");
+      toast.success("Files deleted successfully");
       fetchUploadedFiles();
     } catch (error) {
-      console.error("Error deleting file:", error);
-      toast.error("Failed to delete file");
+      console.error("Error deleting files:", error);
+      toast.error("Failed to delete files");
     }
   };
 
@@ -576,14 +598,10 @@ const FileManagement = () => {
                             <CardDescription>{file.subject_name}</CardDescription>
                           </div>
                           <div className="flex space-x-2">
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleDeleteFile(file.id)}
+                              onClick={() => handleDeleteFile(file)}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
                               Delete
