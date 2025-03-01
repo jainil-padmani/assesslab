@@ -1,7 +1,7 @@
 
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, UploadCloud } from "lucide-react";
+import { Plus, Pencil, Trash2, UploadCloud, Download } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
@@ -203,6 +203,9 @@ export default function Students() {
       department: formData.get("department") as string,
       overall_percentage: parseFloat(formData.get("overall_percentage") as string) || null,
       class_id: formData.get("class_id") as string || null,
+      email: formData.get("email") as string || null,
+      parent_name: formData.get("parent_name") as string || null,
+      parent_contact: formData.get("parent_contact") as string || null,
     };
 
     if (editingStudent) {
@@ -306,6 +309,46 @@ export default function Students() {
     batchAddStudentsMutation.mutate(studentsToAdd);
   };
 
+  // Generate sample CSV
+  const generateSampleCsv = () => {
+    const sampleData = [
+      {
+        Name: "John Doe",
+        GR_Number: "GR12345",
+        Roll_Number: "1001",
+        Year: "2023",
+        Class: "Class A",
+        Department: "Computer Science",
+        Overall_Percentage: "85.5",
+        Email: "john.doe@example.com",
+        Parent_Name: "Jane Doe",
+        Parent_Contact: "+1-123-456-7890"
+      },
+      {
+        Name: "Jane Smith",
+        GR_Number: "GR67890",
+        Roll_Number: "1002",
+        Year: "2023",
+        Class: "Class B",
+        Department: "Information Technology",
+        Overall_Percentage: "92.3",
+        Email: "jane.smith@example.com",
+        Parent_Name: "John Smith",
+        Parent_Contact: "+1-987-654-3210"
+      }
+    ];
+
+    const csv = Papa.unparse(sampleData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'sampleStudents.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -315,6 +358,11 @@ export default function Students() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Students</h1>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={generateSampleCsv}>
+            <Download className="w-4 h-4 mr-2" />
+            Sample CSV
+          </Button>
+          
           <Dialog open={isCsvDialogOpen} onOpenChange={setIsCsvDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -494,7 +542,7 @@ export default function Students() {
                       id="name"
                       name="name"
                       required
-                      defaultValue={editingStudent?.name}
+                      defaultValue={editingStudent?.name || ""}
                     />
                   </div>
                   <div className="space-y-2">
@@ -503,7 +551,7 @@ export default function Students() {
                       id="gr_number"
                       name="gr_number"
                       required
-                      defaultValue={editingStudent?.gr_number}
+                      defaultValue={editingStudent?.gr_number || ""}
                     />
                   </div>
                   <div className="space-y-2">
