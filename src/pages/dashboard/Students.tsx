@@ -241,10 +241,10 @@ export default function Students() {
           setCsvData(results.data);
           setCsvPreview(results.data.slice(0, 5));
           
-          // Initialize field mapping
-          const initialMapping = headers.map(header => ({
+          // Initialize field mapping with type-safe empty strings
+          const initialMapping: CsvMappingField[] = headers.map(header => ({
             csvHeader: header,
-            studentField: ""
+            studentField: "" as "" | keyof Student
           }));
           setFieldMapping(initialMapping);
         },
