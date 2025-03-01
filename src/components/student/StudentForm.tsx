@@ -1,19 +1,9 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
+import StudentFormFields from "./form/StudentFormFields";
+import StudentFormActions from "./form/StudentFormActions";
+import { useStudentMutations } from "./form/useStudentMutations";
 
 interface StudentFormProps {
   student: Student | null;
@@ -23,64 +13,10 @@ interface StudentFormProps {
 }
 
 export default function StudentForm({ student, onClose, classes, isClassesLoading }: StudentFormProps) {
-  const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState<string>(student?.year ? student.year.toString() : "");
   const [selectedDepartment, setSelectedDepartment] = useState<string>(student?.department || "");
-
-  // Generate years (from 2018 to current year + 4)
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 2018 + 5 }, (_, i) => 2018 + i);
-
-  // Common departments
-  const departments = ["Computer Science", "Information Technology", "Electronics", "Mechanical", "Civil", "Electrical", "Chemical", "Other"];
-
-  // Filtered classes based on selected year
-  const filteredClasses = selectedYear && classes
-    ? classes.filter((cls) => cls.year === parseInt(selectedYear))
-    : classes;
-
-  // Add student mutation
-  const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: Omit<Student, "id" | "created_at"> & { class_id?: string | null }) => {
-      const { data, error } = await supabase
-        .from("students")
-        .insert([newStudent])
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      onClose();
-      toast.success("Student added successfully");
-    },
-    onError: (error) => {
-      toast.error("Failed to add student: " + error.message);
-    },
-  });
-
-  // Update student mutation
-  const updateStudentMutation = useMutation({
-    mutationFn: async (studentData: Partial<Student> & { id: string, class_id?: string | null }) => {
-      const { data, error } = await supabase
-        .from("students")
-        .update(studentData)
-        .eq("id", studentData.id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      onClose();
-      toast.success("Student updated successfully");
-    },
-    onError: (error) => {
-      toast.error("Failed to update student: " + error.message);
-    },
-  });
+  
+  const { addStudentMutation, updateStudentMutation } = useStudentMutations(onClose);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -111,151 +47,19 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name *</Label>
-          <Input
-            id="name"
-            name="name"
-            required
-            defaultValue={student?.name || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="gr_number">GR Number *</Label>
-          <Input
-            id="gr_number"
-            name="gr_number"
-            required
-            defaultValue={student?.gr_number || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="roll_number">Roll Number</Label>
-          <Input
-            id="roll_number"
-            name="roll_number"
-            defaultValue={student?.roll_number || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="year">Year</Label>
-          <Select 
-            name="year" 
-            value={selectedYear} 
-            onValueChange={setSelectedYear}
-          >
-            <SelectTrigger id="year">
-              <SelectValue placeholder="Select year" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Removed the SelectItem with empty value */}
-              {years.map(year => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="class_id">Class</Label>
-          <Select
-            name="class_id"
-            defaultValue={student?.class_id || undefined}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a class" />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Changed the empty value to "none" */}
-              <SelectItem value="none">No class assigned</SelectItem>
-              {filteredClasses?.map((cls) => (
-                <SelectItem key={cls.id} value={cls.id}>
-                  {cls.name} {cls.year ? `- Year ${cls.year}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="class">Class Section</Label>
-          <Input
-            id="class"
-            name="class"
-            defaultValue={student?.class || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="department">Department *</Label>
-          <Select 
-            name="department" 
-            value={selectedDepartment} 
-            onValueChange={setSelectedDepartment} 
-            required
-          >
-            <SelectTrigger id="department">
-              <SelectValue placeholder="Select department" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map(dept => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="overall_percentage">Overall Percentage</Label>
-          <Input
-            id="overall_percentage"
-            name="overall_percentage"
-            type="number"
-            step="0.01"
-            defaultValue={student?.overall_percentage || ""}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            defaultValue={student?.email || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="parent_name">Parent Name</Label>
-          <Input
-            id="parent_name"
-            name="parent_name"
-            defaultValue={student?.parent_name || ""}
-          />
-        </div>
-        <div className="space-y-2 col-span-2">
-          <Label htmlFor="parent_contact">Parent Contact</Label>
-          <Input
-            id="parent_contact"
-            name="parent_contact"
-            defaultValue={student?.parent_contact || ""}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end space-x-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-        <Button type="submit">
-          {student ? "Update" : "Add"} Student
-        </Button>
-      </div>
+      <StudentFormFields
+        student={student}
+        classes={classes}
+        isClassesLoading={isClassesLoading}
+        selectedYear={selectedYear}
+        setSelectedYear={setSelectedYear}
+        selectedDepartment={selectedDepartment}
+        setSelectedDepartment={setSelectedDepartment}
+      />
+      <StudentFormActions 
+        isEditing={!!student} 
+        onClose={onClose} 
+      />
     </form>
   );
 }
