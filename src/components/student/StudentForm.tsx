@@ -29,13 +29,9 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       gr_number: formData.get("gr_number") as string,
       roll_number: formData.get("roll_number") as string || null,
       year: yearValue ? parseInt(yearValue) : null,
-      class: formData.get("class") as string || null,
       department: formData.get("department") as string,
       overall_percentage: parseFloat(formData.get("overall_percentage") as string) || null,
       class_id: formData.get("class_id") as string || null,
-      email: formData.get("email") as string || null,
-      parent_name: formData.get("parent_name") as string || null,
-      parent_contact: formData.get("parent_contact") as string || null,
     };
 
     if (student) {

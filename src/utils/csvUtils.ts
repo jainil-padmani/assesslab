@@ -8,24 +8,16 @@ export const generateSampleCsv = () => {
       GR_Number: "GR12345",
       Roll_Number: "1001",
       Year: "2023",
-      Class: "Class A",
       Department: "Computer Science",
-      Overall_Percentage: "85.5",
-      Email: "john.doe@example.com",
-      Parent_Name: "Jane Doe",
-      Parent_Contact: "+1-123-456-7890"
+      Overall_Percentage: "85.5"
     },
     {
       Name: "Jane Smith",
       GR_Number: "GR67890",
       Roll_Number: "1002",
       Year: "2023",
-      Class: "Class B",
       Department: "Information Technology",
-      Overall_Percentage: "92.3",
-      Email: "jane.smith@example.com",
-      Parent_Name: "John Smith",
-      Parent_Contact: "+1-987-654-3210"
+      Overall_Percentage: "92.3"
     }
   ];
 

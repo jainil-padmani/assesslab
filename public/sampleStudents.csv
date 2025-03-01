@@ -1,7 +1,7 @@
 
-Name,GR_Number,Roll_Number,Year,Class,Department,Overall_Percentage,Email,Parent_Name,Parent_Contact
-John Doe,GR12345,1001,2023,Class A,Computer Science,85.5,john.doe@example.com,Jane Doe,+1-123-456-7890
-Jane Smith,GR67890,1002,2023,Class B,Information Technology,92.3,jane.smith@example.com,John Smith,+1-987-654-3210
-Alex Johnson,GR54321,1003,2023,Class A,Electronics,78.9,alex.j@example.com,Mary Johnson,+1-555-123-4567
-Emily Brown,GR98765,1004,2022,Class C,Mechanical,88.0,emily.b@example.com,Robert Brown,+1-222-333-4444
-Michael Lee,GR24680,1005,2022,Class D,Civil,76.5,michael.l@example.com,Sarah Lee,+1-333-444-5555
+Name,GR_Number,Roll_Number,Year,Department,Overall_Percentage
+John Doe,GR12345,1001,2023,Computer Science,85.5
+Jane Smith,GR67890,1002,2023,Information Technology,92.3
+Alex Johnson,GR54321,1003,2023,Electronics,78.9
+Emily Brown,GR98765,1004,2022,Mechanical,88.0
+Michael Lee,GR24680,1005,2022,Civil,76.5

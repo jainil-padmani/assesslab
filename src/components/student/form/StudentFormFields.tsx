@@ -82,7 +82,6 @@ export default function StudentFormFields({
               <SelectValue placeholder="Select year" />
             </SelectTrigger>
             <SelectContent>
-              {/* Removed the SelectItem with empty value */}
               {years.map(year => (
                 <SelectItem key={year} value={year.toString()}>
                   {year}
@@ -101,7 +100,6 @@ export default function StudentFormFields({
               <SelectValue placeholder="Select a class" />
             </SelectTrigger>
             <SelectContent>
-              {/* Changed the empty value to "none" */}
               <SelectItem value="none">No class assigned</SelectItem>
               {filteredClasses?.map((cls) => (
                 <SelectItem key={cls.id} value={cls.id}>
@@ -110,14 +108,6 @@ export default function StudentFormFields({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="class">Class Section</Label>
-          <Input
-            id="class"
-            name="class"
-            defaultValue={student?.class || ""}
-          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="department">Department *</Label>
@@ -147,33 +137,6 @@ export default function StudentFormFields({
             type="number"
             step="0.01"
             defaultValue={student?.overall_percentage || ""}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            defaultValue={student?.email || ""}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="parent_name">Parent Name</Label>
-          <Input
-            id="parent_name"
-            name="parent_name"
-            defaultValue={student?.parent_name || ""}
-          />
-        </div>
-        <div className="space-y-2 col-span-2">
-          <Label htmlFor="parent_contact">Parent Contact</Label>
-          <Input
-            id="parent_contact"
-            name="parent_contact"
-            defaultValue={student?.parent_contact || ""}
           />
         </div>
       </div>

@@ -44,7 +44,7 @@ export default function CsvImport({ onClose }: CsvImportProps) {
 
   // Batch add students mutation
   const batchAddStudentsMutation = useMutation({
-    mutationFn: async (students: Omit<Student, "id" | "created_at">[]) => {
+    mutationFn: async (students: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class">[]) => {
       const { data, error } = await supabase
         .from("students")
         .insert(students)
@@ -146,7 +146,7 @@ export default function CsvImport({ onClose }: CsvImportProps) {
         }
       });
       
-      return studentObj as Omit<Student, "id" | "created_at">;
+      return studentObj as Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class">;
     });
 
     batchAddStudentsMutation.mutate(studentsToAdd);
@@ -228,12 +228,8 @@ export default function CsvImport({ onClose }: CsvImportProps) {
                         <SelectItem value="gr_number">GR Number *</SelectItem>
                         <SelectItem value="roll_number">Roll Number</SelectItem>
                         <SelectItem value="year">Year</SelectItem>
-                        <SelectItem value="class">Class</SelectItem>
                         <SelectItem value="department">Department *</SelectItem>
                         <SelectItem value="overall_percentage">Overall Percentage</SelectItem>
-                        <SelectItem value="email">Email</SelectItem>
-                        <SelectItem value="parent_name">Parent Name</SelectItem>
-                        <SelectItem value="parent_contact">Parent Contact</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
