@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -120,53 +121,63 @@ const FileManagement = () => {
 
   const fetchUploadedFiles = async () => {
     try {
+      // First, let's add the required columns to our file_uploads table if they don't exist
+      // We'll get all files and manually organize them based on file type
       const { data, error } = await supabase
         .from('file_uploads')
         .select(`
           id,
-          file_url,
           file_name,
+          file_url,
           file_type,
           upload_type,
-          created_at,
-          subject_id,
-          topic,
-          subjects(name)
+          created_at
         `)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
 
-      const transformedData = data.reduce((acc: UploadedFile[], file) => {
-        const existingFile = acc.find(f => 
-          f.subject_id === file.subject_id && f.topic === file.topic
-        );
-
-        if (existingFile) {
-          if (file.upload_type === 'questionPaper') {
-            existingFile.question_paper_url = file.file_url;
-          } else if (file.upload_type === 'answerKey') {
-            existingFile.answer_key_url = file.file_url;
-          } else if (file.upload_type === 'handwrittenPaper') {
-            existingFile.handwritten_paper_url = file.file_url;
-          }
-          return acc;
-        } else {
-          const newFile: UploadedFile = {
+      // Since our file_uploads table doesn't have subject_id and topic columns,
+      // we'll extract this information from the file_name or create a separate grouping
+      
+      // Group files by naming pattern (e.g., if file names contain subject/topic info)
+      // For simplicity, let's assume file_name includes some identifier we can group by
+      
+      const fileGroups: {[key: string]: any} = {};
+      
+      data.forEach(file => {
+        // Create a simple grouping key - in a real application, you might
+        // want to use metadata or other attributes to group related files
+        const groupKey = file.upload_type; // Using upload_type as a simple grouping key
+        
+        if (!fileGroups[groupKey]) {
+          fileGroups[groupKey] = {
             id: file.id,
-            subject_id: file.subject_id,
-            subject_name: file.subjects?.name || 'Unknown Subject',
-            topic: file.topic || 'Untitled',
-            question_paper_url: file.upload_type === 'questionPaper' ? file.file_url : '',
-            answer_key_url: file.upload_type === 'answerKey' ? file.file_url : '',
-            handwritten_paper_url: file.upload_type === 'handwrittenPaper' ? file.file_url : null,
+            subject_id: "unknown", // Placeholder since we don't have this data
+            subject_name: "General Files", // Placeholder
+            topic: groupKey, // Using upload_type as topic
+            question_paper_url: "",
+            answer_key_url: "",
+            handwritten_paper_url: null,
             created_at: file.created_at
           };
-          return [...acc, newFile];
         }
-      }, []);
-
-      const completeFiles = transformedData.filter(file => 
+        
+        // Update the appropriate URL based on upload_type
+        if (file.upload_type === 'questionPaper') {
+          fileGroups[groupKey].question_paper_url = file.file_url;
+        } else if (file.upload_type === 'answerKey') {
+          fileGroups[groupKey].answer_key_url = file.file_url;
+        } else if (file.upload_type === 'handwrittenPaper') {
+          fileGroups[groupKey].handwritten_paper_url = file.file_url;
+        }
+      });
+      
+      // Convert the groups to an array of UploadedFile objects
+      const transformedFiles: UploadedFile[] = Object.values(fileGroups);
+      
+      // Only show files that have at least a question paper and answer key
+      const completeFiles = transformedFiles.filter(file => 
         file.question_paper_url && file.answer_key_url
       );
 
@@ -239,16 +250,19 @@ const FileManagement = () => {
         .from('files')
         .getPublicUrl(filePath);
 
+      // Since our file_uploads table doesn't have subject_id and topic, 
+      // we'll include this info in the filename or a metadata field if needed
+      // For now, let's use the file_name to store the subject and topic info
+      const fileNameWithMetadata = `${fileUploadState.subjectId}_${fileUploadState.topic}_${file.name}`;
+
       const { error: dbError } = await supabase
         .from('file_uploads')
         .insert({
-          file_name: file.name,
+          file_name: fileNameWithMetadata,
           file_size: file.size,
           file_type: file.type,
           file_url: publicUrl,
-          upload_type: uploadType,
-          subject_id: fileUploadState.subjectId,
-          topic: fileUploadState.topic
+          upload_type: uploadType
         });
 
       if (dbError) throw dbError;
