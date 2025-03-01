@@ -64,9 +64,11 @@ export default function FileManagement() {
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-2">
-                <Folders className="h-5 w-5 text-accent" />
-                <span>File Management</span>
+              <CardTitle>
+                <div className="flex items-center gap-2">
+                  <Folders className="h-5 w-5 text-accent" />
+                  <span>File Management</span>
+                </div>
               </CardTitle>
               {selectedSubject && view === "documents" && (
                 <div className="flex items-center gap-2">
