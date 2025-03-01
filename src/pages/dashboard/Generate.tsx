@@ -218,7 +218,7 @@ export default function Generate() {
                   type="number"
                   min="0"
                   max="100"
-                  value={value}
+                  value={value.toString()}
                   onChange={(e) => handleBloomLevelChange(level as keyof BloomsTaxonomy, e.target.value)}
                 />
               </div>

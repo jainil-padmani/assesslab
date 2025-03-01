@@ -39,3 +39,49 @@ export interface SubjectDocument {
   file_size: number;
   created_at: string;
 }
+
+// Add missing interfaces based on errors
+export interface BloomsTaxonomy {
+  remember: number;
+  understand: number;
+  apply: number;
+  analyze: number;
+  evaluate: number;
+  create: number;
+}
+
+export interface SubjectFile {
+  id: string;
+  subject_id: string;
+  topic: string;
+  question_paper_url: string;
+  answer_key_url: string;
+  created_at: string;
+}
+
+export interface AnalysisResult {
+  id: string;
+  title: string;
+  created_at: string;
+  result_json: Record<string, any>;
+  blooms_taxonomy?: BloomsTaxonomy;
+}
+
+export interface AnswerKey {
+  id: string;
+  subject_id: string;
+  title: string;
+  content: Record<string, any>;
+  blooms_taxonomy?: BloomsTaxonomy;
+  created_at: string;
+}
+
+// Fix for Generate.tsx errors for type safety
+export interface BloomsTaxonomyInput {
+  remember: number;
+  understand: number;
+  apply: number;
+  analyze: number;
+  evaluate: number;
+  create: number;
+}

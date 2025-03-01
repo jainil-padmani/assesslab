@@ -99,7 +99,7 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
                       type="number"
                       min="0"
                       max="100"
-                      value={value}
+                      value={value.toString()}
                       onChange={(e) => handleEditValue(level as keyof BloomsTaxonomyType, e.target.value)}
                     />
                   </div>
@@ -115,7 +115,7 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
               {bloomsData && Object.entries(bloomsData).map(([level, value]) => (
                 <div key={level} className="grid grid-cols-2 gap-4">
                   <p className="capitalize"><strong>{level}:</strong></p>
-                  <p>{value}%</p>
+                  <p>{value.toString()}%</p>
                 </div>
               ))}
             </div>
