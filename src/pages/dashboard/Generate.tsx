@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/layouts/DashboardLayout";
+import DashboardLayout from "@/layouts/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
