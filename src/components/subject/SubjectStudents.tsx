@@ -47,7 +47,10 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subject_enrollments")
-        .select("student_id, students(*)")
+        .select(`
+          student_id,
+          students (*)
+        `)
         .eq("subject_id", subject.id);
       
       if (error) throw error;

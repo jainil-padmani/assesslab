@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,10 @@ interface Class {
   year: number | null;
 }
 
+interface StudentWithClass extends Student {
+  classes: { name: string } | null;
+}
+
 export default function Students() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -54,7 +58,7 @@ export default function Students() {
         .select("*, classes(name)")
         .order("name");
       if (error) throw error;
-      return data as (Student & { classes: { name: string } | null })[];
+      return data as StudentWithClass[];
     },
   });
 

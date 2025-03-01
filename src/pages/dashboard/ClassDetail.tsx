@@ -1,8 +1,9 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Student } from "@/types/dashboard";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -26,9 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, UserPlus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { Student } from "@/types/dashboard";
 
 interface Class {
   id: string;
@@ -46,10 +46,9 @@ export default function ClassDetail() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
 
   // Fetch class details
-  const { data: classData, isLoading: isClassLoading } = useQuery({
-    queryKey: ["classes", id],
+  const { data: classData } = useQuery({
+    queryKey: ["class", id],
     queryFn: async () => {
-      if (!id) return null;
       const { data, error } = await supabase
         .from("classes")
         .select("*")
@@ -61,10 +60,9 @@ export default function ClassDetail() {
   });
 
   // Fetch students in this class
-  const { data: students, isLoading: isStudentsLoading } = useQuery({
+  const { data: classStudents, isLoading: isStudentsLoading } = useQuery({
     queryKey: ["class-students", id],
     queryFn: async () => {
-      if (!id) return [];
       const { data, error } = await supabase
         .from("students")
         .select("*")
@@ -75,11 +73,10 @@ export default function ClassDetail() {
     },
   });
 
-  // Fetch available students (not in this class)
-  const { data: availableStudents, isLoading: isAvailableStudentsLoading } = useQuery({
+  // Fetch available students (not in any class or in a different class)
+  const { data: availableStudents, isLoading: isAvailableLoading } = useQuery({
     queryKey: ["available-students", id],
     queryFn: async () => {
-      if (!id) return [];
       const { data, error } = await supabase
         .from("students")
         .select("*")
@@ -97,8 +94,7 @@ export default function ClassDetail() {
         .from("students")
         .update({ class_id: id })
         .eq("id", studentId)
-        .select()
-        .single();
+        .select();
       if (error) throw error;
       return data;
     },
@@ -121,8 +117,7 @@ export default function ClassDetail() {
         .from("students")
         .update({ class_id: null })
         .eq("id", studentId)
-        .select()
-        .single();
+        .select();
       if (error) throw error;
       return data;
     },
@@ -144,143 +139,156 @@ export default function ClassDetail() {
     addStudentToClassMutation.mutate(selectedStudentId);
   };
 
-  if (isClassLoading || isStudentsLoading) {
-    return <div>Loading...</div>;
-  }
-
   if (!classData) {
-    return <div>Class not found</div>;
+    return <div>Loading...</div>;
   }
 
   return (
     <div className="container mx-auto px-4">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{classData.name}</h1>
-          <p className="text-gray-600">
-            {classData.department} • Year {classData.year}
-          </p>
-        </div>
-        <Dialog
-          open={isAddStudentDialogOpen}
-          onOpenChange={setIsAddStudentDialogOpen}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Student to Class
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Student to {classData.name}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <Select
-                value={selectedStudentId}
-                onValueChange={setSelectedStudentId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isAvailableStudentsLoading ? (
-                    <SelectItem value="loading" disabled>
-                      Loading students...
-                    </SelectItem>
-                  ) : availableStudents?.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No available students
-                    </SelectItem>
-                  ) : (
-                    availableStudents?.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name} ({student.gr_number})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAddStudentDialogOpen(false);
-                    setSelectedStudentId("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleAddStudentToClass}
-                  disabled={!selectedStudentId || isAvailableStudentsLoading}
-                >
-                  Add to Class
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <Button
+        variant="ghost"
+        className="mb-4"
+        onClick={() => navigate("/dashboard/classes")}
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Classes
+      </Button>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>GR Number</TableHead>
-              <TableHead>Roll Number</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!students?.length && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                  No students in this class yet. Add a student to get started!
-                </TableCell>
-              </TableRow>
-            )}
-            {students?.map((student) => (
-              <TableRow key={student.id}>
-                <TableCell
-                  className="font-medium cursor-pointer hover:text-primary"
-                  onClick={() => navigate(`/dashboard/students/${student.id}`)}
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">{classData.name}</h1>
+          <Dialog
+            open={isAddStudentDialogOpen}
+            onOpenChange={setIsAddStudentDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Student
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Student to {classData.name}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <Select
+                  value={selectedStudentId}
+                  onValueChange={setSelectedStudentId}
                 >
-                  {student.name}
-                </TableCell>
-                <TableCell>{student.gr_number}</TableCell>
-                <TableCell>{student.roll_number}</TableCell>
-                <TableCell>{student.department}</TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isAvailableLoading ? (
+                      <SelectItem value="loading" disabled>
+                        Loading students...
+                      </SelectItem>
+                    ) : !availableStudents?.length ? (
+                      <SelectItem value="none" disabled>
+                        No available students
+                      </SelectItem>
+                    ) : (
+                      availableStudents.map((student) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.name} ({student.gr_number})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddStudentDialogOpen(false);
+                      setSelectedStudentId("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleAddStudentToClass}
+                    disabled={!selectedStudentId || isAvailableLoading}
+                  >
+                    Add Student
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <p className="text-sm text-muted-foreground">Department</p>
+            <p className="font-medium">{classData.department || "-"}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Year</p>
+            <p className="font-medium">{classData.year || "-"}</p>
+          </div>
+        </div>
+
+        <h2 className="text-xl font-semibold">Students</h2>
+
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>GR Number</TableHead>
+                <TableHead>Roll Number</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isStudentsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-4">
+                    Loading students...
+                  </TableCell>
+                </TableRow>
+              ) : !classStudents?.length ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    No students in this class. Add a student to get started!
+                  </TableCell>
+                </TableRow>
+              ) : (
+                classStudents.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell
+                      className="font-medium cursor-pointer hover:text-primary"
                       onClick={() => navigate(`/dashboard/students/${student.id}`)}
                     >
-                      <UserPlus className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to remove this student from the class?")) {
-                          removeStudentFromClassMutation.mutate(student.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                      {student.name}
+                    </TableCell>
+                    <TableCell>{student.gr_number}</TableCell>
+                    <TableCell>{student.roll_number}</TableCell>
+                    <TableCell>{student.department}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to remove this student from the class?")) {
+                            removeStudentFromClassMutation.mutate(student.id);
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );

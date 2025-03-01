@@ -1,6 +1,7 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
-// Class interface
 interface Class {
   id: string;
   name: string;
@@ -58,8 +57,7 @@ export default function Classes() {
       const { data, error } = await supabase
         .from("classes")
         .insert([newClass])
-        .select()
-        .single();
+        .select();
       if (error) throw error;
       return data;
     },
@@ -80,8 +78,7 @@ export default function Classes() {
         .from("classes")
         .update(classData)
         .eq("id", classData.id)
-        .select()
-        .single();
+        .select();
       if (error) throw error;
       return data;
     },
@@ -98,7 +95,10 @@ export default function Classes() {
   // Delete class mutation
   const deleteClassMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("classes").delete().eq("id", id);
+      const { error } = await supabase
+        .from("classes")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -124,7 +124,7 @@ export default function Classes() {
     if (editingClass) {
       updateClassMutation.mutate({ id: editingClass.id, ...classData });
     } else {
-      addClassMutation.mutate(classData as any);
+      addClassMutation.mutate(classData);
     }
   };
 
@@ -152,7 +152,7 @@ export default function Classes() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Class Name</Label>
+                  <Label htmlFor="name">Name</Label>
                   <Input
                     id="name"
                     name="name"
@@ -174,7 +174,6 @@ export default function Classes() {
                     id="year"
                     name="year"
                     type="number"
-                    min="1"
                     defaultValue={editingClass?.year || ""}
                   />
                 </div>
@@ -210,57 +209,51 @@ export default function Classes() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {!classes?.length && (
+            {!classes?.length ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                  No classes found. Add your first class!
+                  No classes found. Create a class to get started!
                 </TableCell>
               </TableRow>
+            ) : (
+              classes.map((cls) => (
+                <TableRow key={cls.id}>
+                  <TableCell
+                    className="font-medium cursor-pointer hover:text-primary"
+                    onClick={() => navigate(`/dashboard/classes/${cls.id}`)}
+                  >
+                    {cls.name}
+                  </TableCell>
+                  <TableCell>{cls.department || "-"}</TableCell>
+                  <TableCell>{cls.year || "-"}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingClass(cls);
+                          setIsAddDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this class? Students in this class will not be deleted but will no longer be associated with this class.")) {
+                            deleteClassMutation.mutate(cls.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-            {classes?.map((classItem) => (
-              <TableRow key={classItem.id}>
-                <TableCell
-                  className="font-medium cursor-pointer hover:text-primary"
-                  onClick={() => navigate(`/dashboard/classes/${classItem.id}`)}
-                >
-                  {classItem.name}
-                </TableCell>
-                <TableCell>{classItem.department}</TableCell>
-                <TableCell>{classItem.year}</TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => navigate(`/dashboard/classes/${classItem.id}`)}
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditingClass(classItem);
-                        setIsAddDialogOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to delete this class?")) {
-                          deleteClassMutation.mutate(classItem.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
           </TableBody>
         </Table>
       </div>

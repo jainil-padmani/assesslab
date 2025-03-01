@@ -104,6 +104,30 @@ export type Database = {
           },
         ]
       }
+      classes: {
+        Row: {
+          created_at: string
+          department: string | null
+          id: string
+          name: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          id?: string
+          name: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          id?: string
+          name?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
       file_uploads: {
         Row: {
           created_at: string
@@ -206,6 +230,7 @@ export type Database = {
       students: {
         Row: {
           class: string | null
+          class_id: string | null
           created_at: string
           department: string
           email: string | null
@@ -220,6 +245,7 @@ export type Database = {
         }
         Insert: {
           class?: string | null
+          class_id?: string | null
           created_at?: string
           department: string
           email?: string | null
@@ -234,6 +260,7 @@ export type Database = {
         }
         Update: {
           class?: string | null
+          class_id?: string | null
           created_at?: string
           department?: string
           email?: string | null
@@ -246,7 +273,15 @@ export type Database = {
           roll_number?: string | null
           year?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subject_documents: {
         Row: {
@@ -282,6 +317,42 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "subject_documents_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subject_enrollments: {
+        Row: {
+          created_at: string
+          id: string
+          student_id: string
+          subject_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          student_id: string
+          subject_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          student_id?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subject_enrollments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subject_enrollments_subject_id_fkey"
             columns: ["subject_id"]
             isOneToOne: false
             referencedRelation: "subjects"

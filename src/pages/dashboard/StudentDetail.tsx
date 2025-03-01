@@ -46,11 +46,11 @@ export default function StudentDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("*")
+        .select("*, classes(name)")
         .eq("id", id)
         .single();
       if (error) throw error;
-      return data as Student;
+      return data as Student & { classes: { name: string } | null };
     },
   });
 
@@ -71,6 +71,29 @@ export default function StudentDetail() {
         .eq("student_id", id);
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch enrolled subjects through subject_enrollments
+  const { data: enrolledSubjects } = useQuery({
+    queryKey: ["student-enrolled-subjects", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subject_enrollments")
+        .select(`
+          subject_id,
+          subjects (
+            id,
+            name,
+            subject_code
+          )
+        `)
+        .eq("student_id", id);
+      if (error) throw error;
+      return data.map(item => ({
+        ...item.subjects,
+        enrollment_id: item.id
+      }));
     },
   });
 
@@ -224,7 +247,7 @@ export default function StudentDetail() {
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Class</p>
-            <p className="font-medium">{student.class}</p>
+            <p className="font-medium">{student.classes?.name || student.class || "-"}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Department</p>
@@ -285,6 +308,42 @@ export default function StudentDetail() {
                       }}
                     >
                       Remove
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              
+              {enrolledSubjects?.map((subject: any) => (
+                <TableRow key={`enrolled-${subject.id}`}>
+                  <TableCell>{subject.name}</TableCell>
+                  <TableCell>{subject.subject_code}</TableCell>
+                  <TableCell>
+                    <span className="text-muted-foreground">Enrolled</span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (confirm("Are you sure you want to unenroll this student from the subject?")) {
+                          const { error } = await supabase
+                            .from("subject_enrollments")
+                            .delete()
+                            .eq("student_id", id)
+                            .eq("subject_id", subject.id);
+                          
+                          if (error) {
+                            toast.error("Failed to unenroll student");
+                          } else {
+                            queryClient.invalidateQueries({
+                              queryKey: ["student-enrolled-subjects", id],
+                            });
+                            toast.success("Student unenrolled successfully");
+                          }
+                        }
+                      }}
+                    >
+                      Unenroll
                     </Button>
                   </TableCell>
                 </TableRow>
