@@ -9,17 +9,20 @@ export const ourFileRouter = {
   questionPaper: f({ pdf: { maxFileSize: "4MB" }, image: { maxFileSize: "4MB" }, text: { maxFileSize: "1MB" } })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Upload complete for question paper", file.url);
-      return { uploadedBy: metadata.userId, url: file.url };
+      // Handle the possibly undefined metadata
+      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
     }),
   answerKey: f({ pdf: { maxFileSize: "4MB" }, image: { maxFileSize: "4MB" }, text: { maxFileSize: "1MB" } })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Upload complete for answer key", file.url);
-      return { uploadedBy: metadata.userId, url: file.url };
+      // Handle the possibly undefined metadata
+      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
     }),
   handwrittenPaper: f({ pdf: { maxFileSize: "8MB" }, image: { maxFileSize: "8MB" } })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Upload complete for handwritten paper", file.url);
-      return { uploadedBy: metadata.userId, url: file.url };
+      // Handle the possibly undefined metadata
+      return { uploadedBy: metadata?.userId || "anonymous", url: file.url };
     }),
 } satisfies FileRouter;
  
