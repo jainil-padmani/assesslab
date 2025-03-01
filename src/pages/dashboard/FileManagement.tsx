@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Card, 
@@ -195,7 +196,7 @@ const FileManagement = () => {
         <div className="flex justify-between mb-8">
           {uploadSteps.map((step) => (
             <div key={step.id} className="flex items-center">
-              <div 
+              <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full border ${
                   step.id === fileUploadState.currentStep 
                     ? 'bg-primary text-primary-foreground border-primary' 
@@ -229,7 +230,7 @@ const FileManagement = () => {
           <CardContent>
             <div className="space-y-4">
               {!getCurrentFileUrl(currentStep) ? (
-                <UTUploadDropzone<OurFileRouter>
+                <UTUploadDropzone<OurFileRouter, OurFileRouter>
                   endpoint={currentStep.endpoint}
                   onClientUploadComplete={(res) => {
                     if (res && res.length > 0) {
