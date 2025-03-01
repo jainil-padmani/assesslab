@@ -1,37 +1,10 @@
 
 import React, { useState } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
 import { toast } from "sonner";
-import { UTUploadDropzone } from "@/integrations/uploadthing/uploadthing-provider";
-import type { OurFileRouter } from "@/integrations/uploadthing/uploadthing";
-
-// Define the upload step interface
-type UploadStep = {
-  id: number;
-  title: string;
-  description: string;
-  fileTypes: string[];
-  isRequired: boolean;
-  endpoint: "questionPaper" | "answerKey" | "handwrittenPaper";
-}
-
-// Define the file upload form state
-type FileUploadState = {
-  questionPaperUrl: string | null;
-  answerKeyUrl: string | null;
-  handwrittenPaperUrl: string | null;
-  currentStep: number;
-}
+import { StepIndicator } from '@/components/file-upload/StepIndicator';
+import { UploadForm } from '@/components/file-upload/UploadForm';
+import { FileList } from '@/components/file-upload/FileList';
+import { type UploadStep, type FileUploadState, type UploadEndpoint } from '@/types/fileUpload';
 
 const FileManagement = () => {
   // Define the upload steps
@@ -111,7 +84,7 @@ const FileManagement = () => {
   };
 
   // Handle upload complete
-  const handleUploadComplete = (endpoint: "questionPaper" | "answerKey" | "handwrittenPaper", res: { url: string }) => {
+  const handleUploadComplete = (endpoint: UploadEndpoint, res: { url: string }) => {
     toast.success(`${endpoint} uploaded successfully!`);
 
     if (endpoint === "questionPaper") {
@@ -193,136 +166,25 @@ const FileManagement = () => {
           </div>
         </div>
 
-        <div className="flex justify-between mb-8">
-          {uploadSteps.map((step) => (
-            <div key={step.id} className="flex items-center">
-              <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full border ${
-                  step.id === fileUploadState.currentStep 
-                    ? 'bg-primary text-primary-foreground border-primary' 
-                    : step.id < fileUploadState.currentStep 
-                      ? 'bg-green-500 text-white border-green-500' 
-                      : 'bg-background text-foreground border-muted'
-                }`}
-              >
-                {step.id < fileUploadState.currentStep ? '✓' : step.id}
-              </div>
-              <div className="ml-2 text-sm font-medium">{step.title}</div>
-              {step.id < 3 && (
-                <div className="mx-2 h-0.5 w-8 bg-muted"></div>
-              )}
-            </div>
-          ))}
-        </div>
+        <StepIndicator steps={uploadSteps} currentStep={fileUploadState.currentStep} />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center space-x-2">
-              <div className="p-2 rounded-full bg-primary/10">
-                {fileUploadState.currentStep === 1 && <FilePlus className="h-5 w-5 text-primary" />}
-                {fileUploadState.currentStep === 2 && <FileCheck className="h-5 w-5 text-primary" />}
-                {fileUploadState.currentStep === 3 && <FileUp className="h-5 w-5 text-primary" />}
-              </div>
-              <CardTitle>{currentStep.title}</CardTitle>
-            </div>
-            <CardDescription>{currentStep.description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {!getCurrentFileUrl(currentStep) ? (
-                <UTUploadDropzone<OurFileRouter, OurFileRouter>
-                  endpoint={currentStep.endpoint}
-                  onClientUploadComplete={(res) => {
-                    if (res && res.length > 0) {
-                      handleUploadComplete(currentStep.endpoint, { url: res[0].url });
-                    }
-                  }}
-                  onUploadError={(error) => {
-                    handleUploadError(error);
-                  }}
-                  className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors ut-uploading:opacity-50"
-                  config={{ mode: "auto" }}
-                />
-              ) : (
-                <div className="p-4 border rounded-lg bg-background">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <FileUp className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">
-                        File uploaded successfully
-                      </span>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => handleRemoveFile(currentStep)}
-                    >
-                      <FileX className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-2">
-                    <a 
-                      href={getCurrentFileUrl(currentStep) || '#'} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      View uploaded file
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={handlePrevStep}
-              disabled={fileUploadState.currentStep === 1}
-            >
-              Previous
-            </Button>
-            <div className="flex space-x-2">
-              {!currentStep.isRequired && (
-                <Button
-                  variant="ghost"
-                  onClick={handleSkipStep}
-                >
-                  Skip
-                </Button>
-              )}
-              {fileUploadState.currentStep < 3 ? (
-                <Button
-                  onClick={handleNextStep}
-                  disabled={!canProceed(currentStep)}
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmitFiles}
-                  disabled={!canProceed(currentStep)}
-                >
-                  Submit Files
-                </Button>
-              )}
-            </div>
-          </CardFooter>
-        </Card>
+        <UploadForm
+          currentStep={currentStep}
+          fileUploadState={fileUploadState}
+          canProceed={canProceed}
+          handlePrevStep={handlePrevStep}
+          handleNextStep={handleNextStep}
+          handleSkipStep={handleSkipStep}
+          handleSubmitFiles={handleSubmitFiles}
+          handleUploadComplete={handleUploadComplete}
+          handleUploadError={handleUploadError}
+          handleRemoveFile={handleRemoveFile}
+          getCurrentFileUrl={getCurrentFileUrl}
+        />
       </div>
 
-      {/* List of uploaded files would go here */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Uploaded Files</CardTitle>
-          <CardDescription>A list of all uploaded files will appear here</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center text-muted-foreground py-8">
-            No files uploaded yet
-          </p>
-        </CardContent>
-      </Card>
+      {/* List of uploaded files */}
+      <FileList />
     </div>
   );
 };
