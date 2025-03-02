@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Test, TestGrade } from "@/types/tests";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
+import { TestPapersManagement } from "@/components/test/TestPapersManagement";
 
 export default function TestDetail() {
   const { testId } = useParams<{ testId: string }>();
@@ -168,6 +169,9 @@ export default function TestDetail() {
           <p>Maximum Marks: {test.max_marks}</p>
         </div>
       </div>
+
+      {/* Add the TestPapersManagement component here */}
+      <TestPapersManagement test={test} />
 
       <Card>
         <CardHeader>
