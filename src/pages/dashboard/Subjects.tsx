@@ -30,6 +30,17 @@ export default function Subjects() {
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get current user session
+  const { data: session } = useQuery({
+    queryKey: ["user-session"],
+    queryFn: async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return data.session;
+    },
+  });
 
   // Fetch subjects
   const { data: subjects, isLoading } = useQuery({
@@ -42,6 +53,7 @@ export default function Subjects() {
       if (error) throw error;
       return data as Subject[];
     },
+    enabled: !!session, // Only fetch if user is logged in
   });
 
   // Add subject mutation
@@ -58,9 +70,11 @@ export default function Subjects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subjects"] });
       setIsAddDialogOpen(false);
+      setIsSubmitting(false);
       toast.success("Subject added successfully");
     },
     onError: (error) => {
+      setIsSubmitting(false);
       toast.error("Failed to add subject: " + error.message);
     },
   });
@@ -80,9 +94,12 @@ export default function Subjects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subjects"] });
       setEditingSubject(null);
+      setIsAddDialogOpen(false);
+      setIsSubmitting(false);
       toast.success("Subject updated successfully");
     },
     onError: (error) => {
+      setIsSubmitting(false);
       toast.error("Failed to update subject: " + error.message);
     },
   });
@@ -104,6 +121,8 @@ export default function Subjects() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    
     const form = e.currentTarget;
     const formData = new FormData(form);
     
@@ -111,6 +130,7 @@ export default function Subjects() {
       name: formData.get("name") as string,
       subject_code: formData.get("subject_code") as string,
       semester: parseInt(formData.get("semester") as string),
+      user_id: session?.user.id, // Add user_id from the current session
     };
 
     if (editingSubject) {
@@ -119,6 +139,16 @@ export default function Subjects() {
       addSubjectMutation.mutate(subjectData as any);
     }
   };
+
+  // Show login message if not logged in
+  if (!session) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Subjects</h1>
+        <p className="mb-4">Please log in to view and manage subjects.</p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -181,11 +211,12 @@ export default function Subjects() {
                     setIsAddDialogOpen(false);
                     setEditingSubject(null);
                   }}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingSubject ? "Update" : "Add"} Subject
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : editingSubject ? "Update" : "Add"} Subject
                 </Button>
               </div>
             </form>
@@ -204,43 +235,51 @@ export default function Subjects() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {subjects?.map((subject) => (
-              <TableRow key={subject.id}>
-                <TableCell
-                  className="font-medium cursor-pointer hover:text-primary"
-                  onClick={() => navigate(`/dashboard/subjects/${subject.id}`)}
-                >
-                  {subject.name}
-                </TableCell>
-                <TableCell>{subject.subject_code}</TableCell>
-                <TableCell>{subject.semester}</TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditingSubject(subject);
-                        setIsAddDialogOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("Are you sure you want to delete this subject?")) {
-                          deleteSubjectMutation.mutate(subject.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+            {!subjects?.length ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                  No subjects found. Create a subject to get started!
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              subjects?.map((subject) => (
+                <TableRow key={subject.id}>
+                  <TableCell
+                    className="font-medium cursor-pointer hover:text-primary"
+                    onClick={() => navigate(`/dashboard/subjects/${subject.id}`)}
+                  >
+                    {subject.name}
+                  </TableCell>
+                  <TableCell>{subject.subject_code}</TableCell>
+                  <TableCell>{subject.semester}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingSubject(subject);
+                          setIsAddDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this subject?")) {
+                            deleteSubjectMutation.mutate(subject.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

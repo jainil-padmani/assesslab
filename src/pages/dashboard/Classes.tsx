@@ -30,6 +30,7 @@ interface Class {
   department: string | null;
   year: number | null;
   created_at: string;
+  user_id?: string | null;
 }
 
 export default function Classes() {
@@ -37,6 +38,17 @@ export default function Classes() {
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get current user session
+  const { data: session } = useQuery({
+    queryKey: ["user-session"],
+    queryFn: async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return data.session;
+    },
+  });
 
   // Fetch classes
   const { data: classes, isLoading } = useQuery({
@@ -49,6 +61,7 @@ export default function Classes() {
       if (error) throw error;
       return data as Class[];
     },
+    enabled: !!session, // Only fetch if user is logged in
   });
 
   // Add class mutation
@@ -64,9 +77,11 @@ export default function Classes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
       setIsAddDialogOpen(false);
+      setIsSubmitting(false);
       toast.success("Class added successfully");
     },
     onError: (error) => {
+      setIsSubmitting(false);
       toast.error("Failed to add class: " + error.message);
     },
   });
@@ -85,9 +100,12 @@ export default function Classes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
       setEditingClass(null);
+      setIsAddDialogOpen(false);
+      setIsSubmitting(false);
       toast.success("Class updated successfully");
     },
     onError: (error) => {
+      setIsSubmitting(false);
       toast.error("Failed to update class: " + error.message);
     },
   });
@@ -112,21 +130,35 @@ export default function Classes() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    
     const form = e.currentTarget;
     const formData = new FormData(form);
     
+    const yearValue = formData.get("year") as string;
     const classData = {
       name: formData.get("name") as string,
       department: formData.get("department") as string,
-      year: parseInt(formData.get("year") as string) || null,
+      year: yearValue ? parseInt(yearValue) : null,
+      user_id: session?.user.id, // Add user_id from the current session
     };
 
     if (editingClass) {
       updateClassMutation.mutate({ id: editingClass.id, ...classData });
     } else {
-      addClassMutation.mutate(classData);
+      addClassMutation.mutate(classData as any);
     }
   };
+
+  // Show login message if not logged in
+  if (!session) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Classes</h1>
+        <p className="mb-4">Please log in to view and manage classes.</p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -186,11 +218,12 @@ export default function Classes() {
                     setIsAddDialogOpen(false);
                     setEditingClass(null);
                   }}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingClass ? "Update" : "Add"} Class
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : editingClass ? "Update" : "Add"} Class
                 </Button>
               </div>
             </form>
