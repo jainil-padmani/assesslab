@@ -4,6 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
 
+// Define a simplified type for student updates to avoid infinite type recursion
+type StudentUpdateData = {
+  id: string;
+  name?: string;
+  gr_number?: string;
+  roll_number?: string | null;
+  year?: number | null;
+  department?: string;
+  class_id?: string | null;
+  overall_percentage?: number | null;
+  user_id?: string;
+};
+
 export function useStudentMutations(onClose: () => void) {
   const queryClient = useQueryClient();
 
@@ -40,9 +53,9 @@ export function useStudentMutations(onClose: () => void) {
     },
   });
 
-  // Update student mutation
+  // Update student mutation - using the simplified type
   const updateStudentMutation = useMutation({
-    mutationFn: async (studentData: Partial<Student> & { id: string, class_id?: string | null }) => {
+    mutationFn: async (studentData: StudentUpdateData) => {
       // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
       
