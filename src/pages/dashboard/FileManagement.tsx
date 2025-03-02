@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -9,7 +8,7 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileUp, FilePlus, FileCheck, FileX, Edit, Trash2 } from "lucide-react";
+import { FileUp, FilePlus, FileCheck, FileX, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { deleteFileGroup } from "@/utils/subjectFilesUtils";
 
 type UploadStep = {
   id: number;
@@ -136,29 +136,49 @@ const FileManagement = () => {
 
       if (storageError) throw storageError;
 
-      // Group files by prefix (we'll use subject_topic_ as a prefix pattern)
+      // Group files by prefix (we'll use subject_topic_ or testId_topic_ as prefix patterns)
       const fileGroups: { [key: string]: UploadedFile } = {};
       
       if (storageData) {
-        storageData.forEach(file => {
-          // Extract metadata from filename (if it follows our pattern)
+        // Process all files and group them
+        for (const file of storageData) {
           const fileName = file.name;
-          
-          // Check if it's one of our uploaded file types
-          const fileType = determineFileType(fileName);
-          if (!fileType) return; // Skip files that don't match our patterns
-          
-          // Get the group key (should be at the start of the file name)
           const parts = fileName.split('_');
-          if (parts.length < 3) return; // Skip files without proper naming
           
-          const subjectId = parts[0];
+          if (parts.length < 3) continue; // Skip files without proper naming
+          
+          const filePrefix = parts[0];
           const topic = parts[1];
-          const groupKey = `${subjectId}_${topic}`;
+          const groupKey = `${filePrefix}_${topic}`;
           
-          // Find subject name
-          const subject = subjects.find(s => s.id === subjectId);
-          const subjectName = subject ? subject.name : 'Unknown Subject';
+          // Determine file type
+          const fileTypePart = parts[2].split('.')[0];
+          const fileType = fileTypePart.includes('questionPaper') ? 'questionPaper' : 
+                           fileTypePart.includes('answerKey') ? 'answerKey' : 
+                           fileTypePart.includes('handwrittenPaper') ? 'handwrittenPaper' : null;
+                           
+          if (!fileType) continue; // Skip if not a recognized file type
+          
+          // Check if it's a test ID
+          let subjectId = filePrefix;
+          let subjectName = 'Unknown Subject';
+          
+          // If it's a test ID, get the subject information
+          const { data: testData } = await supabase
+            .from('tests')
+            .select('subject_id, name')
+            .eq('id', filePrefix)
+            .maybeSingle();
+            
+          if (testData) {
+            subjectId = testData.subject_id;
+            const subject = subjects.find(s => s.id === subjectId);
+            subjectName = subject ? `${subject.name} (Test: ${testData.name})` : `Test: ${testData.name}`;
+          } else {
+            // Regular subject file
+            const subject = subjects.find(s => s.id === subjectId);
+            subjectName = subject ? subject.name : 'Unknown Subject';
+          }
           
           // Create group if it doesn't exist
           if (!fileGroups[groupKey]) {
@@ -188,7 +208,7 @@ const FileManagement = () => {
           } else if (fileType === 'handwrittenPaper') {
             fileGroups[groupKey].handwritten_paper_url = publicUrl;
           }
-        });
+        }
       }
       
       // Convert groups to array and filter out incomplete entries
@@ -201,13 +221,6 @@ const FileManagement = () => {
       console.error('Error fetching uploaded files:', error);
       toast.error('Failed to fetch uploaded files');
     }
-  };
-  
-  const determineFileType = (fileName: string): string | null => {
-    if (fileName.includes('_questionPaper_')) return 'questionPaper';
-    if (fileName.includes('_answerKey_')) return 'answerKey';
-    if (fileName.includes('_handwrittenPaper_')) return 'handwrittenPaper';
-    return null;
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, stepId: number) => {
@@ -330,32 +343,12 @@ const FileManagement = () => {
 
   const handleDeleteFile = async (fileGroup: UploadedFile) => {
     try {
-      // Get all files from storage with this group prefix
-      const { data: storageFiles, error: listError } = await supabase
-        .storage
-        .from('files')
-        .list();
-        
-      if (listError) throw listError;
+      const [filePrefix, topic] = fileGroup.id.split('_');
+      const success = await deleteFileGroup(filePrefix, topic);
       
-      // Filter files by the group prefix
-      const groupPrefix = `${fileGroup.subject_id}_${fileGroup.topic}_`;
-      const filesToDelete = storageFiles?.filter(file => 
-        file.name.startsWith(groupPrefix)
-      ) || [];
-        
-      // Delete each file
-      for (const file of filesToDelete) {
-        const { error: deleteError } = await supabase
-          .storage
-          .from('files')
-          .remove([file.name]);
-            
-        if (deleteError) throw deleteError;
+      if (success) {
+        fetchUploadedFiles();
       }
-
-      toast.success("Files deleted successfully");
-      fetchUploadedFiles();
     } catch (error) {
       console.error("Error deleting files:", error);
       toast.error("Failed to delete files");
