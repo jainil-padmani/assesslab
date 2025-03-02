@@ -59,6 +59,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
   const [uploadTab, setUploadTab] = useState<"new" | "existing">("new");
   const [questionPaper, setQuestionPaper] = useState<File | null>(null);
   const [answerKey, setAnswerKey] = useState<File | null>(null);
+  const [topicName, setTopicName] = useState<string>("");
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
 
   // Fetch existing test files
@@ -80,7 +81,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           const parts = file.name.split('_');
           if (parts.length >= 3 && parts[0] === test.id) {
             const topic = parts[1];
-            const fileType = parts[2].split('.')[0];
+            // Extract file type correctly - handles timestamps
+            const fileType = parts[2].split('.')[0].split('_')[0];
             const groupKey = `${test.id}_${topic}`;
             
             const { data: { publicUrl } } = supabase
@@ -126,28 +128,63 @@ export function TestPapersManagement({ test }: TestPapersProps) {
 
   const uploadTestPaper = async () => {
     if (uploadTab === "new") {
-      if (!test.id || !questionPaper || !answerKey) {
-        toast.error("Please select both question paper and answer key");
+      if (!test.id || !questionPaper || !answerKey || !topicName) {
+        toast.error("Please provide a topic name and select both question paper and answer key");
         return;
       }
 
       setIsUploading(true);
 
       try {
-        const questionPaperUrl = await uploadFile(questionPaper, 'questionPaper');
+        // Use sanitized topic name for consistency
+        const sanitizedTopic = topicName.trim().replace(/\s+/g, '_');
+        const timestamp = Date.now();
         
-        const answerKeyUrl = await uploadFile(answerKey, 'answerKey');
+        // Upload question paper
+        const qpExt = questionPaper.name.split('.').pop();
+        const qpFileName = `${test.id}_${sanitizedTopic}_questionPaper_${timestamp}.${qpExt}`;
+        
+        const { error: qpError } = await supabase.storage
+          .from('files')
+          .upload(qpFileName, questionPaper);
+          
+        if (qpError) throw qpError;
+        
+        // Upload answer key
+        const akExt = answerKey.name.split('.').pop();
+        const akFileName = `${test.id}_${sanitizedTopic}_answerKey_${timestamp}.${akExt}`;
+        
+        const { error: akError } = await supabase.storage
+          .from('files')
+          .upload(akFileName, answerKey);
+          
+        if (akError) throw akError;
+        
+        // Also create a copy of these files with subject ID prefix for subject view
+        // This ensures files are also visible in subject papers section
+        const subjectQpFileName = `${test.subject_id}_${sanitizedTopic}_questionPaper_${timestamp}.${qpExt}`;
+        const subjectAkFileName = `${test.subject_id}_${sanitizedTopic}_answerKey_${timestamp}.${akExt}`;
+        
+        await supabase.storage
+          .from('files')
+          .copy(qpFileName, subjectQpFileName);
+          
+        await supabase.storage
+          .from('files')
+          .copy(akFileName, subjectAkFileName);
         
         toast.success("Files uploaded successfully!");
         
         setQuestionPaper(null);
         setAnswerKey(null);
+        setTopicName("");
         setOpenUploadDialog(false);
         
+        // Refresh the file list
         refetchTestFiles();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error uploading files:", error);
-        toast.error("Failed to upload files. Please try again.");
+        toast.error(`Failed to upload files: ${error.message}`);
       } finally {
         setIsUploading(false);
       }
@@ -183,29 +220,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     }
   };
 
-  const uploadFile = async (file: File, fileType: string): Promise<string> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const sanitizedTopic = test.name.replace(/\s+/g, '_');
-      const fileName = `${test.id}_${sanitizedTopic}_${fileType}_${Date.now()}.${fileExt}`;
-
-      const { data, error } = await supabase.storage
-        .from('files')
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('files')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error(`Error uploading ${fileType}:`, error);
-      throw error;
-    }
-  };
-
   const handleDeleteFile = async (file: TestFile) => {
     try {
       const { data: storageFiles, error: listError } = await supabase
@@ -227,6 +241,19 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           .remove([storageFile.name]);
             
         if (deleteError) throw deleteError;
+      }
+
+      // Also delete the corresponding subject files if they exist
+      const subjectPrefix = `${test.subject_id}_${file.topic}_`;
+      const subjectFilesToDelete = storageFiles?.filter(storageFile => 
+        storageFile.name.startsWith(subjectPrefix)
+      ) || [];
+      
+      for (const storageFile of subjectFilesToDelete) {
+        await supabase
+          .storage
+          .from('files')
+          .remove([storageFile.name]);
       }
 
       toast.success("Files deleted successfully");
@@ -266,7 +293,21 @@ export function TestPapersManagement({ test }: TestPapersProps) {
               </TabsList>
               
               <TabsContent value="new" className="mt-4">
-                <div className="grid gap-4 py-4">              
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="topic-name" className="text-right">
+                      Topic Name
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="topic-name"
+                        value={topicName}
+                        onChange={(e) => setTopicName(e.target.value)}
+                        placeholder="e.g., Chapter 5"
+                      />
+                    </div>
+                  </div>
+                
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="question-paper" className="text-right">
                       Question Paper
@@ -352,7 +393,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
               <Button
                 type="submit"
                 onClick={uploadTestPaper}
-                disabled={isUploading || (uploadTab === "new" ? (!questionPaper || !answerKey) : !selectedExistingFile)}
+                disabled={isUploading || (uploadTab === "new" ? (!questionPaper || !answerKey || !topicName) : !selectedExistingFile)}
               >
                 {isUploading ? 'Uploading...' : uploadTab === "new" ? 'Upload Papers' : 'Assign Papers'}
               </Button>
