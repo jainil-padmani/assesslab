@@ -59,6 +59,7 @@ export interface SubjectFile {
   topic: string;
   question_paper_url: string;
   answer_key_url: string;
+  handwritten_paper_url: string | null;
   created_at: string;
 }
 
