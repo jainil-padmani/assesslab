@@ -1,25 +1,29 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
 import { 
   listStorageFiles, 
   uploadStorageFile,
-  copyStorageFile 
+  copyStorageFile,
+  getPublicUrl 
 } from "./storageHelpers";
 import { mapTestFiles } from "./fileMappers";
 
 // Function to fetch test files
 export const fetchTestFiles = async (testId: string): Promise<any[]> => {
   try {
+    // Get all files from storage
     const storageData = await listStorageFiles();
-    
+
+    // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
     
+    // Filter out incomplete entries
     const files = Array.from(filesMap.values()).filter(
       file => file.question_paper_url && file.answer_key_url
     );
     
+    console.log("Fetched test files:", files);
     return files;
   } catch (error) {
     console.error('Error fetching test files:', error);
@@ -164,54 +168,71 @@ export const uploadTestFiles = async (
   try {
     const timestamp = Date.now();
     const uploadPromises = [];
+    const testUrls: Record<string, string> = {};
+    const subjectUrls: Record<string, string> = {};
 
     // Upload question paper
     if (questionPaper) {
       const fileExt = questionPaper.name.split('.').pop();
-      const fileName = `${testId}_${topic}_questionPaper_${timestamp}.${fileExt}`;
+      // Test file
+      const testFileName = `${testId}_${topic}_questionPaper_${timestamp}.${fileExt}`;
+      // Subject file
+      const subjectFileName = `${subjectId}_${topic}_questionPaper_${timestamp}.${fileExt}`;
       
-      const uploadPromise = uploadStorageFile(fileName, questionPaper)
-        .then(() => {
-          // Also create a subject copy for visibility in subject view
-          const subjectFileName = `${subjectId}_${topic}_questionPaper_${timestamp}.${fileExt}`;
-          return copyStorageFile(fileName, subjectFileName);
-        });
-        
-      uploadPromises.push(uploadPromise);
+      // Upload to test location
+      await uploadStorageFile(testFileName, questionPaper);
+      // Get the public URL
+      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
+      testUrls.questionPaper = testUrl;
+      
+      // Copy to subject location
+      await copyStorageFile(testFileName, subjectFileName);
+      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
+      subjectUrls.questionPaper = subjectUrl;
     }
 
     // Upload answer key
     if (answerKey) {
       const fileExt = answerKey.name.split('.').pop();
-      const fileName = `${testId}_${topic}_answerKey_${timestamp}.${fileExt}`;
+      // Test file
+      const testFileName = `${testId}_${topic}_answerKey_${timestamp}.${fileExt}`;
+      // Subject file
+      const subjectFileName = `${subjectId}_${topic}_answerKey_${timestamp}.${fileExt}`;
       
-      const uploadPromise = uploadStorageFile(fileName, answerKey)
-        .then(() => {
-          // Also create a subject copy for visibility in subject view
-          const subjectFileName = `${subjectId}_${topic}_answerKey_${timestamp}.${fileExt}`;
-          return copyStorageFile(fileName, subjectFileName);
-        });
-        
-      uploadPromises.push(uploadPromise);
+      // Upload to test location
+      await uploadStorageFile(testFileName, answerKey);
+      // Get the public URL
+      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
+      testUrls.answerKey = testUrl;
+      
+      // Copy to subject location
+      await copyStorageFile(testFileName, subjectFileName);
+      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
+      subjectUrls.answerKey = subjectUrl;
     }
 
-    // Upload handwritten paper (optional)
+    // Upload handwritten paper (optional) - keeping the code for compatibility
     if (handwrittenPaper) {
       const fileExt = handwrittenPaper.name.split('.').pop();
-      const fileName = `${testId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
+      // Test file
+      const testFileName = `${testId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
+      // Subject file
+      const subjectFileName = `${subjectId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
       
-      const uploadPromise = uploadStorageFile(fileName, handwrittenPaper)
-        .then(() => {
-          // Also create a subject copy for visibility in subject view
-          const subjectFileName = `${subjectId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
-          return copyStorageFile(fileName, subjectFileName);
-        });
-        
-      uploadPromises.push(uploadPromise);
+      // Upload to test location
+      await uploadStorageFile(testFileName, handwrittenPaper);
+      // Get the public URL
+      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
+      testUrls.handwrittenPaper = testUrl;
+      
+      // Copy to subject location
+      await copyStorageFile(testFileName, subjectFileName);
+      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
+      subjectUrls.handwrittenPaper = subjectUrl;
     }
 
-    // Wait for all uploads to complete
-    await Promise.all(uploadPromises);
+    console.log("Test files uploaded with URLs:", testUrls);
+    console.log("Subject files created with URLs:", subjectUrls);
 
     toast.success("Test files uploaded successfully");
     return true;

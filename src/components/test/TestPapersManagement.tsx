@@ -36,7 +36,6 @@ import {
   FilePlus, 
   FileCheck, 
   Trash2, 
-  Copy, 
   FileUp 
 } from "lucide-react";
 import { toast } from "sonner";
@@ -71,69 +70,13 @@ export function TestPapersManagement({ test }: TestPapersProps) {
   const [uploadTab, setUploadTab] = useState<"new" | "existing">("new");
   const [questionPaper, setQuestionPaper] = useState<File | null>(null);
   const [answerKey, setAnswerKey] = useState<File | null>(null);
-  const [handwrittenPaper, setHandwrittenPaper] = useState<File | null>(null);
   const [topicName, setTopicName] = useState<string>(test.name || ""); // Pre-fill with test name
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
 
   // Fetch existing test files
   const { data: testFiles, refetch: refetchTestFiles } = useQuery({
     queryKey: ["testFiles", test.id],
-    queryFn: async () => {
-      // Get all files from storage
-      const { data: storageData, error: storageError } = await supabase
-        .storage
-        .from('files')
-        .list();
-
-      if (storageError) throw storageError;
-
-      const filesMap = new Map<string, TestFile>();
-      
-      if (storageData) {
-        storageData.forEach(file => {
-          const parts = file.name.split('_');
-          if (parts.length >= 3 && parts[0] === test.id) {
-            const topic = parts[1];
-            // Extract file type correctly - handles timestamps
-            const fileType = parts[2].split('.')[0].split('_')[0];
-            const groupKey = `${test.id}_${topic}`;
-            
-            const { data: { publicUrl } } = supabase
-              .storage
-              .from('files')
-              .getPublicUrl(file.name);
-            
-            if (!filesMap.has(groupKey)) {
-              filesMap.set(groupKey, {
-                id: groupKey,
-                test_id: test.id,
-                topic: topic,
-                question_paper_url: fileType === 'questionPaper' ? publicUrl : '',
-                answer_key_url: fileType === 'answerKey' ? publicUrl : '',
-                handwritten_paper_url: fileType === 'handwrittenPaper' ? publicUrl : null,
-                created_at: file.created_at || new Date().toISOString()
-              });
-            } else {
-              const existingFile = filesMap.get(groupKey)!;
-              if (fileType === 'questionPaper') {
-                existingFile.question_paper_url = publicUrl;
-              } else if (fileType === 'answerKey') {
-                existingFile.answer_key_url = publicUrl;
-              } else if (fileType === 'handwrittenPaper') {
-                existingFile.handwritten_paper_url = publicUrl;
-              }
-              filesMap.set(groupKey, existingFile);
-            }
-          }
-        });
-      }
-      
-      const files = Array.from(filesMap.values()).filter(
-        file => file.question_paper_url && file.answer_key_url
-      );
-      
-      return files;
-    }
+    queryFn: () => fetchTestFiles(test.id)
   });
 
   // Fetch subject files that could be assigned to this test
@@ -155,14 +98,14 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         // Use sanitized topic name for consistency
         const sanitizedTopic = topicName.trim().replace(/\s+/g, '_');
         
-        // Use the utility function to upload files
+        // Use the utility function to upload files with null for handwritten paper
         const success = await uploadTestFiles(
           test.id, 
           test.subject_id, 
           sanitizedTopic, 
           questionPaper, 
           answerKey, 
-          handwrittenPaper
+          null // Pass null for handwritten paper
         );
         
         if (success) {
@@ -170,7 +113,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           
           setQuestionPaper(null);
           setAnswerKey(null);
-          setHandwrittenPaper(null);
           setOpenUploadDialog(false);
           
           // Refresh the file list
@@ -335,25 +277,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                       {answerKey && (
                         <p className="text-xs text-muted-foreground mt-1">
                           {answerKey.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="handwritten-paper" className="text-right">
-                      Handwritten Paper (Optional)
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="handwritten-paper"
-                        type="file"
-                        accept=".pdf,.png,.jpeg,.jpg"
-                        onChange={(e) => setHandwrittenPaper(e.target.files?.[0] || null)}
-                      />
-                      {handwrittenPaper && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {handwrittenPaper.name}
                         </p>
                       )}
                     </div>
