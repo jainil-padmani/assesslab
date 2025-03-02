@@ -9,7 +9,7 @@ export function useStudentMutations(onClose: () => void) {
 
   // Add student mutation
   const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class"> & { class_id?: string | null, user_id?: string }) => {
+    mutationFn: async (newStudent: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class"> & { class_id?: string | null }) => {
       // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -42,7 +42,7 @@ export function useStudentMutations(onClose: () => void) {
 
   // Update student mutation
   const updateStudentMutation = useMutation({
-    mutationFn: async (studentData: Partial<Omit<Student, "email" | "parent_name" | "parent_contact" | "class">> & { id: string, class_id?: string | null }) => {
+    mutationFn: async (studentData: Partial<Student> & { id: string, class_id?: string | null }) => {
       // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
       

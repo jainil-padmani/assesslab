@@ -9,3 +9,11 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// Note: With Row-Level Security enabled, users need to be authenticated
+// to access their data. Sign in users with:
+//
+// await supabase.auth.signInWithPassword({
+//   email: 'user@example.com',
+//   password: 'password123'
+// });

@@ -110,6 +110,7 @@ export type Database = {
           department: string | null
           id: string
           name: string
+          user_id: string | null
           year: number | null
         }
         Insert: {
@@ -117,6 +118,7 @@ export type Database = {
           department?: string | null
           id?: string
           name: string
+          user_id?: string | null
           year?: number | null
         }
         Update: {
@@ -124,6 +126,7 @@ export type Database = {
           department?: string | null
           id?: string
           name?: string
+          user_id?: string | null
           year?: number | null
         }
         Relationships: []
@@ -241,6 +244,7 @@ export type Database = {
           parent_contact: string | null
           parent_name: string | null
           roll_number: string | null
+          user_id: string | null
           year: number | null
         }
         Insert: {
@@ -256,6 +260,7 @@ export type Database = {
           parent_contact?: string | null
           parent_name?: string | null
           roll_number?: string | null
+          user_id?: string | null
           year?: number | null
         }
         Update: {
@@ -271,6 +276,7 @@ export type Database = {
           parent_contact?: string | null
           parent_name?: string | null
           roll_number?: string | null
+          user_id?: string | null
           year?: number | null
         }
         Relationships: [
@@ -368,6 +374,7 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -376,6 +383,7 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -384,6 +392,7 @@ export type Database = {
           name?: string
           semester?: number
           subject_code?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -438,6 +447,7 @@ export type Database = {
           name: string
           subject_id: string
           test_date: string
+          user_id: string | null
         }
         Insert: {
           class_id: string
@@ -447,6 +457,7 @@ export type Database = {
           name: string
           subject_id: string
           test_date: string
+          user_id?: string | null
         }
         Update: {
           class_id?: string
@@ -456,6 +467,7 @@ export type Database = {
           name?: string
           subject_id?: string
           test_date?: string
+          user_id?: string | null
         }
         Relationships: [
           {
