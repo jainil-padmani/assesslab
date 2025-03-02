@@ -47,7 +47,7 @@ export default function TestDetail() {
   const { data: grades, isLoading: isGradesLoading, refetch } = useQuery({
     queryKey: ["testGrades", testId],
     queryFn: async () => {
-      if (!testId) return [];
+      if (!testId || !test) return [];
       
       // Get all students in this class
       const { data: classStudents, error: classError } = await supabase

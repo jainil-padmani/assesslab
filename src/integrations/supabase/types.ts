@@ -387,6 +387,93 @@ export type Database = {
         }
         Relationships: []
       }
+      test_grades: {
+        Row: {
+          created_at: string
+          id: string
+          marks: number
+          remarks: string | null
+          student_id: string
+          test_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          marks?: number
+          remarks?: string | null
+          student_id: string
+          test_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          marks?: number
+          remarks?: string | null
+          student_id?: string
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_grades_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_grades_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tests: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          max_marks: number
+          name: string
+          subject_id: string
+          test_date: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          max_marks: number
+          name: string
+          subject_id: string
+          test_date: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          max_marks?: number
+          name?: string
+          subject_id?: string
+          test_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tests_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tests_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
