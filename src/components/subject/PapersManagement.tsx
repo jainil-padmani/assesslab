@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Card,
@@ -24,6 +23,7 @@ import { FilePlus, FileCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Subject, SubjectFile } from "@/types/dashboard";
+import { deleteFileGroup } from "@/utils/subjectFilesUtils";
 
 interface PapersManagementProps {
   subject: Subject;
