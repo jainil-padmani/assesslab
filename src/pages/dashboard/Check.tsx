@@ -1,107 +1,221 @@
+
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, CheckCircle, Plus, Pencil, Trash } from "lucide-react";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Upload, CheckCircle, FileCheck, FilePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Student, Subject, AnswerKey, BloomsTaxonomy } from "@/types/dashboard";
+import type { Student, Subject, AnswerKey } from "@/types/dashboard";
+import type { Test } from "@/types/tests";
+import { fetchTestFiles } from "@/utils/subjectFilesUtils";
+
+interface Class {
+  id: string;
+  name: string;
+  department: string | null;
+  year: number | null;
+}
+
+interface TestFile {
+  id: string;
+  topic: string;
+  question_paper_url: string;
+  answer_key_url: string;
+  handwritten_paper_url: string | null;
+}
 
 export default function Check() {
-  const [selectedStudent, setSelectedStudent] = useState("");
+  // Step selections
+  const [selectedClass, setSelectedClass] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedAnswerKey, setSelectedAnswerKey] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [answerKeys, setAnswerKeys] = useState<AnswerKey[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedTest, setSelectedTest] = useState("");
+  
+  // Data states
+  const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [isAddingKey, setIsAddingKey] = useState(false);
-  const [newKeyTitle, setNewKeyTitle] = useState("");
+  const [tests, setTests] = useState<Test[]>([]);
+  const [testFiles, setTestFiles] = useState<TestFile[]>([]);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  
+  // UI states
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [studentUploads, setStudentUploads] = useState<Record<string, File | null>>({});
 
   useEffect(() => {
-    fetchData();
+    fetchClasses();
   }, []);
 
-  const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy => {
-    const defaultTaxonomy: BloomsTaxonomy = {
-      remember: 0,
-      understand: 0,
-      apply: 0,
-      analyze: 0,
-      evaluate: 0,
-      create: 0
-    };
+  useEffect(() => {
+    if (selectedClass) {
+      fetchSubjects();
+      fetchClassStudents();
+    } else {
+      setSubjects([]);
+      setClassStudents([]);
+    }
+    setSelectedSubject("");
+    setSelectedTest("");
+    setTests([]);
+    setTestFiles([]);
+  }, [selectedClass]);
 
-    if (!data || typeof data !== 'object') return defaultTaxonomy;
+  useEffect(() => {
+    if (selectedSubject) {
+      fetchTests();
+    } else {
+      setTests([]);
+    }
+    setSelectedTest("");
+    setTestFiles([]);
+  }, [selectedSubject]);
 
-    return {
-      remember: typeof data.remember === 'number' ? data.remember : 0,
-      understand: typeof data.understand === 'number' ? data.understand : 0,
-      apply: typeof data.apply === 'number' ? data.apply : 0,
-      analyze: typeof data.analyze === 'number' ? data.analyze : 0,
-      evaluate: typeof data.evaluate === 'number' ? data.evaluate : 0,
-      create: typeof data.create === 'number' ? data.create : 0
-    };
-  };
+  useEffect(() => {
+    if (selectedTest) {
+      fetchTestPapers();
+    } else {
+      setTestFiles([]);
+    }
+  }, [selectedTest]);
 
-  const fetchData = async () => {
+  const fetchClasses = async () => {
     try {
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
+      const { data, error } = await supabase
+        .from('classes')
         .select('*')
         .order('name');
       
-      if (studentsError) throw studentsError;
-      if (studentsData) setStudents(studentsData);
+      if (error) throw error;
+      if (data) setClasses(data);
+    } catch (error: any) {
+      toast.error('Failed to fetch classes');
+      console.error('Error fetching classes:', error);
+    }
+  };
 
+  const fetchSubjects = async () => {
+    try {
+      if (!selectedClass) return;
+
+      // Get tests for the selected class to find which subjects are being tested
+      const { data: testsData, error: testsError } = await supabase
+        .from('tests')
+        .select('subject_id')
+        .eq('class_id', selectedClass)
+        .order('created_at', { ascending: false });
+      
+      if (testsError) throw testsError;
+      
+      // Extract unique subject IDs
+      const subjectIds = [...new Set(testsData?.map(test => test.subject_id) || [])];
+      
+      if (subjectIds.length === 0) {
+        setSubjects([]);
+        return;
+      }
+
+      // Fetch those subjects
       const { data: subjectsData, error: subjectsError } = await supabase
         .from('subjects')
         .select('*')
+        .in('id', subjectIds)
         .order('name');
       
       if (subjectsError) throw subjectsError;
       if (subjectsData) setSubjects(subjectsData);
-
-      const { data: keysData, error: keysError } = await supabase
-        .from('answer_keys')
-        .select('*')
-        .order('created_at');
-      
-      if (keysError) throw keysError;
-      if (keysData) {
-        const transformedKeys: AnswerKey[] = keysData.map(key => ({
-          ...key,
-          content: key.content as Record<string, any> | null,
-          blooms_taxonomy: validateAndTransformBloomsTaxonomy(key.blooms_taxonomy)
-        }));
-        setAnswerKeys(transformedKeys);
-      }
     } catch (error: any) {
-      toast.error('Failed to fetch data');
-      console.error('Error fetching data:', error);
+      toast.error('Failed to fetch subjects');
+      console.error('Error fetching subjects:', error);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchClassStudents = async () => {
+    try {
+      if (!selectedClass) return;
+
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('class_id', selectedClass)
+        .order('name');
+      
+      if (error) throw error;
+      if (data) setClassStudents(data);
+    } catch (error: any) {
+      toast.error('Failed to fetch students');
+      console.error('Error fetching students:', error);
+    }
+  };
+
+  const fetchTests = async () => {
+    try {
+      if (!selectedClass || !selectedSubject) return;
+
+      const { data, error } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('class_id', selectedClass)
+        .eq('subject_id', selectedSubject)
+        .order('test_date', { ascending: false });
+      
+      if (error) throw error;
+      if (data) setTests(data);
+    } catch (error: any) {
+      toast.error('Failed to fetch tests');
+      console.error('Error fetching tests:', error);
+    }
+  };
+
+  const fetchTestPapers = async () => {
+    try {
+      if (!selectedTest) return;
+      
+      const files = await fetchTestFiles(selectedTest);
+      setTestFiles(files);
+    } catch (error: any) {
+      toast.error('Failed to fetch test papers');
+      console.error('Error fetching test papers:', error);
+    }
+  };
+
+  const handleFileChange = (studentId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       if (selectedFile.type !== 'application/pdf') {
         toast.error('Please upload PDF files only');
         return;
       }
-      setFile(selectedFile);
+      
+      setStudentUploads(prev => ({
+        ...prev,
+        [studentId]: selectedFile
+      }));
     }
   };
 
-  const handleSubmit = async () => {
-    if (!selectedStudent || !selectedSubject || !selectedAnswerKey || !file) {
-      toast.error('Please fill in all fields and upload an answer sheet');
+  const handleUploadSheet = async (studentId: string) => {
+    const file = studentUploads[studentId];
+    if (!file) {
+      toast.error('Please select a file to upload');
       return;
     }
 
-    setIsLoading(true);
+    if (!selectedTest || testFiles.length === 0) {
+      toast.error('No test or test papers selected');
+      return;
+    }
+
+    setUploadingFor(studentId);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
@@ -119,9 +233,9 @@ export default function Check() {
       const { error: assessmentError } = await supabase
         .from('assessments')
         .insert({
-          student_id: selectedStudent,
+          student_id: studentId,
           subject_id: selectedSubject,
-          answer_key_id: selectedAnswerKey,
+          answer_key_id: null, // We don't have a direct answer key ID reference yet
           answer_sheet_url: publicUrl,
           status: 'pending'
         });
@@ -129,212 +243,188 @@ export default function Check() {
       if (assessmentError) throw assessmentError;
 
       toast.success('Answer sheet uploaded successfully');
-      setFile(null);
-      setSelectedStudent("");
-      setSelectedSubject("");
-      setSelectedAnswerKey("");
+      setStudentUploads(prev => {
+        const updated = { ...prev };
+        delete updated[studentId];
+        return updated;
+      });
     } catch (error: any) {
       toast.error(error.message);
-      console.error('Error submitting answer sheet:', error);
+      console.error('Error uploading answer sheet:', error);
     } finally {
-      setIsLoading(false);
+      setUploadingFor(null);
     }
   };
 
-  const handleAddAnswerKey = async () => {
-    if (!newKeyTitle || !selectedSubject) {
-      toast.error('Please provide a title and select a subject');
-      return;
-    }
-
-    try {
-      const defaultBloomsTaxonomy = {
-        remember: 0,
-        understand: 0,
-        apply: 0,
-        analyze: 0,
-        evaluate: 0,
-        create: 0
-      };
-
-      const { error } = await supabase
-        .from('answer_keys')
-        .insert({
-          title: newKeyTitle,
-          subject_id: selectedSubject,
-          content: {},
-          blooms_taxonomy: defaultBloomsTaxonomy
-        });
-
-      if (error) throw error;
-
-      toast.success('Answer key added successfully');
-      setIsAddingKey(false);
-      setNewKeyTitle("");
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.message);
-      console.error('Error adding answer key:', error);
-    }
+  const handleEvaluateAll = () => {
+    // Function to initiate the evaluation process for all uploaded sheets
+    toast.info('Evaluation process would start here');
   };
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Auto Check</h1>
       
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-1">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-accent" />
-              Answer Keys Management
+              Select Test Details
             </CardTitle>
+            <CardDescription>
+              Select the class, subject, and test to check student answer sheets
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isAddingKey ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="keyTitle">Answer Key Title</Label>
-                  <Input
-                    id="keyTitle"
-                    value={newKeyTitle}
-                    onChange={(e) => setNewKeyTitle(e.target.value)}
-                    placeholder="Enter title"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="keySubject">Subject</Label>
-                  <select
-                    id="keySubject"
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                  >
-                    <option value="">Select Subject</option>
-                    {subjects.map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </option>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="class">Class</Label>
+                <Select value={selectedClass} onValueChange={setSelectedClass}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
                     ))}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleAddAnswerKey}>Save</Button>
-                  <Button variant="outline" onClick={() => setIsAddingKey(false)}>
-                    Cancel
-                  </Button>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject</Label>
+                <Select 
+                  value={selectedSubject} 
+                  onValueChange={setSelectedSubject} 
+                  disabled={!selectedClass || subjects.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={!selectedClass ? "Select class first" : subjects.length === 0 ? "No subjects available" : "Select Subject"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="test">Test</Label>
+                <Select 
+                  value={selectedTest} 
+                  onValueChange={setSelectedTest}
+                  disabled={!selectedSubject || tests.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={!selectedSubject ? "Select subject first" : tests.length === 0 ? "No tests available" : "Select Test"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tests.map((test) => (
+                      <SelectItem key={test.id} value={test.id}>
+                        {test.name} ({new Date(test.test_date).toLocaleDateString()})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {testFiles.length > 0 && (
+              <div className="mt-4 border rounded-md p-4">
+                <h3 className="text-sm font-medium mb-2">Test Papers Available:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {testFiles.map((file, index) => (
+                    <div key={index} className="flex flex-col space-y-2">
+                      <p className="text-sm font-medium">{file.topic}</p>
+                      <div className="flex space-x-2">
+                        <a href={file.question_paper_url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm">
+                            View Question Paper
+                          </Button>
+                        </a>
+                        <a href={file.answer_key_url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="sm">
+                            View Answer Key
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <Button onClick={() => setIsAddingKey(true)} className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Add New Answer Key
-              </Button>
             )}
-            
-            <div className="space-y-2">
-              {answerKeys.map((key) => (
-                <div
-                  key={key.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <span>{key.title}</span>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
+          </CardContent>
+        </Card>
+
+        {selectedTest && testFiles.length > 0 && classStudents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Student Answer Sheets</CardTitle>
+                  <CardDescription>Upload handwritten answer sheets for each student</CardDescription>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Submit Answer Sheet</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="student">Student</Label>
-              <select
-                id="student"
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
-                value={selectedStudent}
-                onChange={(e) => setSelectedStudent(e.target.value)}
-              >
-                <option value="">Select Student</option>
-                {students.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.name} ({student.gr_number})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
-              <select
-                id="subject"
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-              >
-                <option value="">Select Subject</option>
-                {subjects.map((subject) => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="answerKey">Answer Key</Label>
-              <select
-                id="answerKey"
-                className="w-full rounded-md border border-input bg-background px-3 py-2"
-                value={selectedAnswerKey}
-                onChange={(e) => setSelectedAnswerKey(e.target.value)}
-              >
-                <option value="">Select Answer Key</option>
-                {answerKeys.map((key) => (
-                  <option key={key.id} value={key.id}>
-                    {key.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="answerSheet">Upload Answer Sheet (PDF only)</Label>
-              <Input
-                id="answerSheet"
-                type="file"
-                accept=".pdf"
-                onChange={handleFileChange}
-              />
-            </div>
-
-            <Button
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                "Processing..."
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Submit for Checking
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+                <Button onClick={handleEvaluateAll}>
+                  <FileCheck className="mr-2 h-4 w-4" />
+                  Evaluate All
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student Name</TableHead>
+                    <TableHead>GR Number</TableHead>
+                    <TableHead>Answer Sheet</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {classStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableCell>{student.gr_number}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            type="file"
+                            id={`file-${student.id}`}
+                            accept=".pdf"
+                            onChange={(e) => handleFileChange(student.id, e)}
+                            className="max-w-sm"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleUploadSheet(student.id)}
+                          disabled={!studentUploads[student.id] || uploadingFor === student.id}
+                        >
+                          {uploadingFor === student.id ? (
+                            "Uploading..."
+                          ) : (
+                            <>
+                              <FilePlus className="mr-2 h-4 w-4" />
+                              Upload
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
