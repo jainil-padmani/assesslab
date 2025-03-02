@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Dialog, DialogContent, DialogHeader, 
@@ -21,12 +21,12 @@ import { TestFormData } from "@/types/tests";
 interface AddTestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultSubjectId?: string;
 }
 
-export function AddTestDialog({ open, onOpenChange }: AddTestDialogProps) {
+export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestDialogProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const location = useLocation();
   
   const [formData, setFormData] = useState<TestFormData>({
     name: "",
@@ -35,15 +35,13 @@ export function AddTestDialog({ open, onOpenChange }: AddTestDialogProps) {
     test_date: new Date().toISOString().slice(0, 10),
     max_marks: 100
   });
-
-  // Location state might contain default subject ID
-  const { state } = location;
   
+  // Set default subject ID when component mounts or defaultSubjectId changes
   useEffect(() => {
-    if (state?.defaultSubjectId) {
-      setFormData(prev => ({ ...prev, subject_id: state.defaultSubjectId }));
+    if (defaultSubjectId) {
+      setFormData(prev => ({ ...prev, subject_id: defaultSubjectId }));
     }
-  }, [state]);
+  }, [defaultSubjectId, open]);
 
   const { data: subjects } = useQuery({
     queryKey: ["subjects"],
@@ -84,6 +82,7 @@ export function AddTestDialog({ open, onOpenChange }: AddTestDialogProps) {
     onSuccess: (data) => {
       toast.success("Test created successfully");
       queryClient.invalidateQueries({ queryKey: ["tests"] });
+      queryClient.invalidateQueries({ queryKey: ["subjectTests", formData.subject_id] });
       onOpenChange(false);
       navigate(`/dashboard/tests/detail/${data.id}`);
     },
@@ -113,6 +112,19 @@ export function AddTestDialog({ open, onOpenChange }: AddTestDialogProps) {
     createTestMutation.mutate(formData);
   };
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setFormData({
+        name: "",
+        subject_id: defaultSubjectId || "",
+        class_id: "",
+        test_date: new Date().toISOString().slice(0, 10),
+        max_marks: 100
+      });
+    }
+  }, [open, defaultSubjectId]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -141,6 +153,7 @@ export function AddTestDialog({ open, onOpenChange }: AddTestDialogProps) {
               <Select
                 value={formData.subject_id}
                 onValueChange={(value) => setFormData({ ...formData, subject_id: value })}
+                disabled={!!defaultSubjectId}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a subject" />
