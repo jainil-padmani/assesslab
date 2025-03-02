@@ -15,6 +15,7 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
     const filesMap = new Map<string, SubjectFile>();
     
     if (storageData && subjectId) {
+      // Process subject-specific files
       storageData.forEach(file => {
         const parts = file.name.split('_');
         
@@ -67,6 +68,7 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
         const parts = file.name.split('_');
         if (parts.length >= 3 && testIds.includes(parts[0])) {
           const testId = parts[0];
+          const test = subjectTests.find(t => t.id === testId);
           const topic = parts[1];
           const fileType = parts[2].split('.')[0];
           const groupKey = `test_${testId}_${topic}`;
@@ -80,7 +82,7 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
             filesMap.set(groupKey, {
               id: groupKey,
               subject_id: subjectId,
-              topic: topic,
+              topic: `${test?.name || 'Test'}: ${topic}`, // Add test name to topic for clarity
               question_paper_url: fileType === 'questionPaper' ? publicUrl : '',
               answer_key_url: fileType === 'answerKey' ? publicUrl : '',
               created_at: file.created_at || new Date().toISOString()
@@ -127,11 +129,11 @@ export const assignSubjectFilesToTest = async (
     // Find the original question paper and answer key files
     const subjectPrefix = `${subjectFile.subject_id}_${subjectFile.topic}_`;
     const questionPaperFile = storageData?.find(file => 
-      file.name.startsWith(subjectPrefix) && file.name.includes('_questionPaper_')
+      file.name.startsWith(subjectPrefix) && file.name.includes('questionPaper')
     );
     
     const answerKeyFile = storageData?.find(file => 
-      file.name.startsWith(subjectPrefix) && file.name.includes('_answerKey_')
+      file.name.startsWith(subjectPrefix) && file.name.includes('answerKey')
     );
 
     if (!questionPaperFile || !answerKeyFile) {
