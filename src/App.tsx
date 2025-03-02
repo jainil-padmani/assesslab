@@ -24,6 +24,9 @@ import SubjectDetail from "./pages/dashboard/SubjectDetail";
 import FileManagement from "./pages/dashboard/FileManagement";
 import Classes from "./pages/dashboard/Classes";
 import ClassDetail from "./pages/dashboard/ClassDetail";
+import Tests from "./pages/dashboard/Tests";
+import SubjectTests from "./pages/dashboard/SubjectTests";
+import TestDetail from "./pages/dashboard/TestDetail";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +47,9 @@ const App = () => (
             <Route path="subjects/:id" element={<SubjectDetail />} />
             <Route path="classes" element={<Classes />} />
             <Route path="classes/:id" element={<ClassDetail />} />
+            <Route path="tests" element={<Tests />} />
+            <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
+            <Route path="tests/detail/:testId" element={<TestDetail />} />
             <Route path="generate" element={<Generate />} />
             <Route path="questions" element={<Questions />} />
             <Route path="analysis" element={<Analysis />} />

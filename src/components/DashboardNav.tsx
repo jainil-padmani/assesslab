@@ -8,8 +8,7 @@ import {
   CheckCircle,
   BarChart3,
   Settings,
-  User,
-  Book,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   GraduationCap,
@@ -18,8 +17,6 @@ import {
   School
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 const links = [
   {
@@ -41,6 +38,11 @@ const links = [
     title: "Subjects",
     icon: Notebook,
     href: "/dashboard/subjects",
+  },
+  {
+    title: "Tests",
+    icon: ClipboardList,
+    href: "/dashboard/tests",
   },
   {
     title: "Generate Questions",
