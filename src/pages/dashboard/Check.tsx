@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -287,7 +286,7 @@ export default function Check() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name}
+                        {cls.name} {cls.year ? `(Year ${cls.year})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

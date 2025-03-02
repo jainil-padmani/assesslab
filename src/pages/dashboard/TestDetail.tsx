@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Save, Edit, X } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Test, TestGrade } from "@/types/tests";
 import { Student } from "@/types/dashboard";
@@ -72,16 +72,33 @@ export default function TestDetail() {
         throw gradesError;
       }
 
+      // Get assessments (uploaded answer sheets) for students in this test
+      const { data: assessments, error: assessmentsError } = await supabase
+        .from("assessments")
+        .select("*")
+        .eq("subject_id", test.subject_id);
+        
+      if (assessmentsError) {
+        toast.error("Failed to load assessments");
+        throw assessmentsError;
+      }
+      
       // Map grades to students or create empty grades
       const studentGrades = (classStudents as Student[]).map(student => {
         const existingGrade = (existingGrades as TestGrade[]).find(
           grade => grade.student_id === student.id
         );
         
+        // Find assessment for this student if it exists
+        const studentAssessment = assessments ? assessments.find(
+          assessment => assessment.student_id === student.id
+        ) : null;
+        
         if (existingGrade) {
           return {
             ...existingGrade,
-            student
+            student,
+            answer_sheet_url: studentAssessment?.answer_sheet_url || null
           };
         } else {
           return {
@@ -91,8 +108,9 @@ export default function TestDetail() {
             marks: 0,
             remarks: null,
             created_at: new Date().toISOString(),
-            student
-          } as TestGrade;
+            student,
+            answer_sheet_url: studentAssessment?.answer_sheet_url || null
+          } as TestGrade & { answer_sheet_url: string | null };
         }
       });
       
@@ -189,6 +207,7 @@ export default function TestDetail() {
                   <TableHead>GR Number</TableHead>
                   <TableHead>Roll Number</TableHead>
                   <TableHead>Marks</TableHead>
+                  <TableHead>Answer Sheet</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -214,6 +233,21 @@ export default function TestDetail() {
                         <span className={grade.marks === 0 ? "text-gray-400" : ""}>
                           {grade.marks} / {test.max_marks}
                         </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {grade.answer_sheet_url ? (
+                        <a 
+                          href={grade.answer_sheet_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center text-blue-600 hover:text-blue-800"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">No sheet</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
