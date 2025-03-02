@@ -30,6 +30,22 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error("You must be logged in to add a student");
       }
 
+      // Check if the GR number already exists
+      const { data: existingStudent, error: checkError } = await supabase
+        .from("students")
+        .select("gr_number")
+        .eq("gr_number", newStudent.gr_number)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("Error checking for existing student:", checkError);
+      }
+
+      if (existingStudent) {
+        throw new Error(`A student with GR number ${newStudent.gr_number} already exists`);
+      }
+
       const studentWithUserId = {
         ...newStudent,
         user_id: user.id
@@ -40,7 +56,13 @@ export function useStudentMutations(onClose: () => void) {
         .insert([studentWithUserId])
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        // Check for duplicate key error
+        if (error.code === "23505" && error.message.includes("students_gr_number_key")) {
+          throw new Error(`A student with GR number ${newStudent.gr_number} already exists`);
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -63,6 +85,25 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error("You must be logged in to update a student");
       }
 
+      // Check if updating to a GR number that already exists (but is not the current student's)
+      if (studentData.gr_number) {
+        const { data: existingStudent, error: checkError } = await supabase
+          .from("students")
+          .select("id, gr_number")
+          .eq("gr_number", studentData.gr_number)
+          .eq("user_id", user.id)
+          .neq("id", studentData.id)
+          .maybeSingle();
+
+        if (checkError) {
+          console.error("Error checking for existing student:", checkError);
+        }
+
+        if (existingStudent) {
+          throw new Error(`Another student with GR number ${studentData.gr_number} already exists`);
+        }
+      }
+
       const { data, error } = await supabase
         .from("students")
         .update(studentData)
@@ -70,7 +111,13 @@ export function useStudentMutations(onClose: () => void) {
         .eq("user_id", user.id) // Ensure we only update our own students
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        // Check for duplicate key error
+        if (error.code === "23505" && error.message.includes("students_gr_number_key")) {
+          throw new Error(`Another student with GR number ${studentData.gr_number} already exists`);
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

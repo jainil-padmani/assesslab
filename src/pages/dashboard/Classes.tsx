@@ -41,7 +41,7 @@ export default function Classes() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get current user session
-  const { data: session } = useQuery({
+  const { data: session, isLoading: isSessionLoading } = useQuery({
     queryKey: ["user-session"],
     queryFn: async () => {
       const { data, error } = await supabase.auth.getSession();
@@ -54,11 +54,20 @@ export default function Classes() {
   const { data: classes, isLoading } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
+      if (!session?.user.id) {
+        return [];
+      }
+      
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("user_id", session.user.id)
         .order("name");
-      if (error) throw error;
+        
+      if (error) {
+        console.error("Error fetching classes:", error);
+        throw error;
+      }
       return data as Class[];
     },
     enabled: !!session, // Only fetch if user is logged in
@@ -67,10 +76,20 @@ export default function Classes() {
   // Add class mutation
   const addClassMutation = useMutation({
     mutationFn: async (newClass: Omit<Class, "id" | "created_at">) => {
+      if (!session?.user.id) {
+        throw new Error("You must be logged in to add a class");
+      }
+      
+      const classWithUserId = {
+        ...newClass,
+        user_id: session.user.id
+      };
+      
       const { data, error } = await supabase
         .from("classes")
-        .insert([newClass])
+        .insert([classWithUserId])
         .select();
+        
       if (error) throw error;
       return data;
     },
@@ -89,11 +108,20 @@ export default function Classes() {
   // Update class mutation
   const updateClassMutation = useMutation({
     mutationFn: async (classData: Partial<Class> & { id: string }) => {
+      if (!session?.user.id) {
+        throw new Error("You must be logged in to update a class");
+      }
+      
       const { data, error } = await supabase
         .from("classes")
-        .update(classData)
+        .update({
+          ...classData,
+          user_id: session.user.id
+        })
         .eq("id", classData.id)
+        .eq("user_id", session.user.id) // Ensure we only update our own classes
         .select();
+        
       if (error) throw error;
       return data;
     },
@@ -113,10 +141,16 @@ export default function Classes() {
   // Delete class mutation
   const deleteClassMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!session?.user.id) {
+        throw new Error("You must be logged in to delete a class");
+      }
+      
       const { error } = await supabase
         .from("classes")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", session.user.id); // Ensure we only delete our own classes
+        
       if (error) throw error;
     },
     onSuccess: () => {
@@ -140,7 +174,6 @@ export default function Classes() {
       name: formData.get("name") as string,
       department: formData.get("department") as string,
       year: yearValue ? parseInt(yearValue) : null,
-      user_id: session?.user.id, // Add user_id from the current session
     };
 
     if (editingClass) {
@@ -150,6 +183,18 @@ export default function Classes() {
     }
   };
 
+  // Show loading state
+  if (isSessionLoading || (isLoading && session)) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-4">Classes</h1>
+        <div className="flex justify-center">
+          <div className="animate-pulse p-4">Loading classes...</div>
+        </div>
+      </div>
+    );
+  }
+
   // Show login message if not logged in
   if (!session) {
     return (
@@ -158,10 +203,6 @@ export default function Classes() {
         <p className="mb-4">Please log in to view and manage classes.</p>
       </div>
     );
-  }
-
-  if (isLoading) {
-    return <div>Loading...</div>;
   }
 
   return (
