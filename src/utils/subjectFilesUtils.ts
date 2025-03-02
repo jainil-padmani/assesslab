@@ -22,7 +22,8 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
         // Check for subject-related files (starting with subject ID)
         if (parts.length >= 3 && parts[0] === subjectId) {
           const topic = parts[1];
-          const fileType = parts[2].split('.')[0];
+          // Extract file type correctly - may contain timestamps
+          const fileType = parts[2].split('.')[0].split('_')[0]; // Handle format like "questionPaper_123456789.pdf"
           const groupKey = `${subjectId}_${topic}`;
           
           const { data: { publicUrl } } = supabase
@@ -70,7 +71,8 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
           const testId = parts[0];
           const test = subjectTests.find(t => t.id === testId);
           const topic = parts[1];
-          const fileType = parts[2].split('.')[0];
+          // Extract file type correctly - may contain timestamps
+          const fileType = parts[2].split('.')[0].split('_')[0]; // Handle format like "questionPaper_123456789.pdf"
           const groupKey = `test_${testId}_${topic}`;
           
           const { data: { publicUrl } } = supabase
@@ -126,8 +128,15 @@ export const assignSubjectFilesToTest = async (
 
     if (storageError) throw storageError;
 
+    // Extract the topic from the subjectFile
+    // For test files that were assigned from subjects, clean up the topic
+    const topicParts = subjectFile.topic.split(': ');
+    const cleanTopic = topicParts.length > 1 ? topicParts[1] : subjectFile.topic;
+
     // Find the original question paper and answer key files
-    const subjectPrefix = `${subjectFile.subject_id}_${subjectFile.topic}_`;
+    const subjectPrefix = `${subjectFile.subject_id}_${cleanTopic}_`;
+    
+    // Use more flexible searching to find files
     const questionPaperFile = storageData?.find(file => 
       file.name.startsWith(subjectPrefix) && file.name.includes('questionPaper')
     );
@@ -136,8 +145,49 @@ export const assignSubjectFilesToTest = async (
       file.name.startsWith(subjectPrefix) && file.name.includes('answerKey')
     );
 
+    // If we didn't find files with subject prefix, try looking for test files
+    // This handles the case where we're copying from a test to another test
     if (!questionPaperFile || !answerKeyFile) {
-      throw new Error("Original files not found");
+      const testPrefix = `test_${subjectFile.id.split('_')[1]}_${cleanTopic}_`;
+      
+      const testQuestionPaperFile = storageData?.find(file => 
+        file.name.includes(testPrefix) && file.name.includes('questionPaper')
+      );
+      
+      const testAnswerKeyFile = storageData?.find(file => 
+        file.name.includes(testPrefix) && file.name.includes('answerKey')
+      );
+      
+      if (!testQuestionPaperFile || !testAnswerKeyFile) {
+        throw new Error("Original files not found");
+      }
+      
+      // Copy the files with new names for the test
+      const timestamp = Date.now();
+      const questionPaperExt = testQuestionPaperFile.name.split('.').pop();
+      const answerKeyExt = testAnswerKeyFile.name.split('.').pop();
+
+      const newQuestionPaperName = `${testId}_${cleanTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
+      const newAnswerKeyName = `${testId}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
+
+      // Copy question paper
+      const { error: copyQPError } = await supabase
+        .storage
+        .from('files')
+        .copy(testQuestionPaperFile.name, newQuestionPaperName);
+
+      if (copyQPError) throw copyQPError;
+
+      // Copy answer key
+      const { error: copyAKError } = await supabase
+        .storage
+        .from('files')
+        .copy(testAnswerKeyFile.name, newAnswerKeyName);
+
+      if (copyAKError) throw copyAKError;
+
+      toast.success("Files assigned to test successfully");
+      return true;
     }
 
     // Copy the files with new names for the test
@@ -145,8 +195,8 @@ export const assignSubjectFilesToTest = async (
     const questionPaperExt = questionPaperFile.name.split('.').pop();
     const answerKeyExt = answerKeyFile.name.split('.').pop();
 
-    const newQuestionPaperName = `${testId}_${subjectFile.topic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    const newAnswerKeyName = `${testId}_${subjectFile.topic}_answerKey_${timestamp}.${answerKeyExt}`;
+    const newQuestionPaperName = `${testId}_${cleanTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testId}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
 
     // Copy question paper
     const { error: copyQPError } = await supabase
