@@ -30,6 +30,19 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error("You must be logged in to add a student");
       }
 
+      // Check if GR number already exists
+      const { data: existingStudents, error: checkError } = await supabase
+        .from("students")
+        .select("gr_number")
+        .eq("gr_number", newStudent.gr_number)
+        .eq("user_id", user.id);
+      
+      if (checkError) throw checkError;
+      
+      if (existingStudents && existingStudents.length > 0) {
+        throw new Error("A student with this GR number already exists");
+      }
+
       const studentWithUserId = {
         ...newStudent,
         user_id: user.id
@@ -49,7 +62,11 @@ export function useStudentMutations(onClose: () => void) {
       toast.success("Student added successfully");
     },
     onError: (error) => {
-      toast.error("Failed to add student: " + error.message);
+      if (error.message.includes("duplicate key") && error.message.includes("students_gr_number_key")) {
+        toast.error("Failed to add student: A student with this GR number already exists");
+      } else {
+        toast.error("Failed to add student: " + error.message);
+      }
     },
   });
 
@@ -61,6 +78,22 @@ export function useStudentMutations(onClose: () => void) {
       
       if (!user) {
         throw new Error("You must be logged in to update a student");
+      }
+      
+      // Check if updating to a GR number that already exists (but not the student's own)
+      if (studentData.gr_number) {
+        const { data: existingStudents, error: checkError } = await supabase
+          .from("students")
+          .select("id, gr_number")
+          .eq("gr_number", studentData.gr_number)
+          .eq("user_id", user.id)
+          .neq("id", studentData.id);
+        
+        if (checkError) throw checkError;
+        
+        if (existingStudents && existingStudents.length > 0) {
+          throw new Error("Another student with this GR number already exists");
+        }
       }
 
       const { data, error } = await supabase
@@ -79,7 +112,11 @@ export function useStudentMutations(onClose: () => void) {
       toast.success("Student updated successfully");
     },
     onError: (error) => {
-      toast.error("Failed to update student: " + error.message);
+      if (error.message.includes("duplicate key") && error.message.includes("students_gr_number_key")) {
+        toast.error("Failed to update student: Another student with this GR number already exists");
+      } else {
+        toast.error("Failed to update student: " + error.message);
+      }
     },
   });
 

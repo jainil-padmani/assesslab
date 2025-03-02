@@ -15,11 +15,16 @@ interface StudentFormProps {
 export default function StudentForm({ student, onClose, classes, isClassesLoading }: StudentFormProps) {
   const [selectedYear, setSelectedYear] = useState<string>(student?.year ? student.year.toString() : "");
   const [selectedDepartment, setSelectedDepartment] = useState<string>(student?.department || "");
+  const [submitting, setSubmitting] = useState(false);
   
   const { addStudentMutation, updateStudentMutation } = useStudentMutations(onClose);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (submitting) return;
+    
+    setSubmitting(true);
+    
     const form = e.currentTarget;
     const formData = new FormData(form);
     
@@ -34,10 +39,14 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       class_id: formData.get("class_id") as string || null,
     };
 
-    if (student) {
-      updateStudentMutation.mutate({ id: student.id, ...studentData });
-    } else {
-      addStudentMutation.mutate(studentData as any);
+    try {
+      if (student) {
+        await updateStudentMutation.mutateAsync({ id: student.id, ...studentData });
+      } else {
+        await addStudentMutation.mutateAsync(studentData as any);
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -54,7 +63,8 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       />
       <StudentFormActions 
         isEditing={!!student} 
-        onClose={onClose} 
+        onClose={onClose}
+        isSubmitting={submitting}
       />
     </form>
   );
