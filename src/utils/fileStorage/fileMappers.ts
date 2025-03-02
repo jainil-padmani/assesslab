@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
 
@@ -69,9 +70,9 @@ export const mapTestFilesToSubject = async (
           
           if (!filesMap.has(groupKey)) {
             filesMap.set(groupKey, {
-              id: `test:${test.id}:${groupKey}`,
+              id: groupKey,
               subject_id: subjectId,
-              topic: topic,
+              topic: `${test.name}: ${topic}`,  // Include test name for clarity
               question_paper_url: fileType === 'questionPaper' ? publicUrl : '',
               answer_key_url: fileType === 'answerKey' ? publicUrl : '',
               handwritten_paper_url: fileType === 'handwrittenPaper' ? publicUrl : null,

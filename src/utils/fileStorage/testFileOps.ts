@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
@@ -71,8 +72,8 @@ export const assignSubjectFilesToTest = async (
     // 2. If not found, try looking for test file format
     if (!questionPaperFile || !answerKeyFile) {
       // Extract test ID if present in the ID
-      const idParts = subjectFile.id.split('_');
-      if (idParts.length > 1 && idParts[0] === 'test') {
+      const idParts = subjectFile.id.split(':');
+      if (idParts.length > 1) {
         const originalTestId = idParts[1];
         
         questionPaperFile = storageData?.find(file => 
@@ -167,13 +168,11 @@ export const uploadTestFiles = async (
 
   try {
     const timestamp = Date.now();
-    const uploadPromises = [];
-    const testUrls: Record<string, string> = {};
-    const subjectUrls: Record<string, string> = {};
-
+    
     // Upload question paper
     if (questionPaper) {
       const fileExt = questionPaper.name.split('.').pop();
+      
       // Test file
       const testFileName = `${testId}_${topic}_questionPaper_${timestamp}.${fileExt}`;
       // Subject file
@@ -181,19 +180,15 @@ export const uploadTestFiles = async (
       
       // Upload to test location
       await uploadStorageFile(testFileName, questionPaper);
-      // Get the public URL
-      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
-      testUrls.questionPaper = testUrl;
       
-      // Copy to subject location
+      // Copy to subject location (important for subject paper visibility)
       await copyStorageFile(testFileName, subjectFileName);
-      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
-      subjectUrls.questionPaper = subjectUrl;
     }
 
     // Upload answer key
     if (answerKey) {
       const fileExt = answerKey.name.split('.').pop();
+      
       // Test file
       const testFileName = `${testId}_${topic}_answerKey_${timestamp}.${fileExt}`;
       // Subject file
@@ -201,39 +196,14 @@ export const uploadTestFiles = async (
       
       // Upload to test location
       await uploadStorageFile(testFileName, answerKey);
-      // Get the public URL
-      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
-      testUrls.answerKey = testUrl;
       
-      // Copy to subject location
+      // Copy to subject location (important for subject paper visibility)
       await copyStorageFile(testFileName, subjectFileName);
-      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
-      subjectUrls.answerKey = subjectUrl;
     }
 
-    // Upload handwritten paper (optional) - keeping the code for compatibility
-    if (handwrittenPaper) {
-      const fileExt = handwrittenPaper.name.split('.').pop();
-      // Test file
-      const testFileName = `${testId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
-      // Subject file
-      const subjectFileName = `${subjectId}_${topic}_handwrittenPaper_${timestamp}.${fileExt}`;
-      
-      // Upload to test location
-      await uploadStorageFile(testFileName, handwrittenPaper);
-      // Get the public URL
-      const { data: { publicUrl: testUrl } } = getPublicUrl(testFileName);
-      testUrls.handwrittenPaper = testUrl;
-      
-      // Copy to subject location
-      await copyStorageFile(testFileName, subjectFileName);
-      const { data: { publicUrl: subjectUrl } } = getPublicUrl(subjectFileName);
-      subjectUrls.handwrittenPaper = subjectUrl;
-    }
+    // Upload handwritten paper is removed as requested
 
-    console.log("Test files uploaded with URLs:", testUrls);
-    console.log("Subject files created with URLs:", subjectUrls);
-
+    console.log("Test and subject files uploaded successfully");
     toast.success("Test files uploaded successfully");
     return true;
   } catch (error: any) {

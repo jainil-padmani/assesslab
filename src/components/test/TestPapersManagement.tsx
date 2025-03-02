@@ -35,8 +35,7 @@ import {
 import {
   FilePlus, 
   FileCheck, 
-  Trash2, 
-  FileUp 
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,14 +97,14 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         // Use sanitized topic name for consistency
         const sanitizedTopic = topicName.trim().replace(/\s+/g, '_');
         
-        // Use the utility function to upload files with null for handwritten paper
+        // Use the utility function to upload files
         const success = await uploadTestFiles(
           test.id, 
           test.subject_id, 
           sanitizedTopic, 
           questionPaper, 
           answerKey, 
-          null // Pass null for handwritten paper
+          null // No handwritten paper as requested
         );
         
         if (success) {
@@ -177,19 +176,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           .remove([storageFile.name]);
             
         if (deleteError) throw deleteError;
-      }
-
-      // Also delete the corresponding subject files if they exist
-      const subjectPrefix = `${test.subject_id}_${file.topic}_`;
-      const subjectFilesToDelete = storageFiles?.filter(storageFile => 
-        storageFile.name.startsWith(subjectPrefix)
-      ) || [];
-      
-      for (const storageFile of subjectFilesToDelete) {
-        await supabase
-          .storage
-          .from('files')
-          .remove([storageFile.name]);
       }
 
       toast.success("Files deleted successfully");
@@ -392,21 +378,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                         <div className="text-xs text-muted-foreground">View document</div>
                       </div>
                     </a>
-
-                    {file.handwritten_paper_url && (
-                      <a 
-                        href={file.handwritten_paper_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
-                      >
-                        <FileUp className="h-5 w-5 mr-2 text-primary" />
-                        <div>
-                          <div className="text-sm font-medium">Handwritten Paper</div>
-                          <div className="text-xs text-muted-foreground">View document</div>
-                        </div>
-                      </a>
-                    )}
                   </div>
                 </CardContent>
               </Card>
