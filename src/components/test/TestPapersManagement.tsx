@@ -32,13 +32,23 @@ import {
   TabsList,
   TabsTrigger
 } from "@/components/ui/tabs";
-import { FilePlus, FileCheck, Trash2, Copy } from "lucide-react";
+import {
+  FilePlus, 
+  FileCheck, 
+  Trash2, 
+  Copy, 
+  FileUp 
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Test } from "@/types/tests";
 import type { SubjectFile } from "@/types/dashboard";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSubjectFiles, assignSubjectFilesToTest } from "@/utils/subjectFilesUtils";
+import { 
+  fetchSubjectFiles, 
+  assignSubjectFilesToTest, 
+  uploadTestFiles 
+} from "@/utils/subjectFilesUtils";
 
 interface TestPapersProps {
   test: Test & { subjects: { name: string, subject_code: string } };
@@ -50,6 +60,7 @@ interface TestFile {
   topic: string;
   question_paper_url: string;
   answer_key_url: string;
+  handwritten_paper_url: string | null;
   created_at: string;
 }
 
@@ -59,7 +70,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
   const [uploadTab, setUploadTab] = useState<"new" | "existing">("new");
   const [questionPaper, setQuestionPaper] = useState<File | null>(null);
   const [answerKey, setAnswerKey] = useState<File | null>(null);
-  const [topicName, setTopicName] = useState<string>("");
+  const [handwrittenPaper, setHandwrittenPaper] = useState<File | null>(null);
+  const [topicName, setTopicName] = useState<string>(test.name || ""); // Pre-fill with test name
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
 
   // Fetch existing test files
@@ -97,6 +109,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                 topic: topic,
                 question_paper_url: fileType === 'questionPaper' ? publicUrl : '',
                 answer_key_url: fileType === 'answerKey' ? publicUrl : '',
+                handwritten_paper_url: fileType === 'handwrittenPaper' ? publicUrl : null,
                 created_at: file.created_at || new Date().toISOString()
               });
             } else {
@@ -105,6 +118,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                 existingFile.question_paper_url = publicUrl;
               } else if (fileType === 'answerKey') {
                 existingFile.answer_key_url = publicUrl;
+              } else if (fileType === 'handwrittenPaper') {
+                existingFile.handwritten_paper_url = publicUrl;
               }
               filesMap.set(groupKey, existingFile);
             }
@@ -138,50 +153,28 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       try {
         // Use sanitized topic name for consistency
         const sanitizedTopic = topicName.trim().replace(/\s+/g, '_');
-        const timestamp = Date.now();
         
-        // Upload question paper
-        const qpExt = questionPaper.name.split('.').pop();
-        const qpFileName = `${test.id}_${sanitizedTopic}_questionPaper_${timestamp}.${qpExt}`;
+        // Use the utility function to upload files
+        const success = await uploadTestFiles(
+          test.id, 
+          test.subject_id, 
+          sanitizedTopic, 
+          questionPaper, 
+          answerKey, 
+          handwrittenPaper
+        );
         
-        const { error: qpError } = await supabase.storage
-          .from('files')
-          .upload(qpFileName, questionPaper);
+        if (success) {
+          toast.success("Files uploaded successfully!");
           
-        if (qpError) throw qpError;
-        
-        // Upload answer key
-        const akExt = answerKey.name.split('.').pop();
-        const akFileName = `${test.id}_${sanitizedTopic}_answerKey_${timestamp}.${akExt}`;
-        
-        const { error: akError } = await supabase.storage
-          .from('files')
-          .upload(akFileName, answerKey);
+          setQuestionPaper(null);
+          setAnswerKey(null);
+          setHandwrittenPaper(null);
+          setOpenUploadDialog(false);
           
-        if (akError) throw akError;
-        
-        // Also create a copy of these files with subject ID prefix for subject view
-        // This ensures files are also visible in subject papers section
-        const subjectQpFileName = `${test.subject_id}_${sanitizedTopic}_questionPaper_${timestamp}.${qpExt}`;
-        const subjectAkFileName = `${test.subject_id}_${sanitizedTopic}_answerKey_${timestamp}.${akExt}`;
-        
-        await supabase.storage
-          .from('files')
-          .copy(qpFileName, subjectQpFileName);
-          
-        await supabase.storage
-          .from('files')
-          .copy(akFileName, subjectAkFileName);
-        
-        toast.success("Files uploaded successfully!");
-        
-        setQuestionPaper(null);
-        setAnswerKey(null);
-        setTopicName("");
-        setOpenUploadDialog(false);
-        
-        // Refresh the file list
-        refetchTestFiles();
+          // Refresh the file list
+          refetchTestFiles();
+        }
       } catch (error: any) {
         console.error("Error uploading files:", error);
         toast.error(`Failed to upload files: ${error.message}`);
@@ -345,6 +338,25 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                       )}
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="handwritten-paper" className="text-right">
+                      Handwritten Paper (Optional)
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="handwritten-paper"
+                        type="file"
+                        accept=".pdf,.png,.jpeg,.jpg"
+                        onChange={(e) => setHandwrittenPaper(e.target.files?.[0] || null)}
+                      />
+                      {handwrittenPaper && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {handwrittenPaper.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
               
@@ -456,6 +468,21 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                         <div className="text-xs text-muted-foreground">View document</div>
                       </div>
                     </a>
+
+                    {file.handwritten_paper_url && (
+                      <a 
+                        href={file.handwritten_paper_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        <FileUp className="h-5 w-5 mr-2 text-primary" />
+                        <div>
+                          <div className="text-sm font-medium">Handwritten Paper</div>
+                          <div className="text-xs text-muted-foreground">View document</div>
+                        </div>
+                      </a>
+                    )}
                   </div>
                 </CardContent>
               </Card>
