@@ -9,10 +9,22 @@ export function useStudentMutations(onClose: () => void) {
 
   // Add student mutation
   const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class"> & { class_id?: string | null }) => {
+    mutationFn: async (newStudent: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class"> & { class_id?: string | null, user_id?: string }) => {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("You must be logged in to add a student");
+      }
+
+      const studentWithUserId = {
+        ...newStudent,
+        user_id: user.id
+      };
+
       const { data, error } = await supabase
         .from("students")
-        .insert([newStudent])
+        .insert([studentWithUserId])
         .select()
         .single();
       if (error) throw error;
@@ -31,10 +43,18 @@ export function useStudentMutations(onClose: () => void) {
   // Update student mutation
   const updateStudentMutation = useMutation({
     mutationFn: async (studentData: Partial<Omit<Student, "email" | "parent_name" | "parent_contact" | "class">> & { id: string, class_id?: string | null }) => {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("You must be logged in to update a student");
+      }
+
       const { data, error } = await supabase
         .from("students")
         .update(studentData)
         .eq("id", studentData.id)
+        .eq("user_id", user.id) // Ensure we only update our own students
         .select()
         .single();
       if (error) throw error;

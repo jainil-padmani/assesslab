@@ -34,26 +34,42 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Fetch students with class info
+  // Fetch students with class info - now filtered by user_id
   const { data: students, isLoading } = useQuery({
     queryKey: ["students"],
     queryFn: async () => {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("You must be logged in to view students");
+      }
+      
       const { data, error } = await supabase
         .from("students")
         .select("*, classes(name)")
+        .eq("user_id", user.id) // Filter by user_id
         .order("name");
       if (error) throw error;
       return data as StudentWithClass[];
     },
   });
 
-  // Fetch classes for the dropdown
+  // Fetch classes for the dropdown - now filtered by user_id
   const { data: classes, isLoading: isClassesLoading } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("You must be logged in to view classes");
+      }
+      
       const { data, error } = await supabase
         .from("classes")
         .select("id, name, department, year")
+        .eq("user_id", user.id) // Filter by user_id
         .order("name");
       if (error) throw error;
       return data as Class[];

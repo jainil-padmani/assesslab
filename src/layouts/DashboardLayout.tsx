@@ -9,10 +9,43 @@ import { cn } from "@/lib/utils";
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      
+      if (session?.user) {
+        // Get user profile to display name
+        const { data } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', session.user.id)
+          .single();
+          
+        setUserName(data?.name || session.user.email);
+      }
+    };
+    
+    checkAuth();
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
+      if (session?.user) {
+        // Get user profile when auth state changes
+        const fetchProfile = async () => {
+          const { data } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', session.user.id)
+            .single();
+            
+          setUserName(data?.name || session.user.email);
+        };
+        
+        fetchProfile();
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -41,12 +74,17 @@ export default function DashboardLayout() {
       {/* Header */}
       <header className="border-b bg-white">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center">
+          <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center">
               <h1 className="text-2xl font-bold text-primary">
                 Teach<span className="text-accent">Lab</span>
               </h1>
             </Link>
+            {userName && (
+              <div className="text-sm text-gray-600">
+                Welcome, {userName}
+              </div>
+            )}
           </div>
         </div>
       </header>
