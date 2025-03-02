@@ -141,12 +141,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           <CardDescription>Manage question papers and answer keys for this test</CardDescription>
         </div>
         <Dialog open={openUploadDialog} onOpenChange={setOpenUploadDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <FilePlus className="mr-2 h-4 w-4" />
-              Add Existing Papers
-            </Button>
-          </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Add Papers to Test</DialogTitle>
@@ -212,7 +206,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
             <p className="text-muted-foreground">No papers uploaded yet for this test.</p>
             <Button variant="outline" className="mt-4" onClick={() => setOpenUploadDialog(true)}>
               <FilePlus className="mr-2 h-4 w-4" />
-              Add Existing Papers
+              Add Papers
             </Button>
           </div>
         ) : (
