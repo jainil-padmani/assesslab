@@ -48,9 +48,6 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
             filesMap.set(groupKey, existingFile);
           }
         }
-        
-        // Also check for test-related files where the test belongs to this subject
-        // We'll do this in a separate loop after getting the tests for this subject
       });
     }
     
@@ -110,5 +107,66 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
     console.error('Error fetching subject files:', error);
     toast.error('Failed to fetch subject files');
     return [];
+  }
+};
+
+// New function to assign existing subject files to a test
+export const assignSubjectFilesToTest = async (
+  testId: string,
+  subjectFile: SubjectFile
+): Promise<boolean> => {
+  try {
+    // First, fetch the original file names from storage
+    const { data: storageData, error: storageError } = await supabase
+      .storage
+      .from('files')
+      .list();
+
+    if (storageError) throw storageError;
+
+    // Find the original question paper and answer key files
+    const subjectPrefix = `${subjectFile.subject_id}_${subjectFile.topic}_`;
+    const questionPaperFile = storageData?.find(file => 
+      file.name.startsWith(subjectPrefix) && file.name.includes('_questionPaper_')
+    );
+    
+    const answerKeyFile = storageData?.find(file => 
+      file.name.startsWith(subjectPrefix) && file.name.includes('_answerKey_')
+    );
+
+    if (!questionPaperFile || !answerKeyFile) {
+      throw new Error("Original files not found");
+    }
+
+    // Copy the files with new names for the test
+    const timestamp = Date.now();
+    const questionPaperExt = questionPaperFile.name.split('.').pop();
+    const answerKeyExt = answerKeyFile.name.split('.').pop();
+
+    const newQuestionPaperName = `${testId}_${subjectFile.topic}_questionPaper_${timestamp}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testId}_${subjectFile.topic}_answerKey_${timestamp}.${answerKeyExt}`;
+
+    // Copy question paper
+    const { error: copyQPError } = await supabase
+      .storage
+      .from('files')
+      .copy(questionPaperFile.name, newQuestionPaperName);
+
+    if (copyQPError) throw copyQPError;
+
+    // Copy answer key
+    const { error: copyAKError } = await supabase
+      .storage
+      .from('files')
+      .copy(answerKeyFile.name, newAnswerKeyName);
+
+    if (copyAKError) throw copyAKError;
+
+    toast.success("Files assigned to test successfully");
+    return true;
+  } catch (error: any) {
+    console.error('Error assigning files to test:', error);
+    toast.error(`Failed to assign files: ${error.message}`);
+    return false;
   }
 };
