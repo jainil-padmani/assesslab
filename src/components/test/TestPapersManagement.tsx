@@ -8,7 +8,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -27,12 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from "@/components/ui/tabs";
-import {
   FilePlus, 
   FileCheck, 
   Trash2
@@ -45,7 +38,6 @@ import { useQuery } from "@tanstack/react-query";
 import { 
   fetchSubjectFiles, 
   assignSubjectFilesToTest, 
-  uploadTestFiles,
   fetchTestFiles
 } from "@/utils/subjectFilesUtils";
 
@@ -66,10 +58,6 @@ interface TestFile {
 export function TestPapersManagement({ test }: TestPapersProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  const [uploadTab, setUploadTab] = useState<"new" | "existing">("new");
-  const [questionPaper, setQuestionPaper] = useState<File | null>(null);
-  const [answerKey, setAnswerKey] = useState<File | null>(null);
-  const [topicName, setTopicName] = useState<string>(test.name || ""); // Pre-fill with test name
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
 
   // Fetch existing test files
@@ -84,74 +72,33 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     queryFn: () => fetchSubjectFiles(test.subject_id)
   });
 
-  const uploadTestPaper = async () => {
-    if (uploadTab === "new") {
-      if (!test.id || !questionPaper || !answerKey || !topicName) {
-        toast.error("Please provide a topic name and select both question paper and answer key");
-        return;
-      }
+  const assignExistingPaper = async () => {
+    if (!selectedExistingFile) {
+      toast.error("Please select a file to assign");
+      return;
+    }
 
-      setIsUploading(true);
-
-      try {
-        // Use sanitized topic name for consistency
-        const sanitizedTopic = topicName.trim().replace(/\s+/g, '_');
-        
-        // Use the utility function to upload files
-        const success = await uploadTestFiles(
-          test.id, 
-          test.subject_id, 
-          sanitizedTopic, 
-          questionPaper, 
-          answerKey, 
-          null // No handwritten paper as requested
-        );
-        
-        if (success) {
-          toast.success("Files uploaded successfully!");
-          
-          setQuestionPaper(null);
-          setAnswerKey(null);
-          setOpenUploadDialog(false);
-          
-          // Refresh the file list
-          refetchTestFiles();
-        }
-      } catch (error: any) {
-        console.error("Error uploading files:", error);
-        toast.error(`Failed to upload files: ${error.message}`);
-      } finally {
-        setIsUploading(false);
-      }
-    } else {
-      // Assign existing subject file
-      if (!selectedExistingFile) {
-        toast.error("Please select a file to assign");
-        return;
-      }
-
-      setIsUploading(true);
+    setIsUploading(true);
+    
+    try {
+      const fileToAssign = subjectFiles?.find(file => file.id === selectedExistingFile);
       
-      try {
-        const fileToAssign = subjectFiles?.find(file => file.id === selectedExistingFile);
-        
-        if (!fileToAssign) {
-          throw new Error("Selected file not found");
-        }
-        
-        const success = await assignSubjectFilesToTest(test.id, fileToAssign);
-        
-        if (success) {
-          setOpenUploadDialog(false);
-          setSelectedExistingFile(null);
-          refetchTestFiles();
-        }
-      } catch (error) {
-        console.error("Error assigning files:", error);
-        toast.error("Failed to assign files. Please try again.");
-      } finally {
-        setIsUploading(false);
+      if (!fileToAssign) {
+        throw new Error("Selected file not found");
       }
+      
+      const success = await assignSubjectFilesToTest(test.id, fileToAssign);
+      
+      if (success) {
+        setOpenUploadDialog(false);
+        setSelectedExistingFile(null);
+        refetchTestFiles();
+      }
+    } catch (error) {
+      console.error("Error assigning files:", error);
+      toast.error("Failed to assign files. Please try again.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -197,127 +144,62 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           <DialogTrigger asChild>
             <Button>
               <FilePlus className="mr-2 h-4 w-4" />
-              Upload Papers
+              Add Existing Papers
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Upload Test Papers</DialogTitle>
+              <DialogTitle>Add Papers to Test</DialogTitle>
               <DialogDescription>
-                Add a question paper and its answer key for {test.name}.
+                Assign existing subject papers to {test.name}.
               </DialogDescription>
             </DialogHeader>
             
-            <Tabs defaultValue="new" value={uploadTab} onValueChange={(value) => setUploadTab(value as "new" | "existing")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="new">Upload New Files</TabsTrigger>
-                <TabsTrigger value="existing">Use Existing Files</TabsTrigger>
-              </TabsList>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="existing-file">Select Existing Subject Paper</Label>
+                <Select 
+                  value={selectedExistingFile || ""} 
+                  onValueChange={setSelectedExistingFile}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a paper" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjectFiles && subjectFiles.length > 0 ? (
+                      subjectFiles.map(file => (
+                        <SelectItem key={file.id} value={file.id}>
+                          {file.topic}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        No subject papers available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
               
-              <TabsContent value="new" className="mt-4">
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="topic-name" className="text-right">
-                      Topic Name
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="topic-name"
-                        value={topicName}
-                        onChange={(e) => setTopicName(e.target.value)}
-                        placeholder="e.g., Chapter 5"
-                      />
-                    </div>
-                  </div>
-                
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="question-paper" className="text-right">
-                      Question Paper
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="question-paper"
-                        type="file"
-                        accept=".pdf,.docx,.png,.jpeg,.jpg"
-                        onChange={(e) => setQuestionPaper(e.target.files?.[0] || null)}
-                      />
-                      {questionPaper && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {questionPaper.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="answer-key" className="text-right">
-                      Answer Key
-                    </Label>
-                    <div className="col-span-3">
-                      <Input
-                        id="answer-key"
-                        type="file"
-                        accept=".pdf,.docx,.png,.jpeg,.jpg"
-                        onChange={(e) => setAnswerKey(e.target.files?.[0] || null)}
-                      />
-                      {answerKey && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {answerKey.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+              {selectedExistingFile && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <p className="text-sm font-medium mb-1">
+                    Selected Paper: {subjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    This will create a copy of the selected paper for this test.
+                  </p>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="existing" className="mt-4">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="existing-file">Select Existing Subject Paper</Label>
-                    <Select 
-                      value={selectedExistingFile || ""} 
-                      onValueChange={setSelectedExistingFile}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a paper" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subjectFiles && subjectFiles.length > 0 ? (
-                          subjectFiles.map(file => (
-                            <SelectItem key={file.id} value={file.id}>
-                              {file.topic}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="none" disabled>
-                            No subject papers available
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {selectedExistingFile && (
-                    <div className="border rounded-md p-3 bg-muted/30">
-                      <p className="text-sm font-medium mb-1">
-                        Selected Paper: {subjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        This will create a copy of the selected paper for this test.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
+              )}
+            </div>
             
             <DialogFooter>
               <Button
                 type="submit"
-                onClick={uploadTestPaper}
-                disabled={isUploading || (uploadTab === "new" ? (!questionPaper || !answerKey || !topicName) : !selectedExistingFile)}
+                onClick={assignExistingPaper}
+                disabled={isUploading || !selectedExistingFile}
               >
-                {isUploading ? 'Uploading...' : uploadTab === "new" ? 'Upload Papers' : 'Assign Papers'}
+                {isUploading ? 'Assigning...' : 'Assign Papers'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -330,7 +212,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
             <p className="text-muted-foreground">No papers uploaded yet for this test.</p>
             <Button variant="outline" className="mt-4" onClick={() => setOpenUploadDialog(true)}>
               <FilePlus className="mr-2 h-4 w-4" />
-              Add Papers
+              Add Existing Papers
             </Button>
           </div>
         ) : (

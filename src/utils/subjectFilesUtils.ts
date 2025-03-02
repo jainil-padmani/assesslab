@@ -7,6 +7,5 @@ export {
 
 export {
   assignSubjectFilesToTest,
-  fetchTestFiles,
-  uploadTestFiles
+  fetchTestFiles
 } from './fileStorage/testFileOps';
