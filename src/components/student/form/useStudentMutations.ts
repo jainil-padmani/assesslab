@@ -15,6 +15,7 @@ type StudentUpdateData = {
   class_id?: string | null;
   overall_percentage?: number | null;
   user_id?: string;
+  team_id?: string | null;
 };
 
 export function useStudentMutations(onClose: () => void) {
@@ -30,13 +31,31 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error("You must be logged in to add a student");
       }
 
-      // Check if the GR number already exists
-      const { data: existingStudent, error: checkError } = await supabase
+      // Get the user's profile to check for team membership
+      const { data: userProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+      }
+
+      // Check if the GR number already exists for this user or team
+      let query = supabase
         .from("students")
         .select("gr_number")
-        .eq("gr_number", newStudent.gr_number)
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("gr_number", newStudent.gr_number);
+
+      // If user is part of a team, check across the team
+      if (userProfile?.team_id) {
+        query = query.eq("team_id", userProfile.team_id);
+      } else {
+        query = query.eq("user_id", user.id);
+      }
+
+      const { data: existingStudent, error: checkError } = await query.maybeSingle();
 
       if (checkError) {
         console.error("Error checking for existing student:", checkError);
@@ -46,14 +65,15 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error(`A student with GR number ${newStudent.gr_number} already exists`);
       }
 
-      const studentWithUserId = {
+      const studentWithUserData = {
         ...newStudent,
-        user_id: user.id
+        user_id: user.id,
+        team_id: userProfile?.team_id || null
       };
 
       const { data, error } = await supabase
         .from("students")
-        .insert([studentWithUserId])
+        .insert([studentWithUserData])
         .select()
         .single();
       if (error) {
@@ -85,15 +105,33 @@ export function useStudentMutations(onClose: () => void) {
         throw new Error("You must be logged in to update a student");
       }
 
+      // Get the user's profile to check for team membership
+      const { data: userProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+      }
+      
       // Check if updating to a GR number that already exists (but is not the current student's)
       if (studentData.gr_number) {
-        const { data: existingStudent, error: checkError } = await supabase
+        let query = supabase
           .from("students")
           .select("id, gr_number")
           .eq("gr_number", studentData.gr_number)
-          .eq("user_id", user.id)
-          .neq("id", studentData.id)
-          .maybeSingle();
+          .neq("id", studentData.id);
+          
+        // Filter by team or user based on team membership
+        if (userProfile?.team_id) {
+          query = query.eq("team_id", userProfile.team_id);
+        } else {
+          query = query.eq("user_id", user.id);
+        }
+
+        const { data: existingStudent, error: checkError } = await query.maybeSingle();
 
         if (checkError) {
           console.error("Error checking for existing student:", checkError);
@@ -104,13 +142,20 @@ export function useStudentMutations(onClose: () => void) {
         }
       }
 
-      const { data, error } = await supabase
+      let updateQuery = supabase
         .from("students")
         .update(studentData)
-        .eq("id", studentData.id)
-        .eq("user_id", user.id) // Ensure we only update our own students
-        .select()
-        .single();
+        .eq("id", studentData.id);
+        
+      // Add the appropriate filter based on team membership
+      if (userProfile?.team_id) {
+        updateQuery = updateQuery.eq("team_id", userProfile.team_id);
+      } else {
+        updateQuery = updateQuery.eq("user_id", user.id);
+      }
+
+      const { data, error } = await updateQuery.select().single();
+      
       if (error) {
         // Check for duplicate key error
         if (error.code === "23505" && error.message.includes("students_gr_number_key")) {
