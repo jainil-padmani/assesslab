@@ -44,7 +44,7 @@ export function useStudentMutations(onClose: () => void) {
       }
 
       // If the team_id is null, it will be undefined - this is ok
-      const teamId = userProfile?.team_id;
+      const teamId = userProfile?.team_id || null;
 
       // Check if the GR number already exists for this user or team
       let query = supabase
@@ -122,7 +122,7 @@ export function useStudentMutations(onClose: () => void) {
       }
       
       // If the team_id is null, it will be undefined - this is ok
-      const teamId = userProfile?.team_id;
+      const teamId = userProfile?.team_id || null;
       
       // Check if updating to a GR number that already exists (but is not the current student's)
       if (studentData.gr_number) {

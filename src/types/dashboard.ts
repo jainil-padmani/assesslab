@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   name: string;
@@ -45,7 +44,6 @@ export interface SubjectDocument {
   created_at: string;
 }
 
-// Add missing interfaces based on errors
 export interface BloomsTaxonomy {
   remember: number;
   understand: number;
@@ -88,7 +86,6 @@ export interface AnswerKey {
   created_at: string;
 }
 
-// Fix for Generate.tsx errors for type safety
 export interface BloomsTaxonomyInput {
   remember: number;
   understand: number;
@@ -96,4 +93,23 @@ export interface BloomsTaxonomyInput {
   analyze: number;
   evaluate: number;
   create: number;
+}
+
+export interface Profile {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  post: string | null;
+  subject: string | null;
+  nationality: string | null;
+  updated_at: string | null;
+  team_id: string | null;
+  team_code: string | null;
+  email?: string | null;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string | null;
+  email: string | null;
 }

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,25 +23,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-
-type Profile = {
-  id: string;
-  name: string | null;
-  mobile: string | null;
-  post: string | null;
-  subject: string | null;
-  nationality: string | null;
-  updated_at: string | null;
-  team_id: string | null;
-  team_code: string | null;
-  email?: string | null;
-};
-
-type TeamMember = {
-  id: string;
-  name: string | null;
-  email: string | null;
-};
+import { Profile, TeamMember } from "@/types/dashboard";
 
 export default function Settings() {
   const [userDetails, setUserDetails] = useState<{
@@ -97,7 +78,7 @@ export default function Settings() {
         // Fetch additional user details from profiles table
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('*, email')
+          .select('*')
           .eq('id', user.id)
           .single();
           
@@ -123,11 +104,16 @@ export default function Settings() {
             fetchTeamMembers(profile.team_id);
 
             // Check if user is the team admin
-            const { data: teamData } = await supabase
+            const { data: teamData, error: teamError } = await supabase
               .from('teams')
               .select('admin_id')
               .eq('id', profile.team_id)
               .single();
+
+            if (teamError) {
+              console.error('Error fetching team data:', teamError);
+              return;
+            }
 
             if (teamData && teamData.admin_id === user.id) {
               setIsTeamAdmin(true);
@@ -216,18 +202,21 @@ export default function Settings() {
   const handleSave = async () => {
     try {
       setLoading(true);
+      
+      const updateData = {
+        id: userDetails.userId,
+        name: userDetails.name || null,
+        mobile: userDetails.mobile || null,
+        post: userDetails.post || null,
+        subject: userDetails.subject || null,
+        nationality: userDetails.nationality || null,
+        team_code: userDetails.team_code || null,
+        updated_at: new Date().toISOString(),
+      };
+      
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: userDetails.userId,
-          name: userDetails.name || null,
-          mobile: userDetails.mobile || null,
-          post: userDetails.post || null,
-          subject: userDetails.subject || null,
-          nationality: userDetails.nationality || null,
-          team_code: userDetails.team_code || null,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(updateData);
 
       if (error) throw error;
       toast.success("Settings saved successfully!");
@@ -319,17 +308,19 @@ export default function Settings() {
           return;
         }
         
-        // If confirmed, remove team_id from all team members' profiles
-        await supabase
-          .from('profiles')
-          .update({ team_id: null })
-          .eq('team_id', userDetails.team_id);
-          
-        // Delete the team
-        await supabase
-          .from('teams')
-          .delete()
-          .eq('id', userDetails.team_id);
+        if (userDetails.team_id) {
+          // If confirmed, remove team_id from all team members' profiles
+          await supabase
+            .from('profiles')
+            .update({ team_id: null })
+            .eq('team_id', userDetails.team_id);
+            
+          // Delete the team
+          await supabase
+            .from('teams')
+            .delete()
+            .eq('id', userDetails.team_id);
+        }
       } else {
         // Just remove this user from the team
         await supabase
