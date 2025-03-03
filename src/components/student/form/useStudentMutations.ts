@@ -40,7 +40,11 @@ export function useStudentMutations(onClose: () => void) {
 
       if (profileError) {
         console.error("Error fetching user profile:", profileError);
+        // Continue without team filtering if there's an error
       }
+
+      // If the team_id is null, it will be undefined - this is ok
+      const teamId = userProfile?.team_id;
 
       // Check if the GR number already exists for this user or team
       let query = supabase
@@ -49,8 +53,8 @@ export function useStudentMutations(onClose: () => void) {
         .eq("gr_number", newStudent.gr_number);
 
       // If user is part of a team, check across the team
-      if (userProfile?.team_id) {
-        query = query.eq("team_id", userProfile.team_id);
+      if (teamId) {
+        query = query.eq("team_id", teamId);
       } else {
         query = query.eq("user_id", user.id);
       }
@@ -68,7 +72,7 @@ export function useStudentMutations(onClose: () => void) {
       const studentWithUserData = {
         ...newStudent,
         user_id: user.id,
-        team_id: userProfile?.team_id || null
+        team_id: teamId
       };
 
       const { data, error } = await supabase
@@ -114,7 +118,11 @@ export function useStudentMutations(onClose: () => void) {
 
       if (profileError) {
         console.error("Error fetching user profile:", profileError);
+        // Continue without team filtering if there's an error
       }
+      
+      // If the team_id is null, it will be undefined - this is ok
+      const teamId = userProfile?.team_id;
       
       // Check if updating to a GR number that already exists (but is not the current student's)
       if (studentData.gr_number) {
@@ -125,8 +133,8 @@ export function useStudentMutations(onClose: () => void) {
           .neq("id", studentData.id);
           
         // Filter by team or user based on team membership
-        if (userProfile?.team_id) {
-          query = query.eq("team_id", userProfile.team_id);
+        if (teamId) {
+          query = query.eq("team_id", teamId);
         } else {
           query = query.eq("user_id", user.id);
         }
@@ -148,8 +156,8 @@ export function useStudentMutations(onClose: () => void) {
         .eq("id", studentData.id);
         
       // Add the appropriate filter based on team membership
-      if (userProfile?.team_id) {
-        updateQuery = updateQuery.eq("team_id", userProfile.team_id);
+      if (teamId) {
+        updateQuery = updateQuery.eq("team_id", teamId);
       } else {
         updateQuery = updateQuery.eq("user_id", user.id);
       }

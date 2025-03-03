@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import countries from "../../utils/countries";
-import type { Database } from "@/integrations/supabase/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Table, 
@@ -26,7 +25,19 @@ import {
   TableRow 
 } from "@/components/ui/table";
 
-type Profile = Database['public']['Tables']['profiles']['Row'];
+type Profile = {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  post: string | null;
+  subject: string | null;
+  nationality: string | null;
+  updated_at: string | null;
+  team_id: string | null;
+  team_code: string | null;
+  email?: string | null;
+};
+
 type TeamMember = {
   id: string;
   name: string | null;
@@ -79,7 +90,7 @@ export default function Settings() {
         // Fetch additional user details from profiles table
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('*, email')
           .eq('id', user.id)
           .single();
           
