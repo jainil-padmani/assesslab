@@ -1,9 +1,10 @@
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings as SettingsIcon, User, Lock, Users } from "lucide-react";
+import { Settings as SettingsIcon, User, Lock, Users, UserPlus, Trash2, Edit, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -23,6 +24,15 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Profile, TeamMember } from "@/types/dashboard";
 
 export default function Settings() {
@@ -54,10 +64,14 @@ export default function Settings() {
     confirmPassword: "",
   });
   const [teamCode, setTeamCode] = useState("");
+  const [memberCodeToAdd, setMemberCodeToAdd] = useState("");
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [isJoiningTeam, setIsJoiningTeam] = useState(false);
   const [isLeavingTeam, setIsLeavingTeam] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
+  const [editedMemberName, setEditedMemberName] = useState("");
 
   useEffect(() => {
     fetchUserDetails();
@@ -95,7 +109,7 @@ export default function Settings() {
             post: profile.post || "",
             subject: profile.subject || "",
             nationality: profile.nationality || "",
-            team_code: profile.team_code || "",
+            team_code: profile.team_code || generateTeamCode(),
             team_id: profile.team_id,
           }));
 
@@ -122,12 +136,19 @@ export default function Settings() {
             }
           }
         } else {
-          // Generate a unique team code if the user doesn't have one
+          // Generate a unique team code
           const teamCode = generateTeamCode();
           setUserDetails(prev => ({
             ...prev,
             team_code: teamCode,
           }));
+          
+          // Create profile with the generated team code
+          await supabase.from('profiles').upsert({
+            id: user.id,
+            team_code: teamCode,
+            updated_at: new Date().toISOString()
+          });
         }
       }
     } catch (error) {
@@ -146,19 +167,17 @@ export default function Settings() {
         
       if (error) {
         console.error('Error fetching team members:', error);
+        setTeamMembers([]);
         return;
       }
       
-      // Handle potential null or undefined data
       if (data) {
-        // Ensure the data matches the TeamMember interface
-        const validTeamMembers: TeamMember[] = data.map(member => ({
-          id: member.id,
-          name: member.name,
-          email: member.email
+        const validMembers: TeamMember[] = data.map(member => ({
+          id: member.id || "",
+          name: member.name || "Unnamed user",
+          email: member.email || "No email"
         }));
-        
-        setTeamMembers(validTeamMembers);
+        setTeamMembers(validMembers);
       } else {
         setTeamMembers([]);
       }
@@ -381,6 +400,121 @@ export default function Settings() {
     }
   };
 
+  const handleAddTeamMember = async () => {
+    if (!memberCodeToAdd || memberCodeToAdd.length !== 6) {
+      toast.error("Please enter a valid 6-digit team code");
+      return;
+    }
+
+    try {
+      setIsAddingMember(true);
+      
+      // Find the user with this team code
+      const { data: memberProfile, error: findError } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .eq('team_code', memberCodeToAdd)
+        .single();
+
+      if (findError) {
+        toast.error("Invalid team code. No user found with this code.");
+        return;
+      }
+
+      if (!userDetails.team_id) {
+        // Create a new team if the admin doesn't have one
+        const { data: newTeam, error: teamError } = await supabase
+          .from('teams')
+          .insert({
+            name: `${userDetails.name}'s Team`,
+            admin_id: userDetails.userId
+          })
+          .select()
+          .single();
+
+        if (teamError) {
+          toast.error("Error creating team. Please try again.");
+          return;
+        }
+
+        // Update admin's profile with the team_id
+        await supabase
+          .from('profiles')
+          .update({ team_id: newTeam.id })
+          .eq('id', userDetails.userId);
+          
+        setUserDetails(prev => ({
+          ...prev,
+          team_id: newTeam.id
+        }));
+        
+        setIsTeamAdmin(true);
+        
+        // Update the new member's profile with the team_id
+        const { error: updateMemberError } = await supabase
+          .from('profiles')
+          .update({ team_id: newTeam.id })
+          .eq('id', memberProfile.id);
+
+        if (updateMemberError) {
+          toast.error("Error adding team member. Please try again.");
+          return;
+        }
+      } else {
+        // Add the member to the existing team
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ team_id: userDetails.team_id })
+          .eq('id', memberProfile.id);
+
+        if (updateError) {
+          toast.error("Error adding team member. Please try again.");
+          return;
+        }
+      }
+
+      toast.success(`Successfully added ${memberProfile.name || 'user'} to the team!`);
+      // Refresh team members list
+      fetchTeamMembers(userDetails.team_id || "");
+    } catch (error: any) {
+      toast.error("Error: " + error.message);
+    } finally {
+      setIsAddingMember(false);
+      setMemberCodeToAdd("");
+    }
+  };
+
+  const handleEditMember = (member: TeamMember) => {
+    setMemberToEdit(member);
+    setEditedMemberName(member.name || "");
+  };
+
+  const handleUpdateMember = async () => {
+    if (!memberToEdit) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ name: editedMemberName })
+        .eq('id', memberToEdit.id);
+        
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Team member updated successfully");
+      
+      // Refresh team members list
+      if (userDetails.team_id) {
+        fetchTeamMembers(userDetails.team_id);
+      }
+      
+      setMemberToEdit(null);
+    } catch (error: any) {
+      toast.error("Error updating team member: " + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Settings</h1>
@@ -548,7 +682,7 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div className="grid gap-4">
                 <div className="p-4 border rounded-md bg-muted/50">
-                  <h3 className="font-medium mb-2">Your Team Code</h3>
+                  <h3 className="font-medium mb-2">Your Unique Team Code</h3>
                   <div className="flex items-center gap-2">
                     <Input 
                       value={userDetails.team_code || ""}
@@ -566,13 +700,38 @@ export default function Settings() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Share this code with others to let them join your team. All team members will have access to the same data.
+                    Share this code with others to let them join your team or use it to add them directly. All team members will have access to the same data.
                   </p>
                 </div>
                 
-                {!userDetails.team_id ? (
+                <div className="space-y-2">
+                  <h3 className="font-medium">Add Team Member</h3>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter 6-digit code of the user to add"
+                      maxLength={6}
+                      value={memberCodeToAdd}
+                      onChange={(e) => setMemberCodeToAdd(e.target.value)}
+                    />
+                    <Button 
+                      onClick={handleAddTeamMember}
+                      disabled={isAddingMember || !memberCodeToAdd}
+                    >
+                      {isAddingMember ? (
+                        "Adding..."
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Add
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                
+                {!userDetails.team_id && !isTeamAdmin && (
                   <div className="space-y-2">
-                    <h3 className="font-medium">Join a Team</h3>
+                    <h3 className="font-medium">Join Existing Team</h3>
                     <div className="flex gap-2">
                       <Input
                         placeholder="Enter 6-digit team code"
@@ -588,61 +747,98 @@ export default function Settings() {
                       </Button>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <h3 className="font-medium">Team Members</h3>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={handleLeaveTeam}
-                          disabled={isLeavingTeam}
-                        >
-                          {isLeavingTeam ? "Leaving..." : "Leave Team"}
-                        </Button>
-                      </div>
-                      
-                      <Table>
-                        <TableHeader>
+                )}
+                
+                {(userDetails.team_id || teamMembers.length > 0) && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-medium">Team Members</h3>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={handleLeaveTeam}
+                        disabled={isLeavingTeam}
+                      >
+                        {isLeavingTeam ? "Leaving..." : "Leave Team"}
+                      </Button>
+                    </div>
+                    
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead className="w-[160px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {teamMembers.length === 0 ? (
                           <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            {isTeamAdmin && <TableHead className="w-[100px]">Actions</TableHead>}
+                            <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
+                              No team members found
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {teamMembers.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={isTeamAdmin ? 3 : 2} className="text-center py-4 text-muted-foreground">
-                                No team members found
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            teamMembers.map((member) => (
-                              <TableRow key={member.id}>
-                                <TableCell>{member.name || "Unnamed user"}</TableCell>
-                                <TableCell>{member.email || "No email"}</TableCell>
-                                {isTeamAdmin && (
-                                  <TableCell>
-                                    {member.id !== userDetails.userId && (
+                        ) : (
+                          teamMembers.map((member) => (
+                            <TableRow key={member.id}>
+                              <TableCell>{member.name || "Unnamed user"}</TableCell>
+                              <TableCell>{member.email || "No email"}</TableCell>
+                              <TableCell>
+                                <div className="flex space-x-2">
+                                  {member.id !== userDetails.userId && isTeamAdmin && (
+                                    <>
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => handleEditMember(member)}
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                          <DialogHeader>
+                                            <DialogTitle>Edit Team Member</DialogTitle>
+                                            <DialogDescription>
+                                              Update the team member's information
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <div className="grid gap-4 py-4">
+                                            <div className="grid grid-cols-4 items-center gap-4">
+                                              <Label htmlFor="memberName" className="text-right">
+                                                Name
+                                              </Label>
+                                              <Input
+                                                id="memberName"
+                                                value={editedMemberName}
+                                                onChange={(e) => setEditedMemberName(e.target.value)}
+                                                className="col-span-3"
+                                              />
+                                            </div>
+                                          </div>
+                                          <DialogFooter>
+                                            <Button onClick={handleUpdateMember}>Save changes</Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
                                       <Button 
-                                        variant="ghost" 
+                                        variant="destructive" 
                                         size="sm"
                                         onClick={() => handleRemoveTeamMember(member.id)}
                                       >
-                                        Remove
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
-                                    )}
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </>
+                                    </>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </div>
             </CardContent>

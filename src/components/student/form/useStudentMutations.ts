@@ -1,187 +1,131 @@
 
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
 
-// Define a simplified type for student updates to avoid infinite type recursion
+// Define a simplified type that won't cause infinite recursion
 type StudentUpdateData = {
   id: string;
   name?: string;
   gr_number?: string;
   roll_number?: string | null;
   year?: number | null;
-  department?: string;
+  class?: string | null;
   class_id?: string | null;
+  department?: string;
   overall_percentage?: number | null;
-  user_id?: string;
-  team_id?: string | null;
-};
+  email?: string | null;
+  parent_name?: string | null;
+  parent_contact?: string | null;
+}
 
-export function useStudentMutations(onClose: () => void) {
+export const useStudentMutations = () => {
+  const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
 
-  // Add student mutation
-  const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class"> & { class_id?: string | null }) => {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error("You must be logged in to add a student");
-      }
-
-      // Get the user's profile to check for team membership
-      const { data: userProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        console.error("Error fetching user profile:", profileError);
-        // Continue without team filtering if there's an error
-      }
-
-      // If the team_id is null, it will be undefined - this is ok
-      const teamId = userProfile?.team_id || null;
-
-      // Check if the GR number already exists for this user or team
-      let query = supabase
-        .from("students")
-        .select("gr_number")
-        .eq("gr_number", newStudent.gr_number);
-
-      // If user is part of a team, check across the team
-      if (teamId) {
-        query = query.eq("team_id", teamId);
-      } else {
-        query = query.eq("user_id", user.id);
-      }
-
-      const { data: existingStudent, error: checkError } = await query.maybeSingle();
-
-      if (checkError) {
-        console.error("Error checking for existing student:", checkError);
-      }
-
-      if (existingStudent) {
-        throw new Error(`A student with GR number ${newStudent.gr_number} already exists`);
-      }
-
-      const studentWithUserData = {
-        ...newStudent,
-        user_id: user.id,
-        team_id: teamId
-      };
-
-      const { data, error } = await supabase
-        .from("students")
-        .insert([studentWithUserData])
-        .select()
-        .single();
-      if (error) {
-        // Check for duplicate key error
-        if (error.code === "23505" && error.message.includes("students_gr_number_key")) {
-          throw new Error(`A student with GR number ${newStudent.gr_number} already exists`);
+  // Create student mutation
+  const createStudentMutation = useMutation({
+    mutationFn: async (studentData: Omit<Student, "id" | "created_at">) => {
+      setIsLoading(true);
+      try {
+        // Get current user's team_id if they have one
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+        
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('team_id')
+          .eq('id', user.id)
+          .single();
+          
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
         }
-        throw error;
+        
+        const team_id = profile?.team_id || null;
+        
+        const { data, error } = await supabase
+          .from("students")
+          .insert({ ...studentData, user_id: user.id, team_id })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } finally {
+        setIsLoading(false);
       }
-      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
-      onClose();
-      toast.success("Student added successfully");
+      toast.success("Student created successfully");
     },
-    onError: (error) => {
-      toast.error("Failed to add student: " + error.message);
+    onError: (error: Error) => {
+      toast.error(`Error creating student: ${error.message}`);
     },
   });
 
-  // Update student mutation - using the simplified type
+  // Update student mutation
   const updateStudentMutation = useMutation({
     mutationFn: async (studentData: StudentUpdateData) => {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error("You must be logged in to update a student");
-      }
-
-      // Get the user's profile to check for team membership
-      const { data: userProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        console.error("Error fetching user profile:", profileError);
-        // Continue without team filtering if there's an error
-      }
-      
-      // If the team_id is null, it will be undefined - this is ok
-      const teamId = userProfile?.team_id || null;
-      
-      // Check if updating to a GR number that already exists (but is not the current student's)
-      if (studentData.gr_number) {
-        let query = supabase
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
           .from("students")
-          .select("id, gr_number")
-          .eq("gr_number", studentData.gr_number)
-          .neq("id", studentData.id);
-          
-        // Filter by team or user based on team membership
-        if (teamId) {
-          query = query.eq("team_id", teamId);
-        } else {
-          query = query.eq("user_id", user.id);
-        }
+          .update(studentData)
+          .eq("id", studentData.id)
+          .select()
+          .single();
 
-        const { data: existingStudent, error: checkError } = await query.maybeSingle();
-
-        if (checkError) {
-          console.error("Error checking for existing student:", checkError);
-        }
-
-        if (existingStudent) {
-          throw new Error(`Another student with GR number ${studentData.gr_number} already exists`);
-        }
+        if (error) throw error;
+        return data;
+      } finally {
+        setIsLoading(false);
       }
-
-      let updateQuery = supabase
-        .from("students")
-        .update(studentData)
-        .eq("id", studentData.id);
-        
-      // Add the appropriate filter based on team membership
-      if (teamId) {
-        updateQuery = updateQuery.eq("team_id", teamId);
-      } else {
-        updateQuery = updateQuery.eq("user_id", user.id);
-      }
-
-      const { data, error } = await updateQuery.select().single();
-      
-      if (error) {
-        // Check for duplicate key error
-        if (error.code === "23505" && error.message.includes("students_gr_number_key")) {
-          throw new Error(`Another student with GR number ${studentData.gr_number} already exists`);
-        }
-        throw error;
-      }
-      return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
-      onClose();
+      queryClient.invalidateQueries({ queryKey: ["student", variables.id] });
       toast.success("Student updated successfully");
     },
-    onError: (error) => {
-      toast.error("Failed to update student: " + error.message);
+    onError: (error: Error) => {
+      toast.error(`Error updating student: ${error.message}`);
     },
   });
 
-  return { addStudentMutation, updateStudentMutation };
-}
+  // Delete student mutation
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      setIsLoading(true);
+      try {
+        const { error } = await supabase
+          .from("students")
+          .delete()
+          .eq("id", studentId);
+
+        if (error) throw error;
+        return studentId;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student deleted successfully");
+    },
+    onError: (error: Error) => {
+      toast.error(`Error deleting student: ${error.message}`);
+    },
+  });
+
+  return {
+    isLoading,
+    createStudentMutation,
+    updateStudentMutation,
+    deleteStudentMutation,
+  };
+};
+
+export default useStudentMutations;
