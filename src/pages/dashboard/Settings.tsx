@@ -48,7 +48,14 @@ export default function Settings() {
   const [userDetails, setUserDetails] = useState<{
     email: string;
     userId: string;
-  } & Partial<Profile>>({
+    name?: string | null;
+    mobile?: string | null;
+    post?: string | null;
+    subject?: string | null;
+    nationality?: string | null;
+    team_code?: string | null;
+    team_id?: string | null;
+  }>({
     email: "",
     userId: "",
     name: "",

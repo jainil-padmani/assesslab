@@ -13,6 +13,8 @@ export interface Student {
   parent_name: string | null;
   parent_contact: string | null;
   created_at: string;
+  team_id?: string | null;
+  user_id?: string;
 }
 
 export interface Subject {

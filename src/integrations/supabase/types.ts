@@ -169,6 +169,8 @@ export type Database = {
           nationality: string | null
           post: string | null
           subject: string | null
+          team_code: string | null
+          team_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -178,6 +180,8 @@ export type Database = {
           nationality?: string | null
           post?: string | null
           subject?: string | null
+          team_code?: string | null
+          team_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -187,9 +191,19 @@ export type Database = {
           nationality?: string | null
           post?: string | null
           subject?: string | null
+          team_code?: string | null
+          team_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_subjects: {
         Row: {
@@ -393,6 +407,27 @@ export type Database = {
           semester?: number
           subject_code?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      teams: {
+        Row: {
+          admin_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
