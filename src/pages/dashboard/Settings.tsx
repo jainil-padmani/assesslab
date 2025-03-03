@@ -149,9 +149,22 @@ export default function Settings() {
         return;
       }
       
-      setTeamMembers(data as TeamMember[]);
+      // Handle potential null or undefined data
+      if (data) {
+        // Ensure the data matches the TeamMember interface
+        const validTeamMembers: TeamMember[] = data.map(member => ({
+          id: member.id,
+          name: member.name,
+          email: member.email
+        }));
+        
+        setTeamMembers(validTeamMembers);
+      } else {
+        setTeamMembers([]);
+      }
     } catch (error) {
       console.error('Error:', error);
+      setTeamMembers([]);
     }
   };
 
