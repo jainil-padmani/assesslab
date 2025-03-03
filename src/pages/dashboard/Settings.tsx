@@ -172,6 +172,7 @@ export default function Settings() {
       }
       
       if (data) {
+        // Properly type the data to ensure it has the required properties
         const validMembers: TeamMember[] = data.map(member => ({
           id: member.id || "",
           name: member.name || "Unnamed user",

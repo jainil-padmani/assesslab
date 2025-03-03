@@ -19,6 +19,7 @@ type StudentUpdateData = {
   email?: string | null;
   parent_name?: string | null;
   parent_contact?: string | null;
+  team_id?: string | null;
 }
 
 export const useStudentMutations = () => {

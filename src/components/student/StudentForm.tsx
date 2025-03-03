@@ -16,7 +16,7 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
   const [selectedYear, setSelectedYear] = useState<string>(student?.year ? student.year.toString() : "");
   const [selectedDepartment, setSelectedDepartment] = useState<string>(student?.department || "");
   
-  const { addStudentMutation, updateStudentMutation } = useStudentMutations(onClose);
+  const { createStudentMutation, updateStudentMutation } = useStudentMutations();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,7 +37,7 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
     if (student) {
       updateStudentMutation.mutate({ id: student.id, ...studentData });
     } else {
-      addStudentMutation.mutate(studentData as any);
+      createStudentMutation.mutate(studentData as any);
     }
   };
 
