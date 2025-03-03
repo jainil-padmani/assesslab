@@ -160,9 +160,10 @@ export default function Settings() {
 
   const fetchTeamMembers = async (teamId: string) => {
     try {
+      // Join profiles with auth.users to get the email
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, email')
+        .select('id, name')
         .eq('team_id', teamId);
         
       if (error) {
@@ -171,14 +172,26 @@ export default function Settings() {
         return;
       }
       
-      if (data) {
-        // Properly type the data to ensure it has the required properties
-        const validMembers: TeamMember[] = data.map(member => ({
-          id: member.id || "",
-          name: member.name || "Unnamed user",
-          email: member.email || "No email"
-        }));
-        setTeamMembers(validMembers);
+      if (data && Array.isArray(data)) {
+        // For each profile, get the email from auth.users
+        const membersWithEmail: TeamMember[] = [];
+        
+        for (const profile of data) {
+          // Get user email from auth.users using user id
+          const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+            profile.id
+          );
+          
+          const email = userError ? "No email" : (userData?.user?.email || "No email");
+          
+          membersWithEmail.push({
+            id: profile.id || "",
+            name: profile.name || "Unnamed user",
+            email: email
+          });
+        }
+        
+        setTeamMembers(membersWithEmail);
       } else {
         setTeamMembers([]);
       }
@@ -413,7 +426,7 @@ export default function Settings() {
       // Find the user with this team code
       const { data: memberProfile, error: findError } = await supabase
         .from('profiles')
-        .select('id, name, email')
+        .select('id, name')
         .eq('team_code', memberCodeToAdd)
         .single();
 
@@ -421,6 +434,10 @@ export default function Settings() {
         toast.error("Invalid team code. No user found with this code.");
         return;
       }
+
+      // Get user email from auth.users using user id
+      const { data: userData } = await supabase.auth.admin.getUserById(memberProfile.id);
+      const memberEmail = userData?.user?.email || "No email";
 
       if (!userDetails.team_id) {
         // Create a new team if the admin doesn't have one
