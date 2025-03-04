@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
@@ -40,43 +41,4 @@ export const TableNames = {
 // Create a type from the values of TableNames
 export type TableName = typeof TableNames[keyof typeof TableNames];
 
-// Simple interface for returning data and errors
-export interface SimpleDataResult<T extends Record<string, any>> {
-  data: T[] | null;
-  error: Error | null;
-}
-
-/**
- * Helper function to retrieve data with team ID consideration
- * This implementation avoids excessive type instantiation
- */
-export async function getTeamData<T extends Record<string, any>>(
-  tableName: TableName, 
-  columns: string
-): Promise<SimpleDataResult<T>> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return { data: null, error: new Error('You must be logged in') };
-    }
-    
-    const teamId = await getUserTeamId();
-    
-    const query = teamId
-      ? supabase.from(tableName).select(columns).eq('team_id', teamId)
-      : supabase.from(tableName).select(columns).eq('user_id', user.id);
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error(`Error querying ${tableName}:`, error);
-      return { data: null, error };
-    }
-    
-    return { data: data as T[], error: null };
-  } catch (error) {
-    console.error(`Error in getTeamData for ${tableName}:`, error);
-    return { data: null, error: error as Error };
-  }
-}
+// Removing the complex getTeamData generic function that's causing issues

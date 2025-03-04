@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Plus, UploadCloud, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
+  // Get user profile information
   const { data: userProfile } = useQuery<UserProfile | null>({
     queryKey: ["user-profile"],
     queryFn: async () => {
@@ -53,15 +55,18 @@ export default function Students() {
     },
   });
 
-  const { data: students = [], isLoading } = useQuery<StudentWithClass[]>({
+  // Get students with simplified query approach
+  const { data: students = [], isLoading } = useQuery({
     queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
+      // Determine filter based on team membership
       const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
       const filterValue = userProfile?.team_id || user.id;
       
+      // Execute the query with explicit error handling
       const { data, error } = await supabase
         .from("students")
         .select('*, classes(name)')
@@ -72,19 +77,22 @@ export default function Students() {
         return [];
       }
       
-      return (data || []) as StudentWithClass[];
+      return data || [];
     },
   });
 
-  const { data: classes = [], isLoading: isClassesLoading } = useQuery<Class[]>({
+  // Get classes with simplified query approach
+  const { data: classes = [], isLoading: isClassesLoading } = useQuery({
     queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
+      // Determine filter based on team membership
       const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
       const filterValue = userProfile?.team_id || user.id;
       
+      // Execute the query with explicit error handling
       const { data, error } = await supabase
         .from("classes")
         .select('id, name, department, year')
@@ -96,7 +104,7 @@ export default function Students() {
         return [];
       }
       
-      return (data || []) as Class[];
+      return data || [];
     },
   });
 
