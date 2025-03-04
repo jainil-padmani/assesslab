@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export function useTeamData() {
   const [isLoading, setIsLoading] = useState(false);
@@ -26,9 +27,9 @@ export function useTeamData() {
         .from("profiles")
         .select("team_id, team_code")
         .eq("id", session.user.id)
-        .single();
+        .maybeSingle();
         
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error("Error fetching profile:", error);
         return null;
       }

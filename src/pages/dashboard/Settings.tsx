@@ -1,15 +1,17 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import TeamSettings from "@/components/team/TeamSettings";
 
 export default function Settings() {
+  const [activeTab, setActiveTab] = useState("account");
+  
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
       
-      <Tabs defaultValue="account">
+      <Tabs defaultValue="account" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
@@ -18,17 +20,7 @@ export default function Settings() {
         </TabsList>
         
         <TabsContent value="account">
-          <Card>
-            <CardHeader>
-              <CardTitle>Account Settings</CardTitle>
-              <CardDescription>
-                Manage your account settings and preferences.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>Account settings will be implemented in a future update.</p>
-            </CardContent>
-          </Card>
+          <TeamSettings />
         </TabsContent>
         
         <TabsContent value="team">
@@ -36,7 +28,7 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="appearance">
-          <Card>
+          <Card className="border shadow-sm">
             <CardHeader>
               <CardTitle>Appearance</CardTitle>
               <CardDescription>
@@ -50,7 +42,7 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="notifications">
-          <Card>
+          <Card className="border shadow-sm">
             <CardHeader>
               <CardTitle>Notification Preferences</CardTitle>
               <CardDescription>

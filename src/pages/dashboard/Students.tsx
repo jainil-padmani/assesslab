@@ -45,10 +45,11 @@ export default function Students() {
         .from('profiles')
         .select('team_id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
         
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error("Error fetching profile:", error);
+        return null;
       }
       
       return data;
@@ -59,28 +60,33 @@ export default function Students() {
   const { data: students, isLoading } = useQuery({
     queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error("You must be logged in to view students");
+      try {
+        // Get the current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          throw new Error("You must be logged in to view students");
+        }
+        
+        let query = supabase
+          .from("students")
+          .select("*, classes(name)");
+        
+        // If user has a team_id, get team students, otherwise get personal students
+        if (userProfile?.team_id) {
+          query = query.eq('team_id', userProfile.team_id);
+        } else {
+          query = query.eq('user_id', user.id);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data as StudentWithClass[];
+      } catch (error) {
+        console.error("Error fetching students:", error);
+        return [];
       }
-      
-      let query = supabase
-        .from("students")
-        .select("*, classes(name)");
-      
-      // If user has a team_id, get team students, otherwise get personal students
-      if (userProfile?.team_id) {
-        query = query.eq('team_id', userProfile.team_id);
-      } else {
-        query = query.eq('user_id', user.id);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      return data as StudentWithClass[];
     },
     enabled: true,
   });
@@ -89,29 +95,34 @@ export default function Students() {
   const { data: classes, isLoading: isClassesLoading } = useQuery({
     queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        throw new Error("You must be logged in to view classes");
+      try {
+        // Get the current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          throw new Error("You must be logged in to view classes");
+        }
+        
+        let query = supabase
+          .from("classes")
+          .select("id, name, department, year")
+          .order("name");
+        
+        // If user has a team_id, get team classes, otherwise get personal classes
+        if (userProfile?.team_id) {
+          query = query.eq('team_id', userProfile.team_id);
+        } else {
+          query = query.eq('user_id', user.id);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data as Class[];
+      } catch (error) {
+        console.error("Error fetching classes:", error);
+        return [];
       }
-      
-      let query = supabase
-        .from("classes")
-        .select("id, name, department, year")
-        .order("name");
-      
-      // If user has a team_id, get team classes, otherwise get personal classes
-      if (userProfile?.team_id) {
-        query = query.eq('team_id', userProfile.team_id);
-      } else {
-        query = query.eq('user_id', user.id);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      return data as Class[];
     },
     enabled: true,
   });

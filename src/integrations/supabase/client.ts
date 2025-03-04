@@ -24,7 +24,7 @@ export async function getUserTeamId(): Promise<string | null> {
       .from('profiles')
       .select('team_id')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
       
     return profile?.team_id || null;
   } catch (error) {
@@ -45,48 +45,44 @@ export const TableNames = {
 export type TableName = typeof TableNames[keyof typeof TableNames];
 
 /**
- * Helper function to create a query builder that considers team ID
- * @param table The table name to query
- * @returns Object with methods for common operations
+ * Helper function to retrieve data with team ID consideration
+ * @param tableName The name of the table to query
+ * @param columns The columns to select
  */
-export function teamQuery(table: TableName) {
-  return {
-    select: async (columns: string) => {
-      try {
-        const teamId = await getUserTeamId();
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          throw new Error('You must be logged in');
-        }
-        
-        // Check for team_id
-        if (teamId) {
-          const { data, error } = await supabase
-            .from(table)
-            .select(columns);
-            
-          if (error) {
-            console.error(`Error querying ${table}:`, error);
-            // Fall back to user_id query
-            return await supabase
-              .from(table)
-              .select(columns)
-              .eq('user_id', user.id);
-          }
-          
-          return { data, error };
-        } else {
-          // No team, use personal data only
-          return await supabase
-            .from(table)
-            .select(columns)
-            .eq('user_id', user.id);
-        }
-      } catch (error) {
-        console.error(`Error in teamQuery for ${table}:`, error);
-        return { data: null, error };
-      }
+export async function getTeamData(tableName: TableName, columns: string) {
+  try {
+    const teamId = await getUserTeamId();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('You must be logged in');
     }
-  };
+    
+    if (teamId) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(columns)
+        .eq('team_id', teamId);
+        
+      if (error) {
+        console.error(`Error querying ${tableName}:`, error);
+        // Fall back to user_id query
+        return await supabase
+          .from(tableName)
+          .select(columns)
+          .eq('user_id', user.id);
+      }
+      
+      return { data, error };
+    } else {
+      // No team, use personal data only
+      return await supabase
+        .from(tableName)
+        .select(columns)
+        .eq('user_id', user.id);
+    }
+  } catch (error) {
+    console.error(`Error in getTeamData for ${tableName}:`, error);
+    return { data: null, error };
+  }
 }

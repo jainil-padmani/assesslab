@@ -25,9 +25,9 @@ export const useStudentMutations = () => {
           .from('profiles')
           .select('team_id')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
           
-        if (profileError && profileError.code !== 'PGRST116') {
+        if (profileError) {
           console.error("Error fetching profile:", profileError);
         }
         
