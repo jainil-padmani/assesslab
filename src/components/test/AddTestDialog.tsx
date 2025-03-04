@@ -32,6 +32,20 @@ interface AddTestDialogProps {
   defaultSubjectId?: string;
 }
 
+type Profile = {
+  team_id: string | null;
+};
+
+type Subject = {
+  id: string;
+  name: string;
+};
+
+type Class = {
+  id: string;
+  name: string;
+};
+
 export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestDialogProps) {
   const [name, setName] = useState("");
   const [subjectId, setSubjectId] = useState(defaultSubjectId || "");
@@ -41,12 +55,11 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
   const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch user profile to get team_id
-  const { data: profile } = useQuery({
+  // Fetch user profile
+  const { data: profile } = useQuery<Profile | null>({
     queryKey: ["user-profile"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) return null;
       
       const { data, error } = await supabase
@@ -57,19 +70,19 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
         
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching profile:", error);
+        return null;
       }
       
       return data;
     }
   });
 
-  // Fetch subjects for dropdown
-  const { data: subjects, isLoading: isLoadingSubjects } = useQuery({
+  // Fetch subjects
+  const { data: subjects } = useQuery<Subject[]>({
     queryKey: ["subjects", profile?.team_id],
     queryFn: async () => {
       let query = supabase.from("subjects").select("id, name");
       
-      // Filter by team_id if available
       if (profile?.team_id) {
         query = query.eq("team_id", profile.team_id);
       }
@@ -81,18 +94,17 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
         throw error;
       }
       
-      return data;
+      return data || [];
     },
-    enabled: !!profile || profile?.team_id === null,
+    enabled: profile !== undefined,
   });
 
-  // Fetch classes for dropdown
-  const { data: classes, isLoading: isLoadingClasses } = useQuery({
+  // Fetch classes
+  const { data: classes } = useQuery<Class[]>({
     queryKey: ["classes", profile?.team_id],
     queryFn: async () => {
       let query = supabase.from("classes").select("id, name");
       
-      // Filter by team_id if available
       if (profile?.team_id) {
         query = query.eq("team_id", profile.team_id);
       }
@@ -104,12 +116,12 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
         throw error;
       }
       
-      return data;
+      return data || [];
     },
-    enabled: !!profile || profile?.team_id === null,
+    enabled: profile !== undefined,
   });
 
-  // Mutation to add a new test with team_id
+  // Add test mutation
   const addTestMutation = useMutation({
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -125,7 +137,7 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
           max_marks: maxMarks,
           test_date: date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           user_id: user.id,
-          team_id: profile?.team_id || null
+          team_id: profile?.team_id
         })
         .select();
         
