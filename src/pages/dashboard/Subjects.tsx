@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,11 +62,10 @@ export default function Subjects() {
     enabled: !!session,
   });
 
-  // Fetch subjects
+  // Fetch subjects - no need to filter as RLS will handle data access
   const { data: subjects, isLoading } = useQuery({
     queryKey: ["subjects"],
     queryFn: async () => {
-      // Fetch subjects - no need to filter as RLS will handle it based on team_id
       const { data, error } = await supabase
         .from("subjects")
         .select("*")

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,18 +21,7 @@ export default function Tests() {
         throw new Error("You must be logged in to view subjects");
       }
       
-      // Get the user's profile to check if they are part of a team
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('team_id')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching profile:", profileError);
-      }
-      
-      // Fetch subjects - no need to filter as RLS will handle it
+      // Fetch subjects - RLS will filter based on user_id or team_id
       const { data, error } = await supabase
         .from("subjects")
         .select("*")

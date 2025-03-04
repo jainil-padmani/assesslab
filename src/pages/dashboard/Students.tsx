@@ -55,16 +55,10 @@ export default function Students() {
         console.error("Error fetching profile:", profileError);
       }
       
-      // Fetch students based on user_id or team_id
-      let query = supabase.from("students").select("*, classes(name)").order("name");
-      
-      // If user has a team_id, we don't need to filter explicitly as RLS handles it
-      // Otherwise, filter by user_id explicitly
-      if (!profile?.team_id) {
-        query = query.eq("user_id", user.id);
-      }
-      
-      const { data, error } = await query;
+      // Fetch students - no need to filter as RLS will handle it
+      const { data, error } = await supabase
+        .from("students")
+        .select("*, classes(name)");
       
       if (error) throw error;
       return data as StudentWithClass[];
@@ -82,27 +76,11 @@ export default function Students() {
         throw new Error("You must be logged in to view classes");
       }
       
-      // Get the user's profile to check if they are part of a team
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('team_id')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching profile:", profileError);
-      }
-      
-      // Fetch classes based on user_id or team_id
-      let query = supabase.from("classes").select("id, name, department, year").order("name");
-      
-      // If user has a team_id, we don't need to filter explicitly as RLS handles it
-      // Otherwise, filter by user_id explicitly
-      if (!profile?.team_id) {
-        query = query.eq("user_id", user.id);
-      }
-      
-      const { data, error } = await query;
+      // Fetch classes - no need to filter as RLS will handle it
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, name, department, year")
+        .order("name");
       
       if (error) throw error;
       return data as Class[];

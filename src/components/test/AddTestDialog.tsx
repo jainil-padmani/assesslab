@@ -1,229 +1,240 @@
 
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
-  Dialog, DialogContent, DialogHeader, 
-  DialogTitle, DialogDescription, DialogFooter 
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { 
-  Select, SelectContent, SelectItem, 
-  SelectTrigger, SelectValue 
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Subject } from "@/types/dashboard";
-import { TestFormData } from "@/types/tests";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
-interface AddTestDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  defaultSubjectId?: string;
-}
-
-export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestDialogProps) {
+export function AddTestDialog({ open, onOpenChange }) {
+  const [name, setName] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [classId, setClassId] = useState("");
+  const [maxMarks, setMaxMarks] = useState(100);
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  
-  const [formData, setFormData] = useState<TestFormData>({
-    name: "",
-    subject_id: "",
-    class_id: "",
-    test_date: new Date().toISOString().slice(0, 10),
-    max_marks: 100
-  });
-  
-  // Set default subject ID when component mounts or defaultSubjectId changes
-  useEffect(() => {
-    if (defaultSubjectId) {
-      setFormData(prev => ({ ...prev, subject_id: defaultSubjectId }));
-    }
-  }, [defaultSubjectId, open]);
 
-  const { data: subjects } = useQuery({
+  // Fetch user profile to get team_id
+  const { data: profile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return null;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error fetching profile:", error);
+      }
+      
+      return data;
+    }
+  });
+
+  // Fetch subjects for dropdown
+  const { data: subjects, isLoading: isLoadingSubjects } = useQuery({
     queryKey: ["subjects"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subjects")
-        .select("*")
+        .select("id, name")
         .order("name");
-      
+        
       if (error) throw error;
-      return data as Subject[];
-    }
+      return data;
+    },
   });
 
-  const { data: classes } = useQuery({
+  // Fetch classes for dropdown
+  const { data: classes, isLoading: isLoadingClasses } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
-        .select("*")
+        .select("id, name")
         .order("name");
-      
+        
       if (error) throw error;
-      return data as { id: string; name: string; department: string | null; year: number | null }[];
-    }
+      return data;
+    },
   });
 
-  const createTestMutation = useMutation({
-    mutationFn: async (data: TestFormData) => {
-      const { error, data: result } = await supabase
-        .from("tests")
-        .insert(data)
-        .select();
+  // Mutation to add a new test with team_id
+  const addTestMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) throw new Error("You must be logged in to add a test");
+      
+      const { data, error } = await supabase
+        .from("tests")
+        .insert([
+          {
+            name,
+            subject_id: subjectId,
+            class_id: classId,
+            max_marks: maxMarks,
+            test_date: date,
+            user_id: user.id,
+            team_id: profile?.team_id || null
+          },
+        ])
+        .select();
+        
       if (error) throw error;
-      return result[0];
+      return data;
     },
-    onSuccess: (data) => {
-      toast.success("Test created successfully");
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tests"] });
-      queryClient.invalidateQueries({ queryKey: ["subjectTests", formData.subject_id] });
+      toast.success("Test added successfully");
+      resetForm();
       onOpenChange(false);
-      navigate(`/dashboard/tests/detail/${data.id}`);
     },
     onError: (error: any) => {
-      toast.error(`Failed to create test: ${error.message}`);
-    }
+      toast.error(`Failed to add test: ${error.message}`);
+      setIsSubmitting(false);
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      toast.error("Test name is required");
-      return;
-    }
-    
-    if (!formData.subject_id) {
-      toast.error("Please select a subject");
-      return;
-    }
-    
-    if (!formData.class_id) {
-      toast.error("Please select a class");
-      return;
-    }
-    
-    createTestMutation.mutate(formData);
+    setIsSubmitting(true);
+    addTestMutation.mutate();
   };
 
-  // Reset form when dialog closes
-  useEffect(() => {
-    if (!open) {
-      setFormData({
-        name: "",
-        subject_id: defaultSubjectId || "",
-        class_id: "",
-        test_date: new Date().toISOString().slice(0, 10),
-        max_marks: 100
-      });
-    }
-  }, [open, defaultSubjectId]);
+  const resetForm = () => {
+    setName("");
+    setSubjectId("");
+    setClassId("");
+    setMaxMarks(100);
+    setDate(new Date());
+    setIsSubmitting(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Add New Test</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Add New Test</DialogTitle>
-            <DialogDescription>
-              Create a new test for a specific subject and class.
-            </DialogDescription>
-          </DialogHeader>
-          
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Test Name *</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Test Name
+              </Label>
               <Input
                 id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Midterm Examination"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="col-span-3"
                 required
               />
             </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="subject">Subject *</Label>
-              <Select
-                value={formData.subject_id}
-                onValueChange={(value) => setFormData({ ...formData, subject_id: value })}
-                disabled={!!defaultSubjectId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a subject" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subject" className="text-right">
+                Subject
+              </Label>
+              <Select value={subjectId} onValueChange={setSubjectId} required>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
                 <SelectContent>
                   {subjects?.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name} ({subject.subject_code})
+                      {subject.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="class">Class *</Label>
-              <Select
-                value={formData.class_id}
-                onValueChange={(value) => setFormData({ ...formData, class_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a class" />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="class" className="text-right">
+                Class
+              </Label>
+              <Select value={classId} onValueChange={setClassId} required>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select class" />
                 </SelectTrigger>
                 <SelectContent>
                   {classes?.map((cls) => (
                     <SelectItem key={cls.id} value={cls.id}>
-                      {cls.name} {cls.year ? `(${cls.year})` : ""}
+                      {cls.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="test_date">Test Date *</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="maxMarks" className="text-right">
+                Max Marks
+              </Label>
               <Input
-                id="test_date"
-                type="date"
-                value={formData.test_date}
-                onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
+                id="maxMarks"
+                type="number"
+                value={maxMarks}
+                onChange={(e) => setMaxMarks(Number(e.target.value))}
+                className="col-span-3"
                 required
               />
             </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="max_marks">Maximum Marks *</Label>
-              <Input
-                id="max_marks"
-                type="number"
-                min={1}
-                value={formData.max_marks}
-                onChange={(e) => setFormData({ ...formData, max_marks: Number(e.target.value) })}
-                required
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="date" className="text-right">
+                Test Date
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "col-span-3 justify-start text-left font-normal",
+                      !date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
-          
           <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={createTestMutation.isPending}
-            >
-              {createTestMutation.isPending ? "Creating..." : "Create Test"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Adding..." : "Add Test"}
             </Button>
           </DialogFooter>
         </form>
