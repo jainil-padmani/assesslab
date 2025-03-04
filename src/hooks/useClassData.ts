@@ -24,15 +24,14 @@ export function useClassData(teamId: string | null | undefined) {
       const { data, error } = await supabase
         .from("classes")
         .select('id, name, department, year')
-        .eq(filterColumn, filterValue)
-        .order('name');
+        .eq(filterColumn, filterValue);
       
       if (error) {
         console.error("Error fetching classes:", error);
         return [];
       }
       
-      return data as Class[];
+      return data || [];
     },
   });
 }
