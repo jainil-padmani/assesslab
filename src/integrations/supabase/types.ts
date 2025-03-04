@@ -388,6 +388,7 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
+          team_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -397,6 +398,7 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
+          team_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -406,9 +408,18 @@ export type Database = {
           name?: string
           semester?: number
           subject_code?: string
+          team_id?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subjects_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teams: {
         Row: {

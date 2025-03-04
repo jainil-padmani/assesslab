@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   name: string;
@@ -24,6 +23,8 @@ export interface Subject {
   semester: number;
   information_pdf_url: string | null;
   created_at: string;
+  user_id?: string;
+  team_id?: string | null;
 }
 
 export interface StudentSubject {

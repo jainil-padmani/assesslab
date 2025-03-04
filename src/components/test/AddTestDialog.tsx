@@ -65,30 +65,48 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
 
   // Fetch subjects for dropdown
   const { data: subjects, isLoading: isLoadingSubjects } = useQuery({
-    queryKey: ["subjects"],
+    queryKey: ["subjects", profile?.team_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subjects")
-        .select("id, name")
-        .order("name");
+      let query = supabase.from("subjects").select("id, name");
+      
+      // Filter by team_id if available
+      if (profile?.team_id) {
+        query = query.eq("team_id", profile.team_id);
+      }
+      
+      const { data, error } = await query.order("name");
         
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching subjects:", error);
+        throw error;
+      }
+      
       return data;
     },
+    enabled: !!profile || profile?.team_id === null,
   });
 
   // Fetch classes for dropdown
   const { data: classes, isLoading: isLoadingClasses } = useQuery({
-    queryKey: ["classes"],
+    queryKey: ["classes", profile?.team_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("classes")
-        .select("id, name")
-        .order("name");
+      let query = supabase.from("classes").select("id, name");
+      
+      // Filter by team_id if available
+      if (profile?.team_id) {
+        query = query.eq("team_id", profile.team_id);
+      }
+      
+      const { data, error } = await query.order("name");
         
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching classes:", error);
+        throw error;
+      }
+      
       return data;
     },
+    enabled: !!profile || profile?.team_id === null,
   });
 
   // Mutation to add a new test with team_id
@@ -121,6 +139,7 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
       onOpenChange(false);
     },
     onError: (error: any) => {
+      console.error("Error adding test:", error);
       toast.error(`Failed to add test: ${error.message}`);
       setIsSubmitting(false);
     },

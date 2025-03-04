@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, FileDown, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Subjects() {
@@ -62,16 +62,27 @@ export default function Subjects() {
     enabled: !!session,
   });
 
-  // Fetch subjects - no need to filter as RLS will handle data access
+  // Fetch subjects - team-based filtering using RLS or explicit filter
   const { data: subjects, isLoading } = useQuery({
-    queryKey: ["subjects"],
+    queryKey: ["subjects", userProfile?.team_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subjects")
-        .select("*")
-        .order("name");
+      let query = supabase.from("subjects").select("*");
+      
+      // If user has a team, filter by team_id
+      if (userProfile?.team_id) {
+        query = query.eq("team_id", userProfile.team_id);
+      } else {
+        // Otherwise, show only user's own subjects
+        query = query.eq("user_id", session?.user.id);
+      }
+      
+      const { data, error } = await query.order("name");
         
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching subjects:", error);
+        throw error;
+      }
+      
       return data as Subject[];
     },
     enabled: !!session, // Only fetch if user is logged in
@@ -82,6 +93,8 @@ export default function Subjects() {
     mutationFn: async (newSubject: Omit<Subject, "id" | "created_at">) => {
       // Include team_id if user has one
       const team_id = userProfile?.team_id || null;
+      
+      console.log("Adding subject with team_id:", team_id);
       
       const { data, error } = await supabase
         .from("subjects")
@@ -100,6 +113,7 @@ export default function Subjects() {
     },
     onError: (error) => {
       setIsSubmitting(false);
+      console.error("Error details:", error);
       toast.error("Failed to add subject: " + error.message);
     },
   });
@@ -107,6 +121,7 @@ export default function Subjects() {
   // Update subject mutation
   const updateSubjectMutation = useMutation({
     mutationFn: async (subject: Partial<Subject> & { id: string }) => {
+      // Ensure team_id is preserved during update
       const { data, error } = await supabase
         .from("subjects")
         .update(subject)
@@ -126,6 +141,7 @@ export default function Subjects() {
     },
     onError: (error) => {
       setIsSubmitting(false);
+      console.error("Error details:", error);
       toast.error("Failed to update subject: " + error.message);
     },
   });
@@ -141,6 +157,7 @@ export default function Subjects() {
       toast.success("Subject deleted successfully");
     },
     onError: (error) => {
+      console.error("Error details:", error);
       toast.error("Failed to delete subject: " + error.message);
     },
   });
