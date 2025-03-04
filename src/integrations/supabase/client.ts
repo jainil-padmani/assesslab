@@ -44,60 +44,55 @@ export const TableNames = {
 // Create a type from the values of TableNames
 export type TableName = typeof TableNames[keyof typeof TableNames];
 
-// Define a generic interface for the returned data to fix "excessively deep" type errors
-export interface TeamDataResult<T> {
+// Simple interface for returning data and errors without deep type inference
+export interface SimpleDataResult<T> {
   data: T[] | null;
   error: Error | null;
 }
 
 /**
  * Helper function to retrieve data with team ID consideration
- * @param tableName The name of the table to query
- * @param columns The columns to select
+ * This implementation avoids excessive type instantiation
  */
-export async function getTeamData<T>(tableName: TableName, columns: string): Promise<TeamDataResult<T>> {
+export async function getTeamData<T>(tableName: TableName, columns: string): Promise<SimpleDataResult<T>> {
   try {
-    const teamId = await getUserTeamId();
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       throw new Error('You must be logged in');
     }
     
-    // Create basic QueryBuilder
+    const teamId = await getUserTeamId();
     let query;
     
+    // Build the query based on team membership
     if (teamId) {
-      // Team data query
       query = supabase
         .from(tableName)
         .select(columns)
         .eq('team_id', teamId);
     } else {
-      // Personal data query
       query = supabase
         .from(tableName)
         .select(columns)
         .eq('user_id', user.id);
     }
     
-    // Execute query separately from type instantiation
+    // Execute query separately from query building
     const { data, error } = await query;
     
     if (error) {
       console.error(`Error querying ${tableName}:`, error);
       
-      // If team query fails and we were doing a team query, try personal data as fallback
       if (teamId) {
-        const fallbackQuery = supabase
+        // Fallback to user-specific data if team query fails
+        const fallbackResult = await supabase
           .from(tableName)
           .select(columns)
           .eq('user_id', user.id);
           
-        const fallbackResult = await fallbackQuery;
-        
         if (fallbackResult.error) {
-          console.error(`Fallback query error:`, fallbackResult.error);
+          console.error('Fallback query error:', fallbackResult.error);
           return { data: null, error: fallbackResult.error };
         }
         
