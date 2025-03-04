@@ -21,7 +21,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
   // Fetch subjects
   const subjectsQuery = useQuery<Subject[]>({
     queryKey: ["subjects", profileData?.team_id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Subject[]> => {
       let query = supabase.from("subjects").select("id, name");
       
       if (profileData?.team_id) {
@@ -37,13 +37,13 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: Boolean(profileData)
+    enabled: profileData !== undefined
   });
 
   // Fetch classes
   const classesQuery = useQuery<Class[]>({
     queryKey: ["classes", profileData?.team_id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Class[]> => {
       let query = supabase.from("classes").select("id, name");
       
       if (profileData?.team_id) {
@@ -59,7 +59,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: Boolean(profileData)
+    enabled: profileData !== undefined
   });
 
   return { 
@@ -71,7 +71,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
 export function useUserProfile() {
   return useQuery<Profile | null>({
     queryKey: ["user-profile"],
-    queryFn: async () => {
+    queryFn: async (): Promise<Profile | null> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       

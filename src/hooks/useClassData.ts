@@ -10,20 +10,24 @@ export interface Class {
 }
 
 export function useClassData(teamId: string | null | undefined) {
-  return useQuery({
+  return useQuery<Class[]>({
     queryKey: ["classes", teamId],
     queryFn: async (): Promise<Class[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
-      // Determine filter based on team membership
-      const filterColumn = teamId ? 'team_id' : 'user_id';
-      const filterValue = teamId || user.id;
+      let query = supabase.from("classes").select('id, name, department, year');
+      
+      // Apply team_id filter if available
+      if (teamId) {
+        query = query.eq('team_id', teamId);
+      } else {
+        // If no team_id, filter by user_id
+        query = query.eq('user_id', user.id);
+      }
       
       // Execute the query with explicit error handling
-      const { data, error } = await supabase
-        .from("classes")
-        .select('id, name, department, year');
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching classes:", error);

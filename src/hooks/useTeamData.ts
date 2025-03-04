@@ -31,10 +31,10 @@ export function useTeamData() {
     },
   });
 
-  // Get user's team info - simplified query to avoid deep type instantiation
+  // Get user's team info - simplified to avoid deep type instantiation
   const { data: userProfile, isLoading: isProfileLoading } = useQuery<UserProfile | null>({
     queryKey: ["user-profile", session?.user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserProfile | null> => {
       if (!session?.user) return null;
       
       // First, check if user has a team_code. If not, generate one

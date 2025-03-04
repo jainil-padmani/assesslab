@@ -10,7 +10,7 @@ export interface UserProfile {
 export function useUserProfile() {
   return useQuery<UserProfile | null>({
     queryKey: ["user-profile"],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserProfile | null> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       
