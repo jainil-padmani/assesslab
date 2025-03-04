@@ -5,29 +5,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useTeamData } from "@/hooks/useTeamData";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { countries } from "@/utils/countries";
+import { Textarea } from "@/components/ui/textarea";
 
-export default function TeamSettings() {
-  const [teamName, setTeamName] = useState("");
-  const [teamCode, setTeamCode] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [bio, setBio] = useState("");
-  const [country, setCountry] = useState("");
-  
+const TeamSettings = () => {
   const { userProfile, session, joinTeam, createTeam, leaveTeam, isLoading } = useTeamData();
+  const [teamCode, setTeamCode] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [name, setName] = useState("");
+  const [country, setCountry] = useState("");
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const queryClient = useQueryClient();
 
-  // Get user profile data
+  // For profile settings
+  const [email, setEmail] = useState("");
+  const [post, setPost] = useState("");
+
+  // Get user profile data for profile settings
   const { data: profileData } = useQuery({
-    queryKey: ["user-profile-details"],
+    queryKey: ["profile-details", session?.user?.id],
     queryFn: async () => {
       if (!session?.user) return null;
       
@@ -35,7 +35,7 @@ export default function TeamSettings() {
         .from("profiles")
         .select("*")
         .eq("id", session.user.id)
-        .maybeSingle();
+        .single();
         
       if (error) {
         console.error("Error fetching profile details:", error);
@@ -51,10 +51,11 @@ export default function TeamSettings() {
   useEffect(() => {
     if (profileData) {
       setName(profileData.name || "");
-      setBio(profileData.bio || "");
       setCountry(profileData.nationality || "");
+      setPost(profileData.post || "");
+      setEmail(session?.user?.email || "");
     }
-  }, [profileData]);
+  }, [profileData, session]);
 
   // Fetch team details if user is in a team
   const { data: teamDetails } = useQuery({
@@ -66,7 +67,7 @@ export default function TeamSettings() {
         .from("teams")
         .select("*")
         .eq("id", userProfile.team_id)
-        .maybeSingle();
+        .single();
         
       if (error) {
         console.error("Error fetching team details:", error);
@@ -75,18 +76,18 @@ export default function TeamSettings() {
       
       return data;
     },
-    enabled: !!userProfile?.team_id,
+    enabled: !!userProfile?.team_id
   });
 
-  // Fetch team members
-  const { data: teamMembers = [] } = useQuery({
+  // Get team members
+  const { data: teamMembers } = useQuery({
     queryKey: ["team-members", userProfile?.team_id],
     queryFn: async () => {
       if (!userProfile?.team_id) return [];
       
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name")
+        .select("id, name, post")
         .eq("team_id", userProfile.team_id);
         
       if (error) {
@@ -94,305 +95,260 @@ export default function TeamSettings() {
         return [];
       }
       
-      return data || [];
+      return data;
     },
-    enabled: !!userProfile?.team_id,
+    enabled: !!userProfile?.team_id
   });
 
-  const handleCreateTeam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teamName) return;
-    
+  const handleJoinTeam = async () => {
+    if (!teamCode.trim()) {
+      toast.error("Please enter a team code");
+      return;
+    }
+
     try {
-      await createTeam(teamName);
-      toast.success("Team created successfully");
-      setTeamName("");
+      await joinTeam(teamCode);
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      queryClient.invalidateQueries({ queryKey: ["team-details"] });
+      toast.success("Successfully joined the team!");
+      setTeamCode("");
     } catch (error: any) {
-      toast.error(`Failed to create team: ${error.message}`);
+      toast.error(error.message || "Failed to join team");
     }
   };
 
-  const handleJoinTeam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teamCode) return;
-    
+  const handleCreateTeam = async () => {
+    if (!teamName.trim()) {
+      toast.error("Please enter a team name");
+      return;
+    }
+
     try {
-      await joinTeam(teamCode);
-      toast.success("Joined team successfully");
-      setTeamCode("");
+      const result = await createTeam(teamName);
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      toast.success("Team created successfully!");
+      setTeamName("");
+      
+      // Invalidate the team details query to fetch the new team data
       queryClient.invalidateQueries({ queryKey: ["team-details"] });
     } catch (error: any) {
-      toast.error(`Failed to join team: ${error.message}`);
+      toast.error(error.message || "Failed to create team");
     }
   };
 
   const handleLeaveTeam = async () => {
-    if (!confirm("Are you sure you want to leave this team? You will lose access to all shared data.")) {
-      return;
-    }
-    
     try {
       await leaveTeam();
-      toast.success("Left team successfully");
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      queryClient.invalidateQueries({ queryKey: ["team-details"] });
+      toast.success("You have left the team");
     } catch (error: any) {
-      toast.error(`Failed to leave team: ${error.message}`);
+      toast.error(error.message || "Failed to leave team");
     }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const updateProfile = async () => {
     if (!session?.user) return;
     
+    setIsUpdatingProfile(true);
     try {
       const { error } = await supabase
         .from("profiles")
         .update({
           name,
-          bio,
-          nationality: country
+          nationality: country,
+          post,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", session.user.id);
         
       if (error) throw error;
       
+      queryClient.invalidateQueries({ queryKey: ["profile-details"] });
       toast.success("Profile updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["user-profile-details"] });
     } catch (error: any) {
-      toast.error(`Failed to update profile: ${error.message}`);
+      toast.error(error.message || "Failed to update profile");
+    } finally {
+      setIsUpdatingProfile(false);
     }
   };
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (newPassword !== confirmPassword) {
-      toast.error("New passwords don't match");
-      return;
-    }
-    
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-      
-      if (error) throw error;
-      
-      toast.success("Password updated successfully");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (error: any) {
-      toast.error(`Failed to update password: ${error.message}`);
-    }
+  const updatePassword = async () => {
+    toast.info("Password update functionality will be implemented in a future update");
   };
 
-  if (!session) {
-    return (
-      <Card className="border border-border shadow-sm">
-        <CardHeader>
-          <CardTitle>Team Settings</CardTitle>
-          <CardDescription>You need to be logged in to manage teams</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Profile Settings */}
-      <Card className="border border-border shadow-sm">
-        <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
-          <CardDescription>Update your personal information</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                value={session.user.email || ""}
-                readOnly
-                disabled
-                placeholder="Your email"
-              />
-              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell us about yourself"
-                rows={3}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="country">Country</Label>
-              <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your country" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USA">United States</SelectItem>
-                  <SelectItem value="UK">United Kingdom</SelectItem>
-                  <SelectItem value="Canada">Canada</SelectItem>
-                  <SelectItem value="Australia">Australia</SelectItem>
-                  <SelectItem value="India">India</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <Button type="submit" className="w-full">Update Profile</Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Password Settings */}
-      <Card className="border border-border shadow-sm">
-        <CardHeader>
-          <CardTitle>Password Settings</CardTitle>
-          <CardDescription>Change your password</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleUpdatePassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="New password"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                required
-              />
-            </div>
-            
-            <Button type="submit" className="w-full">Update Password</Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Team Settings */}
-      {userProfile?.team_id ? (
-        <Card className="border border-border shadow-sm">
+  // Show different content based on whether user is in a team
+  const renderTeamContent = () => {
+    if (userProfile?.team_id) {
+      return (
+        <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle>Your Team</CardTitle>
+            <CardTitle>Team Management</CardTitle>
             <CardDescription>
-              You are currently part of a team. Share your team code with colleagues to let them join.
+              Manage your team settings and members.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <Label>Team Name</Label>
-              <div className="text-lg font-medium border p-2 rounded mt-1">{teamDetails?.name || "Loading..."}</div>
+              <div className="text-lg font-medium">{teamDetails?.name}</div>
             </div>
             <div>
               <Label>Team Code</Label>
-              <div className="text-lg font-medium border p-2 rounded bg-muted mt-1 font-mono">{userProfile?.team_code || "Loading..."}</div>
+              <div className="text-lg font-medium border p-2 rounded bg-muted mt-1 font-mono">
+                {userProfile?.team_code || teamDetails?.team_code || "Loading..."}
+              </div>
             </div>
             <div>
               <Label>Team Members ({teamMembers?.length || 0})</Label>
-              <ul className="mt-2 space-y-1 border rounded p-2">
-                {teamMembers?.map((member) => (
-                  <li key={member.id} className="text-sm p-1 border-b last:border-0">
-                    {member.name || "Unnamed user"}
-                    {member.id === session?.user?.id && " (You)"}
-                    {member.id === teamDetails?.admin_id && " (Admin)"}
-                  </li>
+              <div className="mt-2 space-y-2">
+                {teamMembers?.map(member => (
+                  <div key={member.id} className="flex items-center justify-between p-2 border rounded">
+                    <div>
+                      <div className="font-medium">{member.name}</div>
+                      <div className="text-sm text-muted-foreground">{member.post || "No role specified"}</div>
+                    </div>
+                  </div>
                 ))}
-                {teamMembers?.length === 0 && (
-                  <li className="text-sm text-muted-foreground p-1">No members found</li>
-                )}
-              </ul>
+              </div>
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="destructive" onClick={handleLeaveTeam} disabled={isLoading}>
+            <Button onClick={handleLeaveTeam} variant="destructive">
               Leave Team
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
-      ) : (
-        <>
-          <Card className="border border-border shadow-sm">
-            <CardHeader>
-              <CardTitle>Create a Team</CardTitle>
-              <CardDescription>Create a new team to share resources with colleagues</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateTeam} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teamName">Team Name</Label>
-                  <Input
-                    id="teamName"
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="Enter team name"
-                    required
-                    className="border border-input"
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading} className="w-full">Create Team</Button>
-              </form>
-            </CardContent>
-          </Card>
+      );
+    }
 
-          <Card className="border border-border shadow-sm">
-            <CardHeader>
-              <CardTitle>Join Existing Team</CardTitle>
-              <CardDescription>Enter a team code to join an existing team</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleJoinTeam} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teamCode">Team Code</Label>
-                  <Input
-                    id="teamCode"
-                    value={teamCode}
-                    onChange={(e) => setTeamCode(e.target.value)}
-                    placeholder="Enter team code"
-                    required
-                    className="border border-input"
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading} className="w-full">Join Team</Button>
-              </form>
-            </CardContent>
-          </Card>
-        </>
-      )}
+    return (
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle>Join a Team</CardTitle>
+          <CardDescription>
+            Enter a team code to join an existing team.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="team-code">Team Code</Label>
+            <div className="flex mt-1">
+              <Input
+                id="team-code"
+                value={teamCode}
+                onChange={(e) => setTeamCode(e.target.value)}
+                placeholder="Enter team code"
+                className="mr-2"
+              />
+              <Button onClick={handleJoinTeam} disabled={isLoading}>
+                Join
+              </Button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t">
+            <CardTitle className="mb-2">Create a New Team</CardTitle>
+            <CardDescription className="mb-4">
+              Create your own team and invite others to join.
+            </CardDescription>
+            <div>
+              <Label htmlFor="team-name">Team Name</Label>
+              <div className="flex mt-1">
+                <Input
+                  id="team-name"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  placeholder="Enter team name"
+                  className="mr-2"
+                />
+                <Button onClick={handleCreateTeam} disabled={isLoading}>
+                  Create
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle>Profile Settings</CardTitle>
+          <CardDescription>
+            Update your profile information
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input 
+              id="email" 
+              value={email} 
+              disabled 
+              className="bg-muted"
+            />
+            <p className="text-sm text-muted-foreground mt-1">Email cannot be changed</p>
+          </div>
+          <div>
+            <Label htmlFor="name">Name</Label>
+            <Input 
+              id="name" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              placeholder="Your name"
+            />
+          </div>
+          <div>
+            <Label htmlFor="post">Position/Role</Label>
+            <Input 
+              id="post" 
+              value={post} 
+              onChange={(e) => setPost(e.target.value)} 
+              placeholder="Your position or role"
+            />
+          </div>
+          <div>
+            <Label htmlFor="country">Country</Label>
+            <Select value={country} onValueChange={setCountry}>
+              <SelectTrigger id="country" className="w-full">
+                <SelectValue placeholder="Select your country" />
+              </SelectTrigger>
+              <SelectContent>
+                {countries.map((country) => (
+                  <SelectItem key={country.code} value={country.code}>
+                    {country.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button 
+            onClick={updateProfile} 
+            disabled={isUpdatingProfile}
+            className="mt-2"
+          >
+            {isUpdatingProfile ? "Updating..." : "Update Profile"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle>Security</CardTitle>
+          <CardDescription>
+            Manage your password and security settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button onClick={updatePassword}>
+            Change Password
+          </Button>
+        </CardContent>
+      </Card>
+
+      {renderTeamContent()}
     </div>
   );
-}
+};
+
+export default TeamSettings;

@@ -4,6 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface UserProfile {
+  team_id: string | null;
+  team_code: string | null;
+}
+
 export function useTeamData() {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -18,8 +23,8 @@ export function useTeamData() {
   });
 
   // Get user's team info - simplified query to avoid deep type instantiation
-  const { data: userProfile, isLoading: isProfileLoading } = useQuery({
-    queryKey: ["user-profile"],
+  const { data: userProfile, isLoading: isProfileLoading } = useQuery<UserProfile | null>({
+    queryKey: ["user-profile", session?.user?.id],
     queryFn: async () => {
       if (!session?.user) return null;
       
@@ -36,7 +41,7 @@ export function useTeamData() {
       
       return data;
     },
-    enabled: !!session,
+    enabled: !!session?.user?.id
   });
 
   // Join a team
@@ -50,7 +55,7 @@ export function useTeamData() {
       // Find the team with this code
       const { data: teams, error: teamError } = await supabase
         .from("teams")
-        .select("id")
+        .select("id, team_code")
         .eq("team_code", teamCode);
 
       if (teamError || !teams || teams.length === 0) {

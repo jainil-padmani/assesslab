@@ -416,18 +416,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          team_code: string | null
         }
         Insert: {
           admin_id: string
           created_at?: string
           id?: string
           name: string
+          team_code?: string | null
         }
         Update: {
           admin_id?: string
           created_at?: string
           id?: string
           name?: string
+          team_code?: string | null
         }
         Relationships: []
       }
