@@ -37,12 +37,18 @@ export function useTeamData() {
     queryFn: async () => {
       if (!session?.user) return null;
       
-      const { data, error } = await supabase
+      // Use type assertion to avoid deep type instantiation
+      const response = await supabase
         .from("profiles")
         .select("team_id, team_code")
         .eq("id", session.user.id)
         .maybeSingle();
         
+      const { data, error } = response as unknown as { 
+        data: UserProfile | null, 
+        error: any 
+      };
+      
       if (error) {
         console.error("Error fetching profile:", error);
         return null;

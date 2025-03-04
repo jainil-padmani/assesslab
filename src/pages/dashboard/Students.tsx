@@ -34,6 +34,12 @@ interface UserProfile {
   team_id: string | null;
 }
 
+// Simple type for database query results to avoid excessive type inference
+interface QueryResult<T> {
+  data: T[] | null;
+  error: any;
+}
+
 export default function Students() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
@@ -84,10 +90,11 @@ export default function Students() {
           query = query.eq('user_id', user.id);
         }
         
-        const { data, error } = await query;
+        // Use type assertion to avoid deep instantiation
+        const result = await query as unknown as { data: StudentWithClass[], error: any };
         
-        if (error) throw error;
-        return data as StudentWithClass[];
+        if (result.error) throw result.error;
+        return result.data;
       } catch (error) {
         console.error("Error fetching students:", error);
         return [];
@@ -120,10 +127,11 @@ export default function Students() {
           query = query.eq('user_id', user.id);
         }
         
-        const { data, error } = await query;
+        // Use type assertion to avoid deep instantiation
+        const result = await query as unknown as { data: Class[], error: any };
         
-        if (error) throw error;
-        return data as Class[];
+        if (result.error) throw result.error;
+        return result.data;
       } catch (error) {
         console.error("Error fetching classes:", error);
         return [];
