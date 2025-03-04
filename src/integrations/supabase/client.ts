@@ -23,6 +23,7 @@ export async function getUserTeamId(): Promise<string | null> {
       .eq('id', user.id)
       .maybeSingle();
       
+    // Only return team_id if it exists (user is part of a team)
     return profile?.team_id || null;
   } catch (error) {
     console.error('Error getting user team ID:', error);
@@ -40,5 +41,3 @@ export const TableNames = {
 
 // Create a type from the values of TableNames
 export type TableName = typeof TableNames[keyof typeof TableNames];
-
-// Removing the complex getTeamData generic function that's causing issues

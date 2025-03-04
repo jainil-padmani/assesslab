@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +30,7 @@ export const useStudentMutations = () => {
           console.error("Error fetching profile:", profileError);
         }
         
+        // Only add team_id if user is part of a team
         const team_id = profile?.team_id || null;
         
         const { data, error } = await supabase

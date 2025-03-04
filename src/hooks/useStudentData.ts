@@ -9,9 +9,10 @@ interface StudentWithClass extends Student {
 }
 
 export function useStudentData(teamId: string | null | undefined) {
-  return useQuery<StudentWithClass[]>({
+  // Use explicit type annotation for the return type
+  return useQuery<StudentWithClass[], Error>({
     queryKey: ["students", teamId],
-    queryFn: async (): Promise<StudentWithClass[]> => {
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
@@ -33,8 +34,7 @@ export function useStudentData(teamId: string | null | undefined) {
         return [];
       }
       
-      // Cast the result to the explicit type
-      return (data || []) as StudentWithClass[];
+      return data as StudentWithClass[];
     },
   });
 }

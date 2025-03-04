@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -20,6 +19,7 @@ interface Team {
 
 export function useTeamData() {
   const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   // Get current user
   const { data: session } = useQuery({
@@ -31,13 +31,12 @@ export function useTeamData() {
     },
   });
 
-  // Get user's team info - simplified to avoid deep type instantiation
-  const { data: userProfile, isLoading: isProfileLoading } = useQuery<UserProfile | null>({
+  // Get user's team info - use explicit type annotation to avoid deep instantiation
+  const { data: userProfile, isLoading: isProfileLoading } = useQuery<UserProfile | null, Error>({
     queryKey: ["user-profile", session?.user?.id],
-    queryFn: async (): Promise<UserProfile | null> => {
+    queryFn: async () => {
       if (!session?.user) return null;
       
-      // First, check if user has a team_code. If not, generate one
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("team_id, team_code")
@@ -101,6 +100,9 @@ export function useTeamData() {
         throw updateError;
       }
 
+      // Invalidate queries to update UI
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      
       return true;
     } catch (error: any) {
       console.error("Error joining team:", error);

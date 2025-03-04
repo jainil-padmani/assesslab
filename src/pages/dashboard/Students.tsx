@@ -10,7 +10,7 @@ import { useClassData } from "@/hooks/useClassData";
 export default function Students() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   
-  // Use custom hooks to fetch data
+  // Use custom hooks to fetch data - team_id will be used for filtering if present
   const { data: userProfile } = useUserProfile();
   const { data: students = [], isLoading: isStudentsLoading } = useStudentData(userProfile?.team_id);
   const { data: classes = [], isLoading: isClassesLoading } = useClassData(userProfile?.team_id);
