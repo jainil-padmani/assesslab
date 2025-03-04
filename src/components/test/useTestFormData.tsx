@@ -18,7 +18,7 @@ export type Class = {
 
 export function useTestFormData(profileData: Profile | null | undefined) {
   // Fetch subjects
-  const { data: subjects } = useQuery<Subject[]>({
+  const subjectsQuery = useQuery<Subject[]>({
     queryKey: ["subjects", profileData?.team_id],
     queryFn: async () => {
       let query = supabase.from("subjects").select("id, name");
@@ -36,11 +36,11 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: profileData !== undefined,
+    enabled: !!profileData,
   });
 
   // Fetch classes
-  const { data: classes } = useQuery<Class[]>({
+  const classesQuery = useQuery<Class[]>({
     queryKey: ["classes", profileData?.team_id],
     queryFn: async () => {
       let query = supabase.from("classes").select("id, name");
@@ -58,10 +58,13 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: profileData !== undefined,
+    enabled: !!profileData,
   });
 
-  return { subjects, classes };
+  return { 
+    subjects: subjectsQuery.data || [], 
+    classes: classesQuery.data || [] 
+  };
 }
 
 export function useUserProfile() {
@@ -75,14 +78,14 @@ export function useUserProfile() {
         .from('profiles')
         .select('team_id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
         
       if (error && error.code !== 'PGRST116') {
         console.error("Error fetching profile:", error);
         return null;
       }
       
-      return data;
+      return data || null;
     }
   });
 }
