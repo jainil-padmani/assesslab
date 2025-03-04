@@ -23,7 +23,7 @@ export default function TeamSettings() {
       
       const { data, error } = await supabase
         .from("teams")
-        .select("*, profiles!inner(*)")
+        .select("*")
         .eq("id", userProfile.team_id)
         .single();
         
@@ -41,7 +41,7 @@ export default function TeamSettings() {
       
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, email")
+        .select("id, name")
         .eq("team_id", userProfile.team_id);
         
       if (error) throw error;
@@ -129,7 +129,7 @@ export default function TeamSettings() {
             <ul className="mt-2 space-y-1">
               {teamMembers?.map((member) => (
                 <li key={member.id} className="text-sm">
-                  {member.name || member.email || "Unnamed user"}
+                  {member.name || "Unnamed user"}
                   {member.id === session?.user?.id && " (You)"}
                   {member.id === teamDetails?.admin_id && " (Admin)"}
                 </li>

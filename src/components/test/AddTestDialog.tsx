@@ -26,9 +26,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function AddTestDialog({ open, onOpenChange }) {
+interface AddTestDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  defaultSubjectId?: string;
+}
+
+export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestDialogProps) {
   const [name, setName] = useState("");
-  const [subjectId, setSubjectId] = useState("");
+  const [subjectId, setSubjectId] = useState(defaultSubjectId || "");
   const [classId, setClassId] = useState("");
   const [maxMarks, setMaxMarks] = useState(100);
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -94,17 +100,15 @@ export function AddTestDialog({ open, onOpenChange }) {
       
       const { data, error } = await supabase
         .from("tests")
-        .insert([
-          {
-            name,
-            subject_id: subjectId,
-            class_id: classId,
-            max_marks: maxMarks,
-            test_date: date,
-            user_id: user.id,
-            team_id: profile?.team_id || null
-          },
-        ])
+        .insert({
+          name,
+          subject_id: subjectId,
+          class_id: classId,
+          max_marks: maxMarks,
+          test_date: date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          user_id: user.id,
+          team_id: profile?.team_id || null
+        })
         .select();
         
       if (error) throw error;
@@ -130,7 +134,7 @@ export function AddTestDialog({ open, onOpenChange }) {
 
   const resetForm = () => {
     setName("");
-    setSubjectId("");
+    setSubjectId(defaultSubjectId || "");
     setClassId("");
     setMaxMarks(100);
     setDate(new Date());
