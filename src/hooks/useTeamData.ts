@@ -17,7 +17,7 @@ export function useTeamData() {
     },
   });
 
-  // Get user's team info
+  // Get user's team info - simplified query to avoid deep type instantiation
   const { data: userProfile, isLoading: isProfileLoading } = useQuery({
     queryKey: ["user-profile"],
     queryFn: async () => {
@@ -27,7 +27,7 @@ export function useTeamData() {
         .from("profiles")
         .select("team_id, team_code")
         .eq("id", session.user.id)
-        .maybeSingle();
+        .single();
         
       if (error) {
         console.error("Error fetching profile:", error);

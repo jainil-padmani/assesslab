@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -44,15 +44,17 @@ export default function TeamSettings() {
       
       return data;
     },
-    enabled: !!session,
-    onSuccess: (data) => {
-      if (data) {
-        setName(data.name || "");
-        setBio(data.bio || "");
-        setCountry(data.nationality || "");
-      }
-    }
+    enabled: !!session
   });
+  
+  // Update state when profileData changes
+  useEffect(() => {
+    if (profileData) {
+      setName(profileData.name || "");
+      setBio(profileData.bio || "");
+      setCountry(profileData.nationality || "");
+    }
+  }, [profileData]);
 
   // Fetch team details if user is in a team
   const { data: teamDetails } = useQuery({
@@ -318,7 +320,7 @@ export default function TeamSettings() {
             </div>
             <div>
               <Label>Team Code</Label>
-              <div className="text-lg font-medium border p-2 rounded bg-muted mt-1 font-mono">{userProfile?.team_code || teamDetails?.team_code || "Loading..."}</div>
+              <div className="text-lg font-medium border p-2 rounded bg-muted mt-1 font-mono">{userProfile?.team_code || "Loading..."}</div>
             </div>
             <div>
               <Label>Team Members ({teamMembers?.length || 0})</Label>

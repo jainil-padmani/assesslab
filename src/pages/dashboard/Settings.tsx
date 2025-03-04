@@ -11,7 +11,7 @@ export default function Settings() {
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
       
-      <Tabs defaultValue="account" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="account" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>

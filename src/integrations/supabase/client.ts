@@ -35,10 +35,10 @@ export async function getUserTeamId(): Promise<string | null> {
 
 // Define literal types for table names to avoid type problems
 export const TableNames = {
-  students: 'students' as const,
-  classes: 'classes' as const,
-  subjects: 'subjects' as const,
-  tests: 'tests' as const
+  students: 'students',
+  classes: 'classes',
+  subjects: 'subjects',
+  tests: 'tests'
 } as const;
 
 // Create a type from the values of TableNames
@@ -49,7 +49,7 @@ export type TableName = typeof TableNames[keyof typeof TableNames];
  * @param tableName The name of the table to query
  * @param columns The columns to select
  */
-export async function getTeamData(tableName: TableName, columns: string) {
+export async function getTeamData<T>(tableName: TableName, columns: string) {
   try {
     const teamId = await getUserTeamId();
     const { data: { user } } = await supabase.auth.getUser();
@@ -59,13 +59,13 @@ export async function getTeamData(tableName: TableName, columns: string) {
     }
     
     if (teamId) {
-      const { data, error } = await supabase
+      const result = await supabase
         .from(tableName)
         .select(columns)
         .eq('team_id', teamId);
         
-      if (error) {
-        console.error(`Error querying ${tableName}:`, error);
+      if (result.error) {
+        console.error(`Error querying ${tableName}:`, result.error);
         // Fall back to user_id query
         return await supabase
           .from(tableName)
@@ -73,13 +73,15 @@ export async function getTeamData(tableName: TableName, columns: string) {
           .eq('user_id', user.id);
       }
       
-      return { data, error };
+      return { data: result.data as T[], error: null };
     } else {
       // No team, use personal data only
-      return await supabase
+      const result = await supabase
         .from(tableName)
         .select(columns)
         .eq('user_id', user.id);
+        
+      return { data: result.data as T[], error: null };
     }
   } catch (error) {
     console.error(`Error in getTeamData for ${tableName}:`, error);
