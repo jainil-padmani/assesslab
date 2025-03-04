@@ -42,14 +42,37 @@ export default function Subjects() {
     },
   });
 
+  // Get user's team_id
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      if (!session?.user) return null;
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", session.user.id)
+        .single();
+        
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error fetching profile:", error);
+      }
+      
+      return data;
+    },
+    enabled: !!session,
+  });
+
   // Fetch subjects
   const { data: subjects, isLoading } = useQuery({
     queryKey: ["subjects"],
     queryFn: async () => {
+      // Fetch subjects - no need to filter as RLS will handle it based on team_id
       const { data, error } = await supabase
         .from("subjects")
         .select("*")
         .order("name");
+        
       if (error) throw error;
       return data as Subject[];
     },
@@ -59,11 +82,15 @@ export default function Subjects() {
   // Add subject mutation
   const addSubjectMutation = useMutation({
     mutationFn: async (newSubject: Omit<Subject, "id" | "created_at">) => {
+      // Include team_id if user has one
+      const team_id = userProfile?.team_id || null;
+      
       const { data, error } = await supabase
         .from("subjects")
-        .insert([newSubject])
+        .insert([{ ...newSubject, user_id: session?.user.id, team_id }])
         .select()
         .single();
+        
       if (error) throw error;
       return data;
     },
@@ -88,6 +115,7 @@ export default function Subjects() {
         .eq("id", subject.id)
         .select()
         .single();
+        
       if (error) throw error;
       return data;
     },

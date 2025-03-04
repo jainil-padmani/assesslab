@@ -16,6 +16,24 @@ export default function Tests() {
   const { data: subjects, isLoading } = useQuery({
     queryKey: ["subjects"],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("You must be logged in to view subjects");
+      }
+      
+      // Get the user's profile to check if they are part of a team
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Error fetching profile:", profileError);
+      }
+      
+      // Fetch subjects - no need to filter as RLS will handle it
       const { data, error } = await supabase
         .from("subjects")
         .select("*")

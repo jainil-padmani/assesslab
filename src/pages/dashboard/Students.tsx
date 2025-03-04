@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Plus, UploadCloud, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -34,7 +33,7 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Fetch students with class info - now filtered by user_id
+  // Fetch students with class info - now filtered by user_id or team_id
   const { data: students, isLoading } = useQuery({
     queryKey: ["students"],
     queryFn: async () => {
@@ -45,17 +44,34 @@ export default function Students() {
         throw new Error("You must be logged in to view students");
       }
       
-      const { data, error } = await supabase
-        .from("students")
-        .select("*, classes(name)")
-        .eq("user_id", user.id) // Filter by user_id
-        .order("name");
+      // Get the user's profile to check if they are part of a team
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Error fetching profile:", profileError);
+      }
+      
+      // Fetch students based on user_id or team_id
+      let query = supabase.from("students").select("*, classes(name)").order("name");
+      
+      // If user has a team_id, we don't need to filter explicitly as RLS handles it
+      // Otherwise, filter by user_id explicitly
+      if (!profile?.team_id) {
+        query = query.eq("user_id", user.id);
+      }
+      
+      const { data, error } = await query;
+      
       if (error) throw error;
       return data as StudentWithClass[];
     },
   });
 
-  // Fetch classes for the dropdown - now filtered by user_id
+  // Fetch classes for the dropdown - now filtered by user_id or team_id
   const { data: classes, isLoading: isClassesLoading } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
@@ -66,11 +82,28 @@ export default function Students() {
         throw new Error("You must be logged in to view classes");
       }
       
-      const { data, error } = await supabase
-        .from("classes")
-        .select("id, name, department, year")
-        .eq("user_id", user.id) // Filter by user_id
-        .order("name");
+      // Get the user's profile to check if they are part of a team
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Error fetching profile:", profileError);
+      }
+      
+      // Fetch classes based on user_id or team_id
+      let query = supabase.from("classes").select("id, name, department, year").order("name");
+      
+      // If user has a team_id, we don't need to filter explicitly as RLS handles it
+      // Otherwise, filter by user_id explicitly
+      if (!profile?.team_id) {
+        query = query.eq("user_id", user.id);
+      }
+      
+      const { data, error } = await query;
+      
       if (error) throw error;
       return data as Class[];
     },
