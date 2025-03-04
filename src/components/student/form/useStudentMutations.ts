@@ -5,22 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
 
-// Define a simplified type that won't cause infinite recursion
-type StudentUpdateData = {
-  id: string;
-  name?: string;
-  gr_number?: string;
-  roll_number?: string | null;
-  year?: number | null;
-  class?: string | null;
-  class_id?: string | null;
-  department?: string;
-  overall_percentage?: number | null;
-  email?: string | null;
-  parent_name?: string | null;
-  parent_contact?: string | null;
-  team_id?: string | null;
-}
+// Define a simplified type for student updates
+type StudentUpdateData = Omit<Partial<Student>, 'created_at'> & { id: string };
 
 export const useStudentMutations = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +27,7 @@ export const useStudentMutations = () => {
           .eq('id', user.id)
           .single();
           
-        if (profileError) {
+        if (profileError && profileError.code !== 'PGRST116') {
           console.error("Error fetching profile:", profileError);
         }
         

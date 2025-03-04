@@ -33,32 +33,42 @@ export async function getUserTeamId(): Promise<string | null> {
   }
 }
 
-// Define type-safe tables that can be accessed with team queries
-type TableNames = 'students' | 'classes' | 'subjects' | 'tests';
+// Define literal types for table names to avoid type problems
+export const TableNames = {
+  students: 'students' as const,
+  classes: 'classes' as const,
+  subjects: 'subjects' as const,
+  tests: 'tests' as const
+} as const;
+
+// Create a type from the values of TableNames
+export type TableName = typeof TableNames[keyof typeof TableNames];
 
 /**
  * Helper function to create a query builder that considers team ID
  * @param table The table name to query
  * @returns Object with methods for common operations
  */
-export function teamQuery(table: TableNames) {
+export function teamQuery(table: TableName) {
   return {
     select: async (columns: string) => {
-      const teamId = await getUserTeamId();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error('You must be logged in');
-      
-      if (teamId) {
-        // Try querying with team_id first (if table has this column)
-        try {
+      try {
+        const teamId = await getUserTeamId();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          throw new Error('You must be logged in');
+        }
+        
+        // Check for team_id
+        if (teamId) {
           const { data, error } = await supabase
             .from(table)
-            .select(columns)
-            .eq('team_id', teamId);
-          
-          if (error && error.message.includes('column "team_id" does not exist')) {
-            // Fall back to user_id
+            .select(columns);
+            
+          if (error) {
+            console.error(`Error querying ${table}:`, error);
+            // Fall back to user_id query
             return await supabase
               .from(table)
               .select(columns)
@@ -66,29 +76,17 @@ export function teamQuery(table: TableNames) {
           }
           
           return { data, error };
-        } catch (error) {
-          console.error(`Error querying ${table}:`, error);
-          // Fall back to user_id
+        } else {
+          // No team, use personal data only
           return await supabase
             .from(table)
             .select(columns)
             .eq('user_id', user.id);
         }
-      } else {
-        // No team, use personal data only
-        return await supabase
-          .from(table)
-          .select(columns)
-          .eq('user_id', user.id);
+      } catch (error) {
+        console.error(`Error in teamQuery for ${table}:`, error);
+        return { data: null, error };
       }
     }
   };
 }
-
-// Note: With Row-Level Security enabled, users need to be authenticated
-// to access their data. Sign in users with:
-//
-// await supabase.auth.signInWithPassword({
-//   email: 'user@example.com',
-//   password: 'password123'
-// });

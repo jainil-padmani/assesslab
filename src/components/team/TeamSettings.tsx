@@ -34,7 +34,7 @@ export default function TeamSettings() {
   });
 
   // Fetch team members
-  const { data: teamMembers } = useQuery({
+  const { data: teamMembers = [] } = useQuery({
     queryKey: ["team-members", userProfile?.team_id],
     queryFn: async () => {
       if (!userProfile?.team_id) return [];
@@ -125,9 +125,9 @@ export default function TeamSettings() {
             <div className="text-lg font-medium">{userProfile?.team_code || "Loading..."}</div>
           </div>
           <div>
-            <Label>Team Members ({teamMembers?.length || 0})</Label>
+            <Label>Team Members ({teamMembers.length || 0})</Label>
             <ul className="mt-2 space-y-1">
-              {teamMembers && teamMembers.map((member) => (
+              {teamMembers.map((member) => (
                 <li key={member.id} className="text-sm">
                   {member.name || "Unnamed user"}
                   {member.id === session?.user?.id && " (You)"}

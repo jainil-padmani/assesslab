@@ -47,15 +47,16 @@ export function useTeamData() {
     setIsLoading(true);
     try {
       // Find the team with this code
-      const { data: team, error: teamError } = await supabase
+      const { data: teams, error: teamError } = await supabase
         .from("teams")
         .select("id")
-        .eq("team_code", teamCode)
-        .single();
+        .eq("team_code", teamCode);
 
-      if (teamError) {
+      if (teamError || !teams || teams.length === 0) {
         throw new Error("Invalid team code");
       }
+
+      const team = teams[0];
 
       // Update the user's profile with the team ID
       const { error: updateError } = await supabase

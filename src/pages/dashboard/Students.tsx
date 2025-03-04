@@ -34,9 +34,30 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Fetch students with class info - filtered by user_id or team_id
+  // Get current user profile to check team membership
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('team_id')
+        .eq('id', user.id)
+        .single();
+        
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error fetching profile:", error);
+      }
+      
+      return data;
+    },
+  });
+
+  // Fetch students with class info
   const { data: students, isLoading } = useQuery({
-    queryKey: ["students"],
+    queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
       // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -45,24 +66,13 @@ export default function Students() {
         throw new Error("You must be logged in to view students");
       }
       
-      // Get the user's profile to check if they are part of a team
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('team_id')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching profile:", profileError);
-      }
-      
       let query = supabase
         .from("students")
         .select("*, classes(name)");
       
       // If user has a team_id, get team students, otherwise get personal students
-      if (profile?.team_id) {
-        query = query.eq('team_id', profile.team_id);
+      if (userProfile?.team_id) {
+        query = query.eq('team_id', userProfile.team_id);
       } else {
         query = query.eq('user_id', user.id);
       }
@@ -72,11 +82,12 @@ export default function Students() {
       if (error) throw error;
       return data as StudentWithClass[];
     },
+    enabled: true,
   });
 
-  // Fetch classes for the dropdown - filtered by user_id or team_id
+  // Fetch classes for the dropdown
   const { data: classes, isLoading: isClassesLoading } = useQuery({
-    queryKey: ["classes"],
+    queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
       // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
@@ -85,25 +96,14 @@ export default function Students() {
         throw new Error("You must be logged in to view classes");
       }
       
-      // Get the user's profile to check if they are part of a team
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('team_id')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching profile:", profileError);
-      }
-      
       let query = supabase
         .from("classes")
         .select("id, name, department, year")
         .order("name");
       
       // If user has a team_id, get team classes, otherwise get personal classes
-      if (profile?.team_id) {
-        query = query.eq('team_id', profile.team_id);
+      if (userProfile?.team_id) {
+        query = query.eq('team_id', userProfile.team_id);
       } else {
         query = query.eq('user_id', user.id);
       }
@@ -113,6 +113,7 @@ export default function Students() {
       if (error) throw error;
       return data as Class[];
     },
+    enabled: true,
   });
 
   const handleOpenAddStudent = () => {
@@ -173,7 +174,7 @@ export default function Students() {
               <StudentForm 
                 student={editingStudent} 
                 onClose={() => setIsAddDialogOpen(false)} 
-                classes={classes}
+                classes={classes || []}
                 isClassesLoading={isClassesLoading}
               />
             </DialogContent>
