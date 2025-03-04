@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Plus, UploadCloud, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +17,6 @@ import StudentForm from "@/components/student/StudentForm";
 import CsvImport from "@/components/student/CsvImport";
 import { generateSampleCsv } from "@/utils/csvUtils";
 
-// Define explicit interfaces to avoid deep type instantiation
 interface StudentWithClass extends Student {
   classes: { name: string } | null;
 }
@@ -39,96 +37,67 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Get current user profile to check team membership
   const { data: userProfile } = useQuery<UserProfile | null>({
     queryKey: ["user-profile"],
     queryFn: async () => {
-      const userResponse = await supabase.auth.getUser();
-      const user = userResponse.data.user;
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('team_id')
         .eq('id', user.id)
-        .maybeSingle();
-      
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return null;
-      }
+        .single();
       
       return data as UserProfile;
     },
   });
 
-  // Fetch students with class info
   const { data: students = [], isLoading } = useQuery<StudentWithClass[]>({
     queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
-      try {
-        // Get user for data filtering
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          throw new Error("You must be logged in to view students");
-        }
-        
-        // Determine filter based on team membership
-        const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
-        const filterValue = userProfile?.team_id || user.id;
-        
-        // Execute the query with proper type handling
-        const { data, error } = await supabase
-          .from("students")
-          .select(`*, classes(name)`)
-          .eq(filterColumn, filterValue);
-        
-        if (error) throw error;
-        
-        // Explicitly cast the response data to avoid type issues
-        return (data || []) as StudentWithClass[];
-      } catch (error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
+      const filterValue = userProfile?.team_id || user.id;
+      
+      const { data, error } = await supabase
+        .from("students")
+        .select('*, classes(name)')
+        .eq(filterColumn, filterValue);
+      
+      if (error) {
         console.error("Error fetching students:", error);
         return [];
       }
+      
+      return (data || []) as StudentWithClass[];
     },
-    enabled: true,
   });
 
-  // Fetch classes for the dropdown
   const { data: classes = [], isLoading: isClassesLoading } = useQuery<Class[]>({
     queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
-      try {
-        // Get user for data filtering
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          throw new Error("You must be logged in to view classes");
-        }
-        
-        // Determine filter based on team membership
-        const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
-        const filterValue = userProfile?.team_id || user.id;
-        
-        // Execute the query with proper type handling
-        const { data, error } = await supabase
-          .from("classes")
-          .select("id, name, department, year")
-          .eq(filterColumn, filterValue)
-          .order("name");
-        
-        if (error) throw error;
-        
-        // Explicitly cast the response data to avoid type issues
-        return (data || []) as Class[];
-      } catch (error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      const filterColumn = userProfile?.team_id ? 'team_id' : 'user_id';
+      const filterValue = userProfile?.team_id || user.id;
+      
+      const { data, error } = await supabase
+        .from("classes")
+        .select('id, name, department, year')
+        .eq(filterColumn, filterValue)
+        .order('name');
+      
+      if (error) {
         console.error("Error fetching classes:", error);
         return [];
       }
+      
+      return (data || []) as Class[];
     },
-    enabled: true,
   });
 
   const handleOpenAddStudent = () => {

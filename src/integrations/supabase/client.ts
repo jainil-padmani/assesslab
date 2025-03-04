@@ -1,12 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = "https://aigunjkwusokdunyyfdt.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpZ3Vuamt3dXNva2R1bnl5ZmR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk4NzQ3NjIsImV4cCI6MjA1NTQ1MDc2Mn0.DXytjTPF_x3joW_dsr_USPhdN7PDzela4dlHOWNUSWM";
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -44,8 +40,8 @@ export const TableNames = {
 // Create a type from the values of TableNames
 export type TableName = typeof TableNames[keyof typeof TableNames];
 
-// Simple interface for returning data and errors without deep type inference
-export interface SimpleDataResult<T> {
+// Simple interface for returning data and errors
+export interface SimpleDataResult<T extends Record<string, any>> {
   data: T[] | null;
   error: Error | null;
 }
@@ -54,51 +50,27 @@ export interface SimpleDataResult<T> {
  * Helper function to retrieve data with team ID consideration
  * This implementation avoids excessive type instantiation
  */
-export async function getTeamData<T>(tableName: TableName, columns: string): Promise<SimpleDataResult<T>> {
+export async function getTeamData<T extends Record<string, any>>(
+  tableName: TableName, 
+  columns: string
+): Promise<SimpleDataResult<T>> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      throw new Error('You must be logged in');
+      return { data: null, error: new Error('You must be logged in') };
     }
     
     const teamId = await getUserTeamId();
-    let query;
     
-    // Build the query based on team membership
-    if (teamId) {
-      query = supabase
-        .from(tableName)
-        .select(columns)
-        .eq('team_id', teamId);
-    } else {
-      query = supabase
-        .from(tableName)
-        .select(columns)
-        .eq('user_id', user.id);
-    }
+    const query = teamId
+      ? supabase.from(tableName).select(columns).eq('team_id', teamId)
+      : supabase.from(tableName).select(columns).eq('user_id', user.id);
     
-    // Execute query separately from query building
     const { data, error } = await query;
     
     if (error) {
       console.error(`Error querying ${tableName}:`, error);
-      
-      if (teamId) {
-        // Fallback to user-specific data if team query fails
-        const fallbackResult = await supabase
-          .from(tableName)
-          .select(columns)
-          .eq('user_id', user.id);
-          
-        if (fallbackResult.error) {
-          console.error('Fallback query error:', fallbackResult.error);
-          return { data: null, error: fallbackResult.error };
-        }
-        
-        return { data: fallbackResult.data as T[], error: null };
-      }
-      
       return { data: null, error };
     }
     
