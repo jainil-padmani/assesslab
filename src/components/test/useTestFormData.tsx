@@ -37,7 +37,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: !!profileData,
+    enabled: Boolean(profileData)
   });
 
   // Fetch classes
@@ -59,7 +59,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       
       return data || [];
     },
-    enabled: !!profileData,
+    enabled: Boolean(profileData)
   });
 
   return { 

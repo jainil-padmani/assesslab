@@ -4,9 +4,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import TeamSettings from "@/components/team/TeamSettings";
 import TeamManagement from "@/components/team/TeamManagement";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("account");
+  const { theme } = useTheme();
   
   return (
     <div className="container mx-auto py-10">
@@ -36,8 +39,23 @@ export default function Settings() {
                 Customize the appearance of the application.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p>Appearance settings will be implemented in a future update.</p>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Theme</h3>
+                <p className="text-sm text-muted-foreground">
+                  Select the theme for the dashboard.
+                </p>
+                <ThemeToggle variant="radiogroup" />
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <div className="flex-1 space-y-2">
+                  <p className="text-sm font-medium">Current theme: <span className="capitalize">{theme}</span></p>
+                  <p className="text-sm text-muted-foreground">
+                    The theme is applied to all pages of the application.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

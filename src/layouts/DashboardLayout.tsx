@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -72,7 +73,7 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b bg-white">
+      <header className="border-b bg-background">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center">
@@ -80,11 +81,14 @@ export default function DashboardLayout() {
                 Teach<span className="text-accent">Lab</span>
               </h1>
             </Link>
-            {userName && (
-              <div className="text-sm text-gray-600">
-                Welcome, {userName}
-              </div>
-            )}
+            <div className="flex items-center gap-4">
+              {userName && (
+                <div className="text-sm text-muted-foreground">
+                  Welcome, {userName}
+                </div>
+              )}
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
@@ -92,7 +96,7 @@ export default function DashboardLayout() {
       <div className="flex flex-1">
         {/* Sidebar */}
         <aside 
-          className={`fixed md:relative z-30 w-64 border-r bg-white h-[calc(100vh-64px)] transition-all duration-300 ${
+          className={`fixed md:relative z-30 w-64 border-r bg-background h-[calc(100vh-64px)] transition-all duration-300 ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-16'
           }`}
         >
@@ -110,7 +114,7 @@ export default function DashboardLayout() {
         {/* Sidebar toggle button */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="fixed left-0 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-r-lg border border-l-0 shadow-md hover:bg-gray-50 z-40"
+          className="fixed left-0 top-1/2 transform -translate-y-1/2 bg-background p-2 rounded-r-lg border border-l-0 shadow-md hover:bg-accent z-40"
         >
           <svg
             className={`h-4 w-4 transition-transform ${isSidebarOpen ? 'rotate-180' : ''}`}

@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -31,37 +32,39 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="students" element={<Students />} />
-            <Route path="students/:id" element={<StudentDetail />} />
-            <Route path="subjects" element={<Subjects />} />
-            <Route path="subjects/:id" element={<SubjectDetail />} />
-            <Route path="classes" element={<Classes />} />
-            <Route path="classes/:id" element={<ClassDetail />} />
-            <Route path="tests" element={<Tests />} />
-            <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
-            <Route path="tests/detail/:testId" element={<TestDetail />} />
-            <Route path="generate" element={<Generate />} />
-            <Route path="questions" element={<Questions />} />
-            <Route path="analysis" element={<Analysis />} />
-            <Route path="analysis-result" element={<AnalysisResult />} />
-            <Route path="analysis-history" element={<AnalysisHistory />} />
-            <Route path="check" element={<Check />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="file-management" element={<FileManagement />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="system">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="students" element={<Students />} />
+              <Route path="students/:id" element={<StudentDetail />} />
+              <Route path="subjects" element={<Subjects />} />
+              <Route path="subjects/:id" element={<SubjectDetail />} />
+              <Route path="classes" element={<Classes />} />
+              <Route path="classes/:id" element={<ClassDetail />} />
+              <Route path="tests" element={<Tests />} />
+              <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
+              <Route path="tests/detail/:testId" element={<TestDetail />} />
+              <Route path="generate" element={<Generate />} />
+              <Route path="questions" element={<Questions />} />
+              <Route path="analysis" element={<Analysis />} />
+              <Route path="analysis-result" element={<AnalysisResult />} />
+              <Route path="analysis-history" element={<AnalysisHistory />} />
+              <Route path="check" element={<Check />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="file-management" element={<FileManagement />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
