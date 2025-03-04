@@ -33,8 +33,8 @@ export function useStudentData(teamId: string | null | undefined) {
         return [];
       }
       
-      return data as StudentWithClass[];
+      return data || [];
     },
-    enabled: true, // Explicitly enable the query
+    enabled: true
   });
 }

@@ -14,13 +14,13 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 162 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 162 14.3% 95.9%;
     --secondary-foreground: 162 76.2% 36.3%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 162 14.3% 95.9%;
-    --accent-foreground: 162 76.2% 36.3%;
+    --accent-foreground: 162 76.2% 26.3%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
@@ -37,7 +37,7 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
     --primary: 159.2 59.7% 40.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 163.9 65.1% 15.3%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -57,7 +57,13 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-['Inter'];
+    @apply bg-background text-foreground font-['Inter'] font-medium;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-foreground;
+  }
+  .logo {
+    @apply font-bold text-2xl;
   }
 }
 
