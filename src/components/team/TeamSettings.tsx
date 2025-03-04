@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { useTeamData } from "@/hooks/useTeamData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { countries } from "@/utils/countries";
+// Fix the import to use default import
+import countries from "@/utils/countries";
 import { Textarea } from "@/components/ui/textarea";
 
 const TeamSettings = () => {

@@ -44,11 +44,11 @@ export const TableNames = {
 // Create a type from the values of TableNames
 export type TableName = typeof TableNames[keyof typeof TableNames];
 
-// Generic type for the returned data
-export type TeamDataResult<T> = {
+// Define a generic interface for the returned data to fix "excessively deep" type errors
+export interface TeamDataResult<T> {
   data: T[] | null;
   error: Error | null;
-};
+}
 
 /**
  * Helper function to retrieve data with team ID consideration

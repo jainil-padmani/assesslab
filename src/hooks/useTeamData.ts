@@ -4,8 +4,17 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Define proper interfaces for better type safety
 interface UserProfile {
   team_id: string | null;
+  team_code: string | null;
+}
+
+interface Team {
+  id: string;
+  name: string;
+  admin_id: string;
+  created_at: string;
   team_code: string | null;
 }
 
@@ -32,7 +41,7 @@ export function useTeamData() {
         .from("profiles")
         .select("team_id, team_code")
         .eq("id", session.user.id)
-        .single();
+        .maybeSingle();
         
       if (error) {
         console.error("Error fetching profile:", error);

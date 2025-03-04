@@ -18,6 +18,7 @@ import StudentForm from "@/components/student/StudentForm";
 import CsvImport from "@/components/student/CsvImport";
 import { generateSampleCsv } from "@/utils/csvUtils";
 
+// Define explicit interfaces to avoid deep type instantiation
 interface StudentWithClass extends Student {
   classes: { name: string } | null;
 }
@@ -29,13 +30,17 @@ interface Class {
   year: number | null;
 }
 
+interface UserProfile {
+  team_id: string | null;
+}
+
 export default function Students() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   // Get current user profile to check team membership
-  const { data: userProfile } = useQuery({
+  const { data: userProfile } = useQuery<UserProfile | null>({
     queryKey: ["user-profile"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -57,7 +62,7 @@ export default function Students() {
   });
 
   // Fetch students with class info
-  const { data: students, isLoading } = useQuery({
+  const { data: students, isLoading } = useQuery<StudentWithClass[]>({
     queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
       try {
@@ -92,7 +97,7 @@ export default function Students() {
   });
 
   // Fetch classes for the dropdown
-  const { data: classes, isLoading: isClassesLoading } = useQuery({
+  const { data: classes, isLoading: isClassesLoading } = useQuery<Class[]>({
     queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
       try {
