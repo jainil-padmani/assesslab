@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type Profile = {
   team_id: string | null;
+  team_code: string | null;
 };
 
 export type Subject = {
@@ -76,7 +77,7 @@ export function useUserProfile() {
       
       const { data, error } = await supabase
         .from('profiles')
-        .select('team_id')
+        .select('team_id, team_code')
         .eq('id', user.id)
         .maybeSingle();
         

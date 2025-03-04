@@ -37,24 +37,36 @@ export function useTeamData() {
     queryFn: async () => {
       if (!session?.user) return null;
       
-      // Use type assertion to avoid deep type instantiation
-      const response = await supabase
+      // First, check if user has a team_code. If not, generate one
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("team_id, team_code")
         .eq("id", session.user.id)
         .maybeSingle();
         
-      const { data, error } = response as unknown as { 
-        data: UserProfile | null, 
-        error: any 
-      };
-      
-      if (error) {
-        console.error("Error fetching profile:", error);
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
         return null;
       }
       
-      return data;
+      // If no team_code exists, generate a 6-digit code and update the profile
+      if (profile && !profile.team_code) {
+        const userCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ team_code: userCode })
+          .eq("id", session.user.id);
+          
+        if (updateError) {
+          console.error("Error updating user code:", updateError);
+        } else {
+          // Return updated profile
+          return { ...profile, team_code: userCode };
+        }
+      }
+      
+      return profile;
     },
     enabled: !!session?.user?.id
   });
@@ -82,7 +94,7 @@ export function useTeamData() {
       // Update the user's profile with the team ID
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ team_id: team.id, team_code: teamCode })
+        .update({ team_id: team.id })
         .eq("id", session.user.id);
 
       if (updateError) {
@@ -127,7 +139,7 @@ export function useTeamData() {
       // Update the user's profile with the team ID
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ team_id: team.id, team_code: teamCode })
+        .update({ team_id: team.id })
         .eq("id", session.user.id);
 
       if (updateError) {
@@ -154,7 +166,7 @@ export function useTeamData() {
       // Update the user's profile to remove the team ID
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ team_id: null, team_code: null })
+        .update({ team_id: null })
         .eq("id", session.user.id);
 
       if (updateError) {

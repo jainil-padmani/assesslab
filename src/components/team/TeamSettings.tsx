@@ -9,14 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { useTeamData } from "@/hooks/useTeamData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// Fix the import to use default import
 import countries from "@/utils/countries";
-import { Textarea } from "@/components/ui/textarea";
 
 const TeamSettings = () => {
-  const { userProfile, session, joinTeam, createTeam, leaveTeam, isLoading } = useTeamData();
-  const [teamCode, setTeamCode] = useState("");
-  const [teamName, setTeamName] = useState("");
+  const { session } = useTeamData();
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -58,94 +54,6 @@ const TeamSettings = () => {
     }
   }, [profileData, session]);
 
-  // Fetch team details if user is in a team
-  const { data: teamDetails } = useQuery({
-    queryKey: ["team-details", userProfile?.team_id],
-    queryFn: async () => {
-      if (!userProfile?.team_id) return null;
-      
-      const { data, error } = await supabase
-        .from("teams")
-        .select("*")
-        .eq("id", userProfile.team_id)
-        .single();
-        
-      if (error) {
-        console.error("Error fetching team details:", error);
-        return null;
-      }
-      
-      return data;
-    },
-    enabled: !!userProfile?.team_id
-  });
-
-  // Get team members
-  const { data: teamMembers } = useQuery({
-    queryKey: ["team-members", userProfile?.team_id],
-    queryFn: async () => {
-      if (!userProfile?.team_id) return [];
-      
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, name, post")
-        .eq("team_id", userProfile.team_id);
-        
-      if (error) {
-        console.error("Error fetching team members:", error);
-        return [];
-      }
-      
-      return data;
-    },
-    enabled: !!userProfile?.team_id
-  });
-
-  const handleJoinTeam = async () => {
-    if (!teamCode.trim()) {
-      toast.error("Please enter a team code");
-      return;
-    }
-
-    try {
-      await joinTeam(teamCode);
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      toast.success("Successfully joined the team!");
-      setTeamCode("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to join team");
-    }
-  };
-
-  const handleCreateTeam = async () => {
-    if (!teamName.trim()) {
-      toast.error("Please enter a team name");
-      return;
-    }
-
-    try {
-      const result = await createTeam(teamName);
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      toast.success("Team created successfully!");
-      setTeamName("");
-      
-      // Invalidate the team details query to fetch the new team data
-      queryClient.invalidateQueries({ queryKey: ["team-details"] });
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create team");
-    }
-  };
-
-  const handleLeaveTeam = async () => {
-    try {
-      await leaveTeam();
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
-      toast.success("You have left the team");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to leave team");
-    }
-  };
-
   const updateProfile = async () => {
     if (!session?.user) return;
     
@@ -174,100 +82,6 @@ const TeamSettings = () => {
 
   const updatePassword = async () => {
     toast.info("Password update functionality will be implemented in a future update");
-  };
-
-  // Show different content based on whether user is in a team
-  const renderTeamContent = () => {
-    if (userProfile?.team_id) {
-      return (
-        <Card className="border shadow-sm">
-          <CardHeader>
-            <CardTitle>Team Management</CardTitle>
-            <CardDescription>
-              Manage your team settings and members.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Team Name</Label>
-              <div className="text-lg font-medium">{teamDetails?.name}</div>
-            </div>
-            <div>
-              <Label>Team Code</Label>
-              <div className="text-lg font-medium border p-2 rounded bg-muted mt-1 font-mono">
-                {userProfile?.team_code || teamDetails?.team_code || "Loading..."}
-              </div>
-            </div>
-            <div>
-              <Label>Team Members ({teamMembers?.length || 0})</Label>
-              <div className="mt-2 space-y-2">
-                {teamMembers?.map(member => (
-                  <div key={member.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <div className="font-medium">{member.name}</div>
-                      <div className="text-sm text-muted-foreground">{member.post || "No role specified"}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <Button onClick={handleLeaveTeam} variant="destructive">
-              Leave Team
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle>Join a Team</CardTitle>
-          <CardDescription>
-            Enter a team code to join an existing team.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="team-code">Team Code</Label>
-            <div className="flex mt-1">
-              <Input
-                id="team-code"
-                value={teamCode}
-                onChange={(e) => setTeamCode(e.target.value)}
-                placeholder="Enter team code"
-                className="mr-2"
-              />
-              <Button onClick={handleJoinTeam} disabled={isLoading}>
-                Join
-              </Button>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t">
-            <CardTitle className="mb-2">Create a New Team</CardTitle>
-            <CardDescription className="mb-4">
-              Create your own team and invite others to join.
-            </CardDescription>
-            <div>
-              <Label htmlFor="team-name">Team Name</Label>
-              <div className="flex mt-1">
-                <Input
-                  id="team-name"
-                  value={teamName}
-                  onChange={(e) => setTeamName(e.target.value)}
-                  placeholder="Enter team name"
-                  className="mr-2"
-                />
-                <Button onClick={handleCreateTeam} disabled={isLoading}>
-                  Create
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
   };
 
   return (
@@ -346,8 +160,6 @@ const TeamSettings = () => {
           </Button>
         </CardContent>
       </Card>
-
-      {renderTeamContent()}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import TeamSettings from "@/components/team/TeamSettings";
+import TeamManagement from "@/components/team/TeamManagement";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("account");
@@ -24,7 +25,7 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="team">
-          <TeamSettings />
+          <TeamManagement />
         </TabsContent>
         
         <TabsContent value="appearance">
