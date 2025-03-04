@@ -15,7 +15,6 @@ import Analysis from "./pages/dashboard/Analysis";
 import AnalysisResult from "./pages/dashboard/AnalysisResult";
 import AnalysisHistory from "./pages/dashboard/AnalysisHistory";
 import Check from "./pages/dashboard/Check";
-import Performance from "./pages/dashboard/Performance";
 import Settings from "./pages/dashboard/Settings";
 import Students from "./pages/dashboard/Students";
 import StudentDetail from "./pages/dashboard/StudentDetail";
@@ -56,7 +55,6 @@ const App = () => (
             <Route path="analysis-result" element={<AnalysisResult />} />
             <Route path="analysis-history" element={<AnalysisHistory />} />
             <Route path="check" element={<Check />} />
-            <Route path="performance" element={<Performance />} />
             <Route path="settings" element={<Settings />} />
             <Route path="file-management" element={<FileManagement />} />
           </Route>

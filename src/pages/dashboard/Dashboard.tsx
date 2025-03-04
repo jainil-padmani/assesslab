@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { BookOpen, Brain, CheckCircle, BarChart3 } from "lucide-react";
+import { BookOpen, Brain, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const features = [
@@ -23,12 +23,6 @@ const features = [
     icon: CheckCircle,
     href: "/dashboard/check",
   },
-  {
-    title: "Performance Tracking",
-    description: "Track and analyze student performance with detailed analytics.",
-    icon: BarChart3,
-    href: "/dashboard/performance",
-  },
 ];
 
 export default function Dashboard() {
@@ -39,7 +33,7 @@ export default function Dashboard() {
         <p className="text-gray-600 mt-2">Select a feature to get started</p>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
         {features.map((feature, index) => (
           <motion.div
             key={feature.title}

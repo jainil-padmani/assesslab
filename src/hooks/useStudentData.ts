@@ -10,7 +10,7 @@ interface StudentWithClass extends Student {
 export function useStudentData(teamId: string | null | undefined) {
   return useQuery({
     queryKey: ["students", teamId],
-    queryFn: async () => {
+    queryFn: async (): Promise<StudentWithClass[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
@@ -21,15 +21,14 @@ export function useStudentData(teamId: string | null | undefined) {
       // Execute the query with explicit error handling
       const { data, error } = await supabase
         .from("students")
-        .select('*, classes(name)')
-        .eq(filterColumn, filterValue);
+        .select('*, classes(name)');
       
       if (error) {
         console.error("Error fetching students:", error);
         return [];
       }
       
-      return data || [];
+      return (data || []) as StudentWithClass[];
     },
   });
 }

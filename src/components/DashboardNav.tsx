@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -6,7 +5,6 @@ import {
   BookOpen,
   Brain,
   CheckCircle,
-  BarChart3,
   Settings,
   ClipboardList,
   LayoutDashboard,
@@ -63,11 +61,6 @@ const links = [
     title: "Auto Check",
     icon: CheckCircle,
     href: "/dashboard/check",
-  },
-  {
-    title: "Performance",
-    icon: BarChart3,
-    href: "/dashboard/performance",
   },
   {
     title: "Settings",

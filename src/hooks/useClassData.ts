@@ -12,7 +12,7 @@ export interface Class {
 export function useClassData(teamId: string | null | undefined) {
   return useQuery({
     queryKey: ["classes", teamId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Class[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
@@ -23,15 +23,14 @@ export function useClassData(teamId: string | null | undefined) {
       // Execute the query with explicit error handling
       const { data, error } = await supabase
         .from("classes")
-        .select('id, name, department, year')
-        .eq(filterColumn, filterValue);
+        .select('id, name, department, year');
       
       if (error) {
         console.error("Error fetching classes:", error);
         return [];
       }
       
-      return data || [];
+      return (data || []) as Class[];
     },
   });
 }
