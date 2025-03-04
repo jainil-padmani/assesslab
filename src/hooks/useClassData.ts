@@ -36,5 +36,6 @@ export function useClassData(teamId: string | null | undefined) {
       
       return data as Class[];
     },
+    enabled: true, // Explicitly enable the query
   });
 }
