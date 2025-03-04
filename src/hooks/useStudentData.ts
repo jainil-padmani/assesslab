@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 
+// Define a specific return type with explicit structure
 interface StudentWithClass extends Student {
   classes: { name: string } | null;
 }
@@ -32,6 +33,7 @@ export function useStudentData(teamId: string | null | undefined) {
         return [];
       }
       
+      // Cast the result to the explicit type
       return (data || []) as StudentWithClass[];
     },
   });
