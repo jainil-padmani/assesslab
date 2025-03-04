@@ -58,46 +58,56 @@ export interface TeamDataResult<T> {
 export async function getTeamData<T>(tableName: TableName, columns: string): Promise<TeamDataResult<T>> {
   try {
     const teamId = await getUserTeamId();
-    const userResponse = await supabase.auth.getUser();
-    const user = userResponse.data.user;
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       throw new Error('You must be logged in');
     }
     
+    // Create basic QueryBuilder
+    let query;
+    
     if (teamId) {
-      // Use completely generic typing to avoid type instantiation issues
-      const query = supabase
+      // Team data query
+      query = supabase
         .from(tableName)
         .select(columns)
         .eq('team_id', teamId);
-        
-      // Execute the query outside the type system
-      const rawResult = await query;
+    } else {
+      // Personal data query
+      query = supabase
+        .from(tableName)
+        .select(columns)
+        .eq('user_id', user.id);
+    }
+    
+    // Execute query separately from type instantiation
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error(`Error querying ${tableName}:`, error);
       
-      if (rawResult.error) {
-        console.error(`Error querying ${tableName}:`, rawResult.error);
-        // Fall back to user_id query
+      // If team query fails and we were doing a team query, try personal data as fallback
+      if (teamId) {
         const fallbackQuery = supabase
           .from(tableName)
           .select(columns)
           .eq('user_id', user.id);
           
-        const rawFallbackResult = await fallbackQuery;
-        return { data: rawFallbackResult.data as T[], error: null };
+        const fallbackResult = await fallbackQuery;
+        
+        if (fallbackResult.error) {
+          console.error(`Fallback query error:`, fallbackResult.error);
+          return { data: null, error: fallbackResult.error };
+        }
+        
+        return { data: fallbackResult.data as T[], error: null };
       }
       
-      return { data: rawResult.data as T[], error: null };
-    } else {
-      // No team, use personal data only
-      const query = supabase
-        .from(tableName)
-        .select(columns)
-        .eq('user_id', user.id);
-        
-      const rawResult = await query;
-      return { data: rawResult.data as T[], error: null };
+      return { data: null, error };
     }
+    
+    return { data: data as T[], error: null };
   } catch (error) {
     console.error(`Error in getTeamData for ${tableName}:`, error);
     return { data: null, error: error as Error };

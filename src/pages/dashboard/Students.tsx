@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Plus, UploadCloud, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -47,21 +46,18 @@ export default function Students() {
       const user = userResponse.data.user;
       if (!user) return null;
       
-      // Use separate variables and explicit typing to avoid deep nesting
-      const profileQuery = supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('team_id')
         .eq('id', user.id)
         .maybeSingle();
-        
-      const profileResult = await profileQuery;
       
-      if (profileResult.error) {
-        console.error("Error fetching profile:", profileResult.error);
+      if (error) {
+        console.error("Error fetching profile:", error);
         return null;
       }
       
-      return profileResult.data;
+      return data as UserProfile;
     },
   });
 
@@ -70,31 +66,27 @@ export default function Students() {
     queryKey: ["students", userProfile?.team_id],
     queryFn: async () => {
       try {
-        // Get the current user with explicit typing
-        const userResponse = await supabase.auth.getUser();
-        const user = userResponse.data.user;
+        // Get user for data filtering
+        const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
           throw new Error("You must be logged in to view students");
         }
         
-        // Separate the query building from execution
-        let queryBuilder = supabase
+        // Build query based on team membership
+        let query = `*, classes(name)`;
+        let filter = userProfile?.team_id 
+          ? { column: 'team_id', value: userProfile.team_id }
+          : { column: 'user_id', value: user.id };
+        
+        // Execute the query with proper type handling
+        const { data, error } = await supabase
           .from("students")
-          .select("*, classes(name)");
+          .select(query)
+          .eq(filter.column, filter.value);
         
-        // If user has a team_id, get team students, otherwise get personal students
-        if (userProfile?.team_id) {
-          queryBuilder = queryBuilder.eq('team_id', userProfile.team_id);
-        } else {
-          queryBuilder = queryBuilder.eq('user_id', user.id);
-        }
-        
-        // Execute the query and handle the response explicitly
-        const queryResult = await queryBuilder;
-        
-        if (queryResult.error) throw queryResult.error;
-        return queryResult.data as StudentWithClass[];
+        if (error) throw error;
+        return data as StudentWithClass[];
       } catch (error) {
         console.error("Error fetching students:", error);
         return [];
@@ -108,32 +100,27 @@ export default function Students() {
     queryKey: ["classes", userProfile?.team_id],
     queryFn: async () => {
       try {
-        // Get the current user with explicit typing
-        const userResponse = await supabase.auth.getUser();
-        const user = userResponse.data.user;
+        // Get user for data filtering
+        const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
           throw new Error("You must be logged in to view classes");
         }
         
-        // Separate the query building from execution
-        let queryBuilder = supabase
+        // Build query based on team membership
+        let filter = userProfile?.team_id 
+          ? { column: 'team_id', value: userProfile.team_id }
+          : { column: 'user_id', value: user.id };
+        
+        // Execute the query with proper type handling
+        const { data, error } = await supabase
           .from("classes")
           .select("id, name, department, year")
+          .eq(filter.column, filter.value)
           .order("name");
         
-        // If user has a team_id, get team classes, otherwise get personal classes
-        if (userProfile?.team_id) {
-          queryBuilder = queryBuilder.eq('team_id', userProfile.team_id);
-        } else {
-          queryBuilder = queryBuilder.eq('user_id', user.id);
-        }
-        
-        // Execute the query and handle the response explicitly
-        const queryResult = await queryBuilder;
-        
-        if (queryResult.error) throw queryResult.error;
-        return queryResult.data as Class[];
+        if (error) throw error;
+        return data as Class[];
       } catch (error) {
         console.error("Error fetching classes:", error);
         return [];
