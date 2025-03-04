@@ -13,42 +13,42 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 162 76.2% 36.3%;
+    --primary: 160 84% 20%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 162 14.3% 95.9%;
-    --secondary-foreground: 162 76.2% 36.3%;
+    --secondary: 160 10% 90%;
+    --secondary-foreground: 160 84% 20%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 162 14.3% 95.9%;
-    --accent-foreground: 162 76.2% 26.3%;
+    --accent: 160 10% 90%;
+    --accent-foreground: 160 84% 16%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 162 76.2% 36.3%;
+    --ring: 160 84% 20%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 159.2 59.7% 40.8%;
+    --background: 0 0% 10%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 15%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 15%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 160 80% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 163.9 65.1% 15.3%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 163.9 65.1% 15.3%;
-    --accent-foreground: 210 40% 98%;
+    --secondary: 160 60% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 70%;
+    --accent: 160 60% 12%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 159.2 59.7% 40.8%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 160 80% 25%;
   }
 }
 
@@ -68,7 +68,7 @@
 }
 
 .hero-gradient {
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 77, 64, 0.2) 100%);
 }
 
 .fade-in {
