@@ -45,7 +45,7 @@ export default function TeamSettings() {
         .eq("team_id", userProfile.team_id);
         
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: !!userProfile?.team_id,
   });
@@ -127,7 +127,7 @@ export default function TeamSettings() {
           <div>
             <Label>Team Members ({teamMembers?.length || 0})</Label>
             <ul className="mt-2 space-y-1">
-              {teamMembers?.map((member) => (
+              {teamMembers && teamMembers.map((member) => (
                 <li key={member.id} className="text-sm">
                   {member.name || "Unnamed user"}
                   {member.id === session?.user?.id && " (You)"}
