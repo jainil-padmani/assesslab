@@ -38,8 +38,8 @@ export default function Students() {
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Get user profile information
-  const { data: userProfile } = useQuery<UserProfile | null>({
+  // Get user profile information without complex type instantiation
+  const { data: userProfile } = useQuery({
     queryKey: ["user-profile"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
