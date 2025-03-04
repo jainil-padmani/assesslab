@@ -10,10 +10,9 @@ export interface Class {
 }
 
 export function useClassData(teamId: string | null | undefined) {
-  // Use explicit type annotation for the return type
-  return useQuery<Class[], Error>({
+  return useQuery<Class[]>({
     queryKey: ["classes", teamId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Class[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       

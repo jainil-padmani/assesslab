@@ -16,8 +16,8 @@ export function ThemeToggle({ variant = "button" }: ThemeToggleProps) {
     return (
       <RadioGroup
         defaultValue={theme}
-        onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}
-        className="grid grid-cols-3 gap-4"
+        onValueChange={(value) => setTheme(value as "light" | "dark")}
+        className="grid grid-cols-2 gap-4"
       >
         <div className="flex items-center space-x-2">
           <RadioGroupItem value="light" id="light" />
@@ -31,11 +31,6 @@ export function ThemeToggle({ variant = "button" }: ThemeToggleProps) {
           <Label htmlFor="dark" className="flex items-center gap-2">
             <Moon className="h-4 w-4" /> Dark
           </Label>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <RadioGroupItem value="system" id="system" />
-          <Label htmlFor="system">System</Label>
         </div>
       </RadioGroup>
     );
