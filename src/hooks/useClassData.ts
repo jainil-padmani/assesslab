@@ -34,7 +34,7 @@ export function useClassData(teamId: string | null | undefined) {
         return [];
       }
       
-      return data || [];
+      return data as Class[];
     },
     enabled: true
   });

@@ -78,7 +78,7 @@ export default function DashboardLayout() {
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center">
               <h1 className="text-2xl font-bold text-primary">
-                Teach<span className="text-accent">Lab</span>
+                Assess<span className="text-accent">Lab</span>
               </h1>
             </Link>
             <div className="flex items-center gap-4">

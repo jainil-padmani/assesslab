@@ -42,7 +42,7 @@ const Index = () => {
               transition={{ duration: 0.5 }}
             >
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Teach<span className="font-black">Lab</span>
+                Assess<span className="font-black">Lab</span>
               </h1>
             </motion.div>
             <div className="flex items-center gap-4">
@@ -151,7 +151,7 @@ const Index = () => {
               Ready to Transform Your Teaching?
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-              Try TeachLab free for your first 10 papers. No credit card required.
+              Try AssessLab free for your first 10 papers. No credit card required.
             </p>
             <Link to="/auth">
               <Button size="lg" className="bg-primary hover:bg-primary/90 text-white">
@@ -167,7 +167,7 @@ const Index = () => {
       <footer className="py-10 border-t">
         <div className="container px-4 mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-gray-500">© 2023 TeachLab. All rights reserved.</p>
+            <p className="text-sm text-gray-500">© 2023 AssessLab. All rights reserved.</p>
             <div className="flex items-center gap-6 mt-4 md:mt-0">
               <a href="#" className="text-gray-500 hover:text-primary">Terms</a>
               <a href="#" className="text-gray-500 hover:text-primary">Privacy</a>
