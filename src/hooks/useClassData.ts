@@ -10,7 +10,7 @@ export interface Class {
 }
 
 export function useClassData(teamId: string | null | undefined) {
-  return useQuery<Class[]>({
+  return useQuery({
     queryKey: ["classes", teamId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();

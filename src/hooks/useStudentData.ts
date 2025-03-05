@@ -9,7 +9,7 @@ interface StudentWithClass extends Student {
 }
 
 export function useStudentData(teamId: string | null | undefined) {
-  return useQuery<StudentWithClass[]>({
+  return useQuery({
     queryKey: ["students", teamId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
