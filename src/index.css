@@ -7,7 +7,7 @@
  
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 210 40% 98%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -15,11 +15,11 @@
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 210 20% 93%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --accent: 201 94% 87%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -59,10 +59,27 @@
   body {
     @apply bg-background text-foreground font-['Inter'];
   }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
 }
 
 .hero-gradient {
   background: linear-gradient(135deg, rgba(100, 116, 139, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+}
+
+/* Light mode specific styles */
+:root:not(.dark) .card {
+  @apply shadow-sm border-slate-200 bg-white;
+}
+
+:root:not(.dark) .hero-gradient {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%);
+}
+
+/* Dark mode specific styles */
+.dark .card {
+  @apply border-slate-800 bg-slate-900;
 }
 
 .fade-in {
