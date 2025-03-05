@@ -11,7 +11,7 @@ interface StudentWithClass extends Student {
 export function useStudentData(teamId: string | null | undefined) {
   return useQuery<StudentWithClass[]>({
     queryKey: ["students", teamId],
-    queryFn: async (): Promise<StudentWithClass[]> => {
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
