@@ -1,4 +1,3 @@
-
 import { DashboardNav } from "@/components/DashboardNav";
 import { Outlet, Navigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -7,11 +6,29 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      
+      // If switching to desktop from mobile, ensure sidebar is open
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -84,10 +101,28 @@ export default function DashboardLayout() {
             </Link>
             <div className="flex items-center gap-4">
               {userName && (
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground hidden sm:block">
                   Welcome, {userName}
                 </div>
               )}
+              
+              {/* Mobile menu button - only visible on small screens */}
+              {isMobile && (
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="md:hidden">
+                      <Menu className="h-5 w-5" />
+                      <span className="sr-only">Toggle menu</span>
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="p-0">
+                    <ScrollArea className="h-full">
+                      <DashboardNav onSignOut={handleSignOut} />
+                    </ScrollArea>
+                  </SheetContent>
+                </Sheet>
+              )}
+              
               <ThemeToggle />
             </div>
           </div>
@@ -95,10 +130,10 @@ export default function DashboardLayout() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Fixed Sidebar */}
+        {/* Fixed Sidebar - hidden on mobile */}
         <aside 
           className={cn(
-            "fixed h-[calc(100vh-64px)] z-30 border-r bg-background transition-all duration-300",
+            "fixed h-[calc(100vh-64px)] z-30 border-r bg-background transition-all duration-300 hidden md:block",
             isSidebarOpen ? "w-64" : "w-0 md:w-16"
           )}
         >
@@ -111,18 +146,18 @@ export default function DashboardLayout() {
         <main 
           className={cn(
             "flex-1 overflow-y-auto transition-all duration-300 h-[calc(100vh-64px)]",
-            isSidebarOpen ? "ml-64" : "ml-0 md:ml-16"
+            isSidebarOpen ? "md:ml-64" : "ml-0 md:ml-16"
           )}
         >
-          <div className="p-8">
+          <div className="p-4 md:p-8">
             <Outlet />
           </div>
         </main>
 
-        {/* Sidebar toggle button */}
+        {/* Sidebar toggle button - hidden on mobile */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="fixed left-0 top-1/2 transform -translate-y-1/2 bg-background p-2 rounded-r-lg border border-l-0 shadow-md hover:bg-accent z-40"
+          className="fixed left-0 top-1/2 transform -translate-y-1/2 bg-background p-2 rounded-r-lg border border-l-0 shadow-md hover:bg-accent z-40 hidden md:block"
         >
           <svg
             className={`h-4 w-4 transition-transform ${isSidebarOpen ? 'rotate-180' : ''}`}
