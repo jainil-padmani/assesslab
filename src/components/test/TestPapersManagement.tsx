@@ -38,7 +38,8 @@ import { useQuery } from "@tanstack/react-query";
 import { 
   fetchSubjectFiles, 
   assignSubjectFilesToTest, 
-  fetchTestFiles
+  fetchTestFiles,
+  deleteFileGroup
 } from "@/utils/subjectFilesUtils";
 
 interface TestPapersProps {

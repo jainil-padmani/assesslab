@@ -2,7 +2,8 @@
 // Export all functions from the new modular files
 export { 
   fetchSubjectFiles,
-  deleteFileGroup
+  deleteFileGroup,
+  uploadSubjectFile
 } from './fileStorage/subjectFileOps';
 
 export {
