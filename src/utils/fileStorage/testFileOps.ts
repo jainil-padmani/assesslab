@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
@@ -76,56 +77,74 @@ export const assignSubjectFilesToTest = async (
     // Force a refresh to ensure we get the latest files
     await forceRefreshStorage();
 
-    // Extract topic and sanitize it
-    const topicParts = subjectFile.topic.split(': ');
-    const cleanTopic = topicParts.length > 1 ? topicParts[1] : subjectFile.topic;
-    const sanitizedTopic = cleanTopic.replace(/\s+/g, '_');
-
-    // Get the original files from storage
-    const storageData = await listStorageFiles();
+    // Extract topic and sanitize it for use in filenames
+    const topic = subjectFile.topic.replace(/\s+/g, '_');
     
-    // Find question paper (required)
-    const questionPaperFile = storageData?.find(file => 
-      file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
-      file.name.includes('questionPaper')
-    );
-
-    if (!questionPaperFile) {
-      throw new Error("Could not find the question paper to copy");
+    // Log the actual filenames we're looking for to help with debugging
+    console.log("Looking for subject files with pattern:", 
+      `${subjectFile.subject_id}_${topic}_questionPaper`);
+    
+    // Get direct file URLs from the SubjectFile object
+    const questionPaperUrl = subjectFile.question_paper_url;
+    const answerKeyUrl = subjectFile.answer_key_url;
+    const handwrittenPaperUrl = subjectFile.handwritten_paper_url;
+    
+    // Extract filenames from URLs
+    if (!questionPaperUrl) {
+      throw new Error("Question paper URL is missing");
     }
-
-    // Find optional answer key and handwritten paper
-    const answerKeyFile = storageData?.find(file => 
-      file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
-      file.name.includes('answerKey')
-    );
     
-    const handwrittenPaperFile = storageData?.find(file => 
-      file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
-      file.name.includes('handwrittenPaper')
-    );
-
-    // Copy the files with new names for the test
+    // Extract filename from URL
+    const extractFilenameFromUrl = (url: string): string => {
+      try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+        // Get the last part of the path which should be the filename
+        const fileName = pathParts[pathParts.length - 1];
+        // URL decode it to handle spaces and special characters
+        return decodeURIComponent(fileName);
+      } catch (e) {
+        console.error("Failed to extract filename from URL:", url, e);
+        throw new Error("Invalid file URL format");
+      }
+    };
+    
+    const questionPaperFileName = extractFilenameFromUrl(questionPaperUrl);
+    console.log("Extracted question paper filename:", questionPaperFileName);
+    
+    // Create new filenames for test copies
     const timestamp = Date.now();
     const testPrefix = `test_${testId}`;
-
-    // Copy question paper (required)
-    const questionPaperExt = questionPaperFile.name.split('.').pop();
+    
+    // Determine file extensions
+    const getFileExtension = (filename: string): string => {
+      const parts = filename.split('.');
+      return parts.length > 1 ? parts[parts.length - 1] : 'pdf';
+    };
+    
+    const questionPaperExt = getFileExtension(questionPaperFileName);
+    
+    // Create new filenames
+    const sanitizedTopic = topic.replace(/\s+/g, '_');
     const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    await copyStorageFile(questionPaperFile.name, newQuestionPaperName);
+    
+    // Copy question paper (required)
+    await copyStorageFile(questionPaperFileName, newQuestionPaperName);
     
     // Copy answer key if it exists
-    if (answerKeyFile) {
-      const answerKeyExt = answerKeyFile.name.split('.').pop();
+    if (answerKeyUrl) {
+      const answerKeyFileName = extractFilenameFromUrl(answerKeyUrl);
+      const answerKeyExt = getFileExtension(answerKeyFileName);
       const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
-      await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
+      await copyStorageFile(answerKeyFileName, newAnswerKeyName);
     }
     
     // Copy handwritten paper if it exists
-    if (handwrittenPaperFile) {
-      const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
+    if (handwrittenPaperUrl) {
+      const handwrittenFileName = extractFilenameFromUrl(handwrittenPaperUrl);
+      const handwrittenExt = getFileExtension(handwrittenFileName);
       const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
-      await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
+      await copyStorageFile(handwrittenFileName, newHandwrittenName);
     }
 
     // Insert records into subject_documents for test files
@@ -136,7 +155,7 @@ export const assignSubjectFilesToTest = async (
       document_type: 'questionPaper',
       document_url: getPublicUrl(newQuestionPaperName).data.publicUrl,
       file_type: questionPaperExt,
-      file_size: questionPaperFile.metadata?.size || 0
+      file_size: 0 // We don't have the actual file size here
     });
 
     // Force a final refresh to ensure storage is updated
