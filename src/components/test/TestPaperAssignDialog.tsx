@@ -16,12 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FilePlus } from "lucide-react";
@@ -45,13 +39,12 @@ export function TestPaperAssignDialog({
   onAssignPaper
 }: TestPaperAssignDialogProps) {
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
-  const [selectedQuestionPaperOnly, setSelectedQuestionPaperOnly] = useState<boolean>(false);
 
   const handleAssignPaper = async () => {
     if (selectedExistingFile) {
-      await onAssignPaper(selectedExistingFile, selectedQuestionPaperOnly);
+      // Always pass false for questionPaperOnly now that we're removing this option
+      await onAssignPaper(selectedExistingFile, false);
       setSelectedExistingFile(null);
-      setSelectedQuestionPaperOnly(false);
     }
   };
 
@@ -72,34 +65,9 @@ export function TestPaperAssignDialog({
         </DialogHeader>
         
         <div className="space-y-4 py-4">
-          <Tabs defaultValue="full" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger 
-                value="full" 
-                onClick={() => setSelectedQuestionPaperOnly(false)}
-              >
-                Full Paper Set
-              </TabsTrigger>
-              <TabsTrigger 
-                value="question" 
-                onClick={() => setSelectedQuestionPaperOnly(true)}
-              >
-                Question Paper Only
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="full" className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Assign both question paper and answer key to this test.
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="question" className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Assign only the question paper to this test.
-              </div>
-            </TabsContent>
-          </Tabs>
+          <div className="text-sm text-muted-foreground mb-4">
+            Assign both question paper and answer key to this test.
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="existing-file">Select Subject Paper</Label>
@@ -132,9 +100,7 @@ export function TestPaperAssignDialog({
                 Selected Paper: {subjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
               </p>
               <p className="text-xs text-muted-foreground">
-                {selectedQuestionPaperOnly 
-                  ? "This will create a copy of just the question paper for this test."
-                  : "This will create a copy of the selected paper for this test."}
+                This will create a copy of the selected paper for this test.
               </p>
             </div>
           )}
@@ -146,9 +112,7 @@ export function TestPaperAssignDialog({
             onClick={handleAssignPaper}
             disabled={isUploading || !selectedExistingFile}
           >
-            {isUploading ? 'Assigning...' : selectedQuestionPaperOnly 
-              ? 'Assign Question Paper' 
-              : 'Assign Papers'}
+            {isUploading ? 'Assigning...' : 'Assign Papers'}
           </Button>
         </DialogFooter>
       </DialogContent>

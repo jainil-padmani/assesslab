@@ -29,7 +29,7 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
     
     // Filter out incomplete entries
     const files = Array.from(filesMap.values()).filter(
-      file => file.question_paper_url && (questionPaperOnly || file.answer_key_url)
+      file => file.question_paper_url && file.answer_key_url
     );
     
     console.log("Fetched test files:", files);
@@ -86,17 +86,16 @@ export const assignSubjectFilesToTest = async (
       file.name.includes('questionPaper')
     );
     
-    if (!questionPaperOnly) {
-      answerKeyFile = storageData?.find(file => 
-        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
-        file.name.includes('answerKey')
-      );
-      
-      handwrittenPaperFile = storageData?.find(file => 
-        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
-        file.name.includes('handwrittenPaper')
-      );
-    }
+    // We always need both question paper and answer key now
+    answerKeyFile = storageData?.find(file => 
+      file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
+      file.name.includes('answerKey')
+    );
+    
+    handwrittenPaperFile = storageData?.find(file => 
+      file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
+      file.name.includes('handwrittenPaper')
+    );
 
     // 2. If not found, try with spaces in topic
     if (!questionPaperFile) {
@@ -106,14 +105,14 @@ export const assignSubjectFilesToTest = async (
       );
     }
     
-    if (!questionPaperOnly && !answerKeyFile) {
+    if (!answerKeyFile) {
       answerKeyFile = storageData?.find(file => 
         file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
         file.name.includes('answerKey')
       );
     }
     
-    if (!questionPaperOnly && !handwrittenPaperFile) {
+    if (!handwrittenPaperFile) {
       handwrittenPaperFile = storageData?.find(file => 
         file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
         file.name.includes('handwrittenPaper')
@@ -121,7 +120,7 @@ export const assignSubjectFilesToTest = async (
     }
 
     // 3. If not found, try looking for test file format
-    if (!questionPaperFile || (!questionPaperOnly && !answerKeyFile)) {
+    if (!questionPaperFile || !answerKeyFile) {
       // Extract test ID if present in the ID
       const idParts = subjectFile.id.split(':');
       if (idParts.length > 1) {
@@ -132,17 +131,15 @@ export const assignSubjectFilesToTest = async (
           file.name.includes('questionPaper')
         );
         
-        if (!questionPaperOnly) {
-          answerKeyFile = storageData?.find(file => 
-            file.name.startsWith(`test_${originalTestId}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
-            file.name.includes('answerKey')
-          );
-          
-          handwrittenPaperFile = storageData?.find(file => 
-            file.name.startsWith(`test_${originalTestId}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
-            file.name.includes('handwrittenPaper')
-          );
-        }
+        answerKeyFile = storageData?.find(file => 
+          file.name.startsWith(`test_${originalTestId}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
+          file.name.includes('answerKey')
+        );
+        
+        handwrittenPaperFile = storageData?.find(file => 
+          file.name.startsWith(`test_${originalTestId}_${cleanTopic.replace(/\s+/g, '_')}_`) && 
+          file.name.includes('handwrittenPaper')
+        );
       }
     }
 
@@ -153,14 +150,14 @@ export const assignSubjectFilesToTest = async (
         file.name.includes('questionPaper')
       );
       
-      if (!questionPaperOnly && !answerKeyFile) {
+      if (!answerKeyFile) {
         answerKeyFile = storageData?.find(file => 
           file.name.includes(`_${cleanTopic.replace(/\s+/g, '_')}_`) && 
           file.name.includes('answerKey')
         );
       }
       
-      if (!questionPaperOnly && !handwrittenPaperFile) {
+      if (!handwrittenPaperFile) {
         handwrittenPaperFile = storageData?.find(file => 
           file.name.includes(`_${cleanTopic.replace(/\s+/g, '_')}_`) && 
           file.name.includes('handwrittenPaper')
@@ -168,54 +165,38 @@ export const assignSubjectFilesToTest = async (
       }
     }
 
-    // For question paper only mode, we only need to validate the question paper
+    // We require both question paper and answer key
     if (!questionPaperFile) {
       throw new Error("Could not find the question paper to copy");
     }
     
-    // For full mode, we also need to validate the answer key
-    if (!questionPaperOnly && !answerKeyFile) {
+    if (!answerKeyFile) {
       throw new Error("Could not find both question paper and answer key to copy");
     }
 
     // Copy the files with new names for the test
     const timestamp = Date.now();
     const questionPaperExt = questionPaperFile.name.split('.').pop();
+    const answerKeyExt = answerKeyFile.name.split('.').pop();
 
     // Create new filenames prefixed with test ID
     const testPrefix = `test_${testId}`;
     const sanitizedTopic = cleanTopic.replace(/\s+/g, '_');
     const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
 
-    // Copy question paper
+    // Copy question paper and answer key
     await copyStorageFile(questionPaperFile.name, newQuestionPaperName);
-
-    // If not in question paper only mode, copy answer key and handwritten paper
-    if (!questionPaperOnly && answerKeyFile) {
-      const answerKeyExt = answerKeyFile.name.split('.').pop();
-      const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
-      await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
-      
-      // Copy handwritten paper if it exists
-      if (handwrittenPaperFile) {
-        const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
-        const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
-        await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
-      }
-    } else if (questionPaperOnly) {
-      // In question paper only mode, we need to create a stub answer key file
-      // so the file group will show up properly in the UI
-      const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.txt`;
-      
-      // We'll just copy the question paper again as the answer key
-      // This is a workaround to ensure the file shows up in the UI
-      await copyStorageFile(questionPaperFile.name, newAnswerKeyName);
+    await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
+    
+    // Copy handwritten paper if it exists
+    if (handwrittenPaperFile) {
+      const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
+      const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
+      await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
     }
 
-    toast.success(questionPaperOnly 
-      ? "Question paper assigned to test successfully" 
-      : "Files assigned to test successfully"
-    );
+    toast.success("Files assigned to test successfully");
     return true;
   } catch (error: any) {
     console.error('Error assigning files to test:', error);

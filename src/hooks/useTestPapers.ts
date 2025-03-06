@@ -52,15 +52,15 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         throw new Error("Selected file not found");
       }
       
-      // Pass the questionPaperOnly flag to the assignSubjectFilesToTest function
+      // Always pass false for questionPaperOnly now
       const success = await assignSubjectFilesToTest(
         test.id, 
         fileToAssign, 
-        questionPaperOnly
+        false // Always assign full paper set
       );
       
       if (success) {
-        toast.success(`${questionPaperOnly ? "Question paper" : "Files"} assigned successfully!`);
+        toast.success("Files assigned successfully!");
         setOpenUploadDialog(false);
         refetchTestFiles();
       }
