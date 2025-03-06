@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -32,6 +31,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { deleteFileGroup } from "@/utils/subjectFilesUtils";
+import { 
+  listStorageFiles, 
+  getPublicUrl, 
+  forceRefreshStorage 
+} from "@/utils/fileStorage/storageHelpers";
 
 type UploadStep = {
   id: number;
@@ -57,7 +61,7 @@ type UploadedFile = {
   topic: string;
   question_paper_url: string;
   answer_key_url: string;
-  handwritten_paper_url: string | null;
+  handwritten_paper_url: null | string;
   created_at: string;
   user_id: string | null;
 }
@@ -152,10 +156,8 @@ const FileManagement = () => {
         return;
       }
 
-      // Force a storage refresh to ensure we get the latest files
       await forceRefreshStorage();
       
-      // Get all files from storage.objects with a fresh cache
       const storageData = await listStorageFiles();
 
       if (!storageData || storageData.length === 0) {
@@ -163,7 +165,6 @@ const FileManagement = () => {
         return;
       }
 
-      // Get all subjects owned by the current user
       const { data: userSubjects, error: subjectsError } = await supabase
         .from('subjects')
         .select('id, name')
@@ -171,10 +172,8 @@ const FileManagement = () => {
         
       if (subjectsError) throw subjectsError;
       
-      // Build a set of subject IDs for quick lookups
       const userSubjectIds = new Set(userSubjects?.map(s => s.id) || []);
       
-      // Get all tests owned by the current user
       const { data: userTests, error: testsError } = await supabase
         .from('tests')
         .select('id, name, subject_id')
@@ -182,18 +181,16 @@ const FileManagement = () => {
         
       if (testsError) throw testsError;
       
-      // Group files by prefix (we'll use subject_topic_ or testId_topic_ as prefix patterns)
       const fileGroups: { [key: string]: UploadedFile } = {};
       
       if (storageData) {
         console.log("Processing storage files for file management:", storageData.length);
         
-        // Process all files and group them
         for (const file of storageData) {
           const fileName = file.name;
           const parts = fileName.split('_');
           
-          if (parts.length < 3) continue; // Skip files without proper naming
+          if (parts.length < 3) continue;
           
           const filePrefix = parts[0];
           const topic = parts[1];
@@ -201,30 +198,24 @@ const FileManagement = () => {
           let subjectId = '';
           let isUserFile = false;
           
-          // Check if it's a test prefix (starts with "test_")
           if (filePrefix === 'test' && parts.length >= 4) {
             const testId = parts[1];
             groupKey = `test_${testId}_${topic}`;
             
-            // Check if this test belongs to the user
             const userTest = userTests?.find(t => t.id === testId);
             if (userTest) {
               isUserFile = true;
               subjectId = userTest.subject_id;
             }
           } else {
-            // Regular subject file - check if it belongs to the user
             subjectId = filePrefix;
             isUserFile = userSubjectIds.has(subjectId);
           }
           
-          // Skip files that don't belong to this user
           if (!isUserFile) continue;
           
-          // Determine file type (handle various formats)
           let fileType = null;
           
-          // Try to match any part of the filename with the file types
           if (fileName.includes('questionPaper')) {
             fileType = 'questionPaper';
           } else if (fileName.includes('answerKey')) {
@@ -233,12 +224,10 @@ const FileManagement = () => {
             fileType = 'handwrittenPaper';
           }
                            
-          if (!fileType) continue; // Skip if not a recognized file type
+          if (!fileType) continue;
           
-          // Find the subject information
           let subjectName = 'Unknown Subject';
           
-          // If it's a test ID, get the subject information
           if (groupKey.startsWith('test_')) {
             const testId = groupKey.split('_')[1];
             const userTest = userTests?.find(t => t.id === testId);
@@ -248,12 +237,10 @@ const FileManagement = () => {
               subjectName = subject ? `${subject.name} (Test: ${userTest.name})` : `Test: ${userTest.name}`;
             }
           } else {
-            // Regular subject file
             const subject = userSubjects?.find(s => s.id === subjectId);
             subjectName = subject ? subject.name : 'Unknown Subject';
           }
           
-          // Create group if it doesn't exist
           if (!fileGroups[groupKey]) {
             fileGroups[groupKey] = {
               id: groupKey,
@@ -268,10 +255,8 @@ const FileManagement = () => {
             };
           }
           
-          // Get public URL
           const { data: { publicUrl } } = getPublicUrl(fileName);
           
-          // Update the appropriate URL based on file type
           if (fileType === 'questionPaper') {
             fileGroups[groupKey].question_paper_url = publicUrl;
           } else if (fileType === 'answerKey') {
@@ -282,7 +267,6 @@ const FileManagement = () => {
         }
       }
       
-      // Convert groups to array and filter out entries without a question paper
       const files = Object.values(fileGroups).filter(
         file => file.question_paper_url
       );
@@ -346,7 +330,6 @@ const FileManagement = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('You must be logged in to upload files');
       
-      // Verify the user owns this subject
       const { data: subject } = await supabase
         .from('subjects')
         .select('user_id')
@@ -358,7 +341,6 @@ const FileManagement = () => {
       }
       
       const fileExt = file.name.split('.').pop();
-      // Create a filename pattern that contains metadata
       const fileName = `${fileUploadState.subjectId}_${fileUploadState.topic}_${uploadType}_${Date.now()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
@@ -421,7 +403,6 @@ const FileManagement = () => {
         currentStep: 1
       });
 
-      // Force refresh to update the file list
       await fetchUploadedFiles();
       
       setActiveTab("files");
@@ -435,7 +416,6 @@ const FileManagement = () => {
 
   const handleDeleteFile = async (fileGroup: UploadedFile) => {
     try {
-      // Verify file ownership
       if (fileGroup.user_id !== currentUserId) {
         toast.error("You don't have permission to delete these files");
         return;
@@ -444,7 +424,6 @@ const FileManagement = () => {
       const parts = fileGroup.id.split('_');
       let filePrefix, topic;
       
-      // Handle test prefix format (test_id_topic)
       if (parts[0] === 'test' && parts.length >= 3) {
         filePrefix = `test_${parts[1]}`;
         topic = parts[2];
@@ -485,7 +464,7 @@ const FileManagement = () => {
       case 3:
         return !!fileUploadState.answerKey;
       case 4:
-        return true; // This step is optional
+        return true;
       default:
         return false;
     }
