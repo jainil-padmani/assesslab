@@ -44,7 +44,8 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
 // Function to assign existing subject files to a test
 export const assignSubjectFilesToTest = async (
   testId: string,
-  subjectFile: SubjectFile
+  subjectFile: SubjectFile,
+  questionPaperOnly: boolean = false
 ): Promise<boolean> => {
   try {
     // Verify ownership of test and subject
@@ -85,18 +86,20 @@ export const assignSubjectFilesToTest = async (
       file.name.includes('questionPaper')
     );
     
-    answerKeyFile = storageData?.find(file => 
-      file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
-      file.name.includes('answerKey')
-    );
-    
-    handwrittenPaperFile = storageData?.find(file => 
-      file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
-      file.name.includes('handwrittenPaper')
-    );
+    if (!questionPaperOnly) {
+      answerKeyFile = storageData?.find(file => 
+        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
+        file.name.includes('answerKey')
+      );
+      
+      handwrittenPaperFile = storageData?.find(file => 
+        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
+        file.name.includes('handwrittenPaper')
+      );
+    }
 
     // 2. If not found, try looking for test file format
-    if (!questionPaperFile || !answerKeyFile) {
+    if (!questionPaperFile || (!questionPaperOnly && !answerKeyFile)) {
       // Extract test ID if present in the ID
       const idParts = subjectFile.id.split(':');
       if (idParts.length > 1) {
@@ -107,64 +110,79 @@ export const assignSubjectFilesToTest = async (
           file.name.includes('questionPaper')
         );
         
-        answerKeyFile = storageData?.find(file => 
-          file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
-          file.name.includes('answerKey')
-        );
-        
-        handwrittenPaperFile = storageData?.find(file => 
-          file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
-          file.name.includes('handwrittenPaper')
-        );
+        if (!questionPaperOnly) {
+          answerKeyFile = storageData?.find(file => 
+            file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
+            file.name.includes('answerKey')
+          );
+          
+          handwrittenPaperFile = storageData?.find(file => 
+            file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
+            file.name.includes('handwrittenPaper')
+          );
+        }
       }
     }
 
     // 3. If still not found, try a more general search
-    if (!questionPaperFile || !answerKeyFile) {
+    if (!questionPaperFile || (!questionPaperOnly && !answerKeyFile)) {
       questionPaperFile = storageData?.find(file => 
         file.name.includes(`_${cleanTopic}_`) && 
         file.name.includes('questionPaper')
       );
       
-      answerKeyFile = storageData?.find(file => 
-        file.name.includes(`_${cleanTopic}_`) && 
-        file.name.includes('answerKey')
-      );
-      
-      handwrittenPaperFile = storageData?.find(file => 
-        file.name.includes(`_${cleanTopic}_`) && 
-        file.name.includes('handwrittenPaper')
-      );
+      if (!questionPaperOnly) {
+        answerKeyFile = storageData?.find(file => 
+          file.name.includes(`_${cleanTopic}_`) && 
+          file.name.includes('answerKey')
+        );
+        
+        handwrittenPaperFile = storageData?.find(file => 
+          file.name.includes(`_${cleanTopic}_`) && 
+          file.name.includes('handwrittenPaper')
+        );
+      }
     }
 
-    if (!questionPaperFile || !answerKeyFile) {
-      throw new Error("Could not find the original files to copy");
+    // For question paper only mode, we only need to validate the question paper
+    if (!questionPaperFile) {
+      throw new Error("Could not find the question paper to copy");
+    }
+    
+    // For full mode, we also need to validate the answer key
+    if (!questionPaperOnly && !answerKeyFile) {
+      throw new Error("Could not find both question paper and answer key to copy");
     }
 
     // Copy the files with new names for the test
     const timestamp = Date.now();
     const questionPaperExt = questionPaperFile.name.split('.').pop();
-    const answerKeyExt = answerKeyFile.name.split('.').pop();
 
     // Create new filenames prefixed with test ID
     const testPrefix = `test_${testId}`;
     const newQuestionPaperName = `${testPrefix}_${cleanTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    const newAnswerKeyName = `${testPrefix}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
 
     // Copy question paper
     await copyStorageFile(questionPaperFile.name, newQuestionPaperName);
 
-    // Copy answer key
-    await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
-    
-    // Copy handwritten paper if it exists
-    if (handwrittenPaperFile) {
-      const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
-      const newHandwrittenName = `${testPrefix}_${cleanTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
-      await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
+    // If not in question paper only mode, copy answer key and handwritten paper
+    if (!questionPaperOnly && answerKeyFile) {
+      const answerKeyExt = answerKeyFile.name.split('.').pop();
+      const newAnswerKeyName = `${testPrefix}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
+      await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
+      
+      // Copy handwritten paper if it exists
+      if (handwrittenPaperFile) {
+        const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
+        const newHandwrittenName = `${testPrefix}_${cleanTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
+        await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
+      }
     }
 
-    toast.success("Files assigned to test successfully");
+    toast.success(questionPaperOnly 
+      ? "Question paper assigned to test successfully" 
+      : "Files assigned to test successfully"
+    );
     return true;
   } catch (error: any) {
     console.error('Error assigning files to test:', error);

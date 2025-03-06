@@ -26,6 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   FilePlus, 
   FileCheck, 
   Trash2
@@ -60,6 +66,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
+  const [selectedQuestionPaperOnly, setSelectedQuestionPaperOnly] = useState<boolean>(false);
 
   // Fetch existing test files
   const { data: testFiles, refetch: refetchTestFiles } = useQuery({
@@ -88,12 +95,18 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         throw new Error("Selected file not found");
       }
       
-      const success = await assignSubjectFilesToTest(test.id, fileToAssign);
+      // Pass the selectedQuestionPaperOnly flag to the assignSubjectFilesToTest function
+      const success = await assignSubjectFilesToTest(
+        test.id, 
+        fileToAssign, 
+        selectedQuestionPaperOnly
+      );
       
       if (success) {
-        toast.success("Files assigned successfully!");
+        toast.success(`${selectedQuestionPaperOnly ? "Question paper" : "Files"} assigned successfully!`);
         setOpenUploadDialog(false);
         setSelectedExistingFile(null);
+        setSelectedQuestionPaperOnly(false);
         refetchTestFiles();
       }
     } catch (error) {
@@ -138,6 +151,35 @@ export function TestPapersManagement({ test }: TestPapersProps) {
             </DialogHeader>
             
             <div className="space-y-4 py-4">
+              <Tabs defaultValue="full" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger 
+                    value="full" 
+                    onClick={() => setSelectedQuestionPaperOnly(false)}
+                  >
+                    Full Paper Set
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="question" 
+                    onClick={() => setSelectedQuestionPaperOnly(true)}
+                  >
+                    Question Paper Only
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="full" className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Assign both question paper and answer key to this test.
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="question" className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Assign only the question paper to this test.
+                  </div>
+                </TabsContent>
+              </Tabs>
+
               <div className="space-y-2">
                 <Label htmlFor="existing-file">Select Existing Subject Paper</Label>
                 <Select 
@@ -169,7 +211,9 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                     Selected Paper: {subjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    This will create a copy of the selected paper for this test.
+                    {selectedQuestionPaperOnly 
+                      ? "This will create a copy of just the question paper for this test."
+                      : "This will create a copy of the selected paper for this test."}
                   </p>
                 </div>
               )}
@@ -181,7 +225,9 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                 onClick={assignExistingPaper}
                 disabled={isUploading || !selectedExistingFile}
               >
-                {isUploading ? 'Assigning...' : 'Assign Papers'}
+                {isUploading ? 'Assigning...' : selectedQuestionPaperOnly 
+                  ? 'Assign Question Paper' 
+                  : 'Assign Papers'}
               </Button>
             </DialogFooter>
           </DialogContent>
