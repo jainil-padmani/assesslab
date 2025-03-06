@@ -151,14 +151,17 @@ const FileManagement = () => {
         toast.error('You must be logged in to view files');
         return;
       }
-      
-      // Get all files from storage.objects
-      const { data: storageData, error: storageError } = await supabase
-        .storage
-        .from('files')
-        .list();
 
-      if (storageError) throw storageError;
+      // Force a storage refresh to ensure we get the latest files
+      await forceRefreshStorage();
+      
+      // Get all files from storage.objects with a fresh cache
+      const storageData = await listStorageFiles();
+
+      if (!storageData || storageData.length === 0) {
+        setUploadedFiles([]);
+        return;
+      }
 
       // Get all subjects owned by the current user
       const { data: userSubjects, error: subjectsError } = await supabase
@@ -183,6 +186,8 @@ const FileManagement = () => {
       const fileGroups: { [key: string]: UploadedFile } = {};
       
       if (storageData) {
+        console.log("Processing storage files for file management:", storageData.length);
+        
         // Process all files and group them
         for (const file of storageData) {
           const fileName = file.name;
@@ -216,11 +221,17 @@ const FileManagement = () => {
           // Skip files that don't belong to this user
           if (!isUserFile) continue;
           
-          // Determine file type
-          const fileTypePart = parts[2].split('.')[0];
-          const fileType = fileTypePart.includes('questionPaper') ? 'questionPaper' : 
-                           fileTypePart.includes('answerKey') ? 'answerKey' : 
-                           fileTypePart.includes('handwrittenPaper') ? 'handwrittenPaper' : null;
+          // Determine file type (handle various formats)
+          let fileType = null;
+          
+          // Try to match any part of the filename with the file types
+          if (fileName.includes('questionPaper')) {
+            fileType = 'questionPaper';
+          } else if (fileName.includes('answerKey')) {
+            fileType = 'answerKey';
+          } else if (fileName.includes('handwrittenPaper')) {
+            fileType = 'handwrittenPaper';
+          }
                            
           if (!fileType) continue; // Skip if not a recognized file type
           
@@ -258,10 +269,7 @@ const FileManagement = () => {
           }
           
           // Get public URL
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('files')
-            .getPublicUrl(fileName);
+          const { data: { publicUrl } } = getPublicUrl(fileName);
           
           // Update the appropriate URL based on file type
           if (fileType === 'questionPaper') {
@@ -274,11 +282,12 @@ const FileManagement = () => {
         }
       }
       
-      // Convert groups to array and filter out incomplete entries
+      // Convert groups to array and filter out entries without a question paper
       const files = Object.values(fileGroups).filter(
-        file => file.question_paper_url && file.answer_key_url
+        file => file.question_paper_url
       );
       
+      console.log("Processed file groups for file management:", files.length);
       setUploadedFiles(files);
     } catch (error) {
       console.error('Error fetching uploaded files:', error);
@@ -354,7 +363,10 @@ const FileManagement = () => {
 
       const { data, error } = await supabase.storage
         .from('files')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
 
       if (error) throw error;
 
@@ -380,8 +392,8 @@ const FileManagement = () => {
       return;
     }
 
-    if (!fileUploadState.questionPaper || !fileUploadState.answerKey) {
-      toast.error("Question paper and answer key are required");
+    if (!fileUploadState.questionPaper) {
+      toast.error("Question paper is required");
       return;
     }
 
@@ -390,7 +402,9 @@ const FileManagement = () => {
     try {
       await uploadFile(fileUploadState.questionPaper, 'questionPaper');
       
-      await uploadFile(fileUploadState.answerKey, 'answerKey');
+      if (fileUploadState.answerKey) {
+        await uploadFile(fileUploadState.answerKey, 'answerKey');
+      }
       
       if (fileUploadState.handwrittenPaper) {
         await uploadFile(fileUploadState.handwrittenPaper, 'handwrittenPaper');
@@ -407,7 +421,8 @@ const FileManagement = () => {
         currentStep: 1
       });
 
-      fetchUploadedFiles();
+      // Force refresh to update the file list
+      await fetchUploadedFiles();
       
       setActiveTab("files");
     } catch (error) {
@@ -426,21 +441,28 @@ const FileManagement = () => {
         return;
       }
       
-      const [filePrefix, topic] = fileGroup.id.split('_');
+      const parts = fileGroup.id.split('_');
+      let filePrefix, topic;
       
       // Handle test prefix format (test_id_topic)
-      let actualPrefix = filePrefix;
-      let actualTopic = topic;
-      
-      if (filePrefix === 'test' && fileGroup.id.split('_').length >= 3) {
-        actualPrefix = `test_${fileGroup.id.split('_')[1]}`;
-        actualTopic = fileGroup.id.split('_')[2];
+      if (parts[0] === 'test' && parts.length >= 3) {
+        filePrefix = `test_${parts[1]}`;
+        topic = parts[2];
+      } else if (parts.length >= 2) {
+        filePrefix = parts[0];
+        topic = parts[1];
+      } else {
+        toast.error("Invalid file identifier");
+        return;
       }
       
-      const success = await deleteFileGroup(actualPrefix, actualTopic);
+      console.log(`Attempting to delete file group: prefix=${filePrefix}, topic=${topic}`);
+      
+      const success = await deleteFileGroup(filePrefix, topic);
       
       if (success) {
-        fetchUploadedFiles();
+        toast.success("Files deleted successfully");
+        await fetchUploadedFiles();
       }
     } catch (error) {
       console.error("Error deleting files:", error);

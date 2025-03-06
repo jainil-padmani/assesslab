@@ -8,6 +8,7 @@ import {
   fetchTestFiles,
   deleteFileGroup
 } from "@/utils/subjectFilesUtils";
+import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 import type { Test } from "@/types/tests";
 import type { SubjectFile } from "@/types/dashboard";
 
@@ -32,7 +33,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   });
 
   // Fetch subject files that could be assigned to this test
-  const { data: subjectFiles } = useQuery({
+  const { data: subjectFiles, refetch: refetchSubjectFiles } = useQuery({
     queryKey: ["subjectFiles", test.subject_id],
     queryFn: () => fetchSubjectFiles(test.subject_id)
   });
@@ -57,7 +58,13 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       if (success) {
         toast.success("Files assigned successfully!");
         setOpenUploadDialog(false);
-        refetchTestFiles();
+        
+        // Force refresh storage before refetching
+        await forceRefreshStorage();
+        
+        // Refetch both test files and subject files to ensure we have the latest data
+        await refetchTestFiles();
+        await refetchSubjectFiles();
       }
     } catch (error) {
       console.error("Error assigning files:", error);
@@ -73,7 +80,13 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       const success = await deleteFileGroup(testPrefix, file.topic);
       if (success) {
         toast.success("Files deleted successfully");
-        refetchTestFiles();
+        
+        // Force refresh storage before refetching
+        await forceRefreshStorage();
+        
+        // Refetch both test files and subject files
+        await refetchTestFiles();
+        await refetchSubjectFiles();
       }
     } catch (error) {
       console.error("Error deleting files:", error);

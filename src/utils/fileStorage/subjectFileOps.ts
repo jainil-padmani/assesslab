@@ -6,7 +6,8 @@ import {
   listStorageFiles, 
   getPublicUrl, 
   uploadStorageFile, 
-  deleteStorageFile
+  deleteStorageFile,
+  forceRefreshStorage
 } from "./storageHelpers";
 import { 
   mapSubjectFiles,
@@ -17,6 +18,9 @@ import {
 export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[]> => {
   try {
     console.log('Fetching subject files for subject ID:', subjectId);
+    
+    // Force refresh storage to ensure we get the latest files
+    await forceRefreshStorage();
     
     // Get files from storage
     const storageData = await listStorageFiles();
@@ -73,7 +77,8 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
   try {
     console.log(`Attempting to delete file group with prefix: ${filePrefix}, topic: ${topic}`);
     
-    // Get all files from storage
+    // Get all files from storage with fresh cache
+    await forceRefreshStorage();
     const storageFiles = await listStorageFiles();
     
     // Get current user to verify ownership
@@ -166,6 +171,9 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
       }
     }
 
+    // Force a final refresh to ensure the storage is updated
+    await forceRefreshStorage();
+
     toast.success("Files deleted successfully");
     return true;
   } catch (error) {
@@ -204,6 +212,10 @@ export const uploadSubjectFile = async (
     await uploadStorageFile(fileName, file);
 
     const { data: { publicUrl } } = getPublicUrl(fileName);
+    
+    // Force a refresh to update storage
+    await forceRefreshStorage();
+    
     return publicUrl;
   } catch (error) {
     console.error(`Error uploading ${fileType}:`, error);

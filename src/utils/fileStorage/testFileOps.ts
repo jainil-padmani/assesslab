@@ -5,7 +5,8 @@ import type { SubjectFile } from "@/types/dashboard";
 import { 
   listStorageFiles, 
   copyStorageFile,
-  getPublicUrl 
+  getPublicUrl,
+  forceRefreshStorage
 } from "./storageHelpers";
 import { mapTestFiles } from "./fileMappers";
 
@@ -13,6 +14,9 @@ import { mapTestFiles } from "./fileMappers";
 export const fetchTestFiles = async (testId: string): Promise<any[]> => {
   try {
     console.log('Fetching test files for test ID:', testId);
+    
+    // Force a refresh to ensure we get the latest files
+    await forceRefreshStorage();
     
     // Verify test exists and get ownership info
     const { data: test, error: testError } = await supabase
@@ -69,6 +73,9 @@ export const assignSubjectFilesToTest = async (
     if (test.subject_id !== subjectFile.subject_id) {
       throw new Error("The selected file belongs to a different subject");
     }
+
+    // Force a refresh to ensure we get the latest files
+    await forceRefreshStorage();
 
     // First, fetch the original file names from storage
     const storageData = await listStorageFiles();
@@ -210,6 +217,9 @@ export const assignSubjectFilesToTest = async (
       const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
       await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
     }
+
+    // Force a final refresh to ensure storage is updated
+    await forceRefreshStorage();
 
     toast.success("Files assigned to test successfully");
     return true;

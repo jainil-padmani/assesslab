@@ -35,7 +35,10 @@ export const uploadStorageFile = async (fileName: string, file: File, bucket = '
     const { data, error } = await supabase
       .storage
       .from(bucket)
-      .upload(fileName, file);
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
       
     if (error) throw error;
     console.log(`Successfully uploaded: ${fileName}`);
@@ -86,5 +89,25 @@ export const deleteStorageFile = async (fileName: string, bucket = 'files') => {
     console.error('Error deleting file:', error);
     toast.error(`Failed to delete file: ${error.message}`);
     throw error;
+  }
+};
+
+// Force refresh files from storage
+export const forceRefreshStorage = async () => {
+  try {
+    // This is a workaround to force a refresh of the storage cache
+    const dummyFileName = `refresh_${Date.now()}.txt`;
+    const dummyFile = new Blob(['refresh'], { type: 'text/plain' });
+    
+    // Upload a dummy file
+    await uploadStorageFile(dummyFileName, dummyFile as File);
+    
+    // Delete the dummy file
+    await deleteStorageFile(dummyFileName);
+    
+    return true;
+  } catch (error) {
+    console.error('Error refreshing storage:', error);
+    return false;
   }
 };
