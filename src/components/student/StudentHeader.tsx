@@ -14,7 +14,7 @@ import CsvImport from "@/components/student/CsvImport";
 import { generateSampleCsv } from "@/utils/csvUtils";
 import { Student } from "@/types/dashboard";
 import { Class } from "@/hooks/useClassData";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface StudentHeaderProps {
   onEdit: (student: Student | null) => void;
@@ -31,7 +31,7 @@ export default function StudentHeader({
 }: StudentHeaderProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
 
   // This effect watches for changes to editingStudent and opens the dialog when it's set
   useEffect(() => {
