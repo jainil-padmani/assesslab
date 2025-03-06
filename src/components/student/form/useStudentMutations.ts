@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
+import { getUserTeamId } from "@/integrations/supabase/client";
 
 // Define a simplified type for student updates
 type StudentUpdateData = Omit<Partial<Student>, 'created_at'> & { id: string };
@@ -17,29 +18,34 @@ export const useStudentMutations = () => {
     mutationFn: async (studentData: Omit<Student, "id" | "created_at">) => {
       setIsLoading(true);
       try {
-        // Get current user's team_id if they have one
+        // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("User not authenticated");
         
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('team_id')
-          .eq('id', user.id)
-          .maybeSingle();
-          
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-        }
+        // Get the team_id using the helper function
+        const team_id = await getUserTeamId();
         
-        // Only add team_id if user is part of a team
-        const team_id = profile?.team_id || null;
+        console.log("Creating student with team_id:", team_id);
         
+        // Create the student record
         const { data, error } = await supabase
           .from("students")
-          .insert({ ...studentData, user_id: user.id, team_id })
+          .insert({ 
+            ...studentData, 
+            user_id: user.id, 
+            team_id: team_id 
+          })
           .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error details:", error);
+          throw error;
+        }
+        
+        if (!data || data.length === 0) {
+          throw new Error("Failed to create student: No data returned");
+        }
+        
         return data[0] as Student;
       } finally {
         setIsLoading(false);

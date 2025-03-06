@@ -12,7 +12,7 @@ export interface Class {
 export function useClassData(teamId: string | null | undefined) {
   return useQuery({
     queryKey: ["classes", teamId],
-    queryFn: async () => {
+    queryFn: async (): Promise<Class[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
