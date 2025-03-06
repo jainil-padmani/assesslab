@@ -111,10 +111,9 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
         .insert([
           { student_id: studentId, subject_id: subject.id }
         ])
-        .select()
-        .single();
+        .select();
       if (error) throw error;
-      return data;
+      return data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subject-students", subject.id] });
@@ -123,7 +122,7 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
       setSelectedStudentId("");
       toast.success("Student enrolled in subject successfully");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error("Failed to enroll student: " + error.message);
     },
   });
@@ -143,7 +142,7 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
       queryClient.invalidateQueries({ queryKey: ["available-subject-students", subject.id] });
       toast.success("Student removed from subject successfully");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error("Failed to remove student: " + error.message);
     },
   });

@@ -37,11 +37,10 @@ export const useStudentMutations = () => {
         const { data, error } = await supabase
           .from("students")
           .insert({ ...studentData, user_id: user.id, team_id })
-          .select()
-          .single();
+          .select();
 
         if (error) throw error;
-        return data;
+        return data[0] as Student;
       } finally {
         setIsLoading(false);
       }
@@ -64,11 +63,10 @@ export const useStudentMutations = () => {
           .from("students")
           .update(studentData)
           .eq("id", studentData.id)
-          .select()
-          .single();
+          .select();
 
         if (error) throw error;
-        return data;
+        return data[0] as Student;
       } finally {
         setIsLoading(false);
       }

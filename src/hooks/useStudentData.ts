@@ -33,7 +33,7 @@ export function useStudentData(teamId: string | null | undefined) {
         return [];
       }
       
-      return data as StudentWithClass[];
+      return (data || []) as StudentWithClass[];
     },
     enabled: true
   });

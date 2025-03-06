@@ -121,7 +121,7 @@ export default function Classes() {
         .select();
         
       if (error) throw error;
-      return data;
+      return data[0] as Class;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
@@ -129,7 +129,7 @@ export default function Classes() {
       setIsSubmitting(false);
       toast.success("Class added successfully");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       setIsSubmitting(false);
       toast.error("Failed to add class: " + error.message);
     },
@@ -149,11 +149,10 @@ export default function Classes() {
           user_id: session.user.id
         })
         .eq("id", classData.id)
-        .eq("user_id", session.user.id) // Ensure we only update our own classes
         .select();
         
       if (error) throw error;
-      return data;
+      return data[0] as Class;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
@@ -162,7 +161,7 @@ export default function Classes() {
       setIsSubmitting(false);
       toast.success("Class updated successfully");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       setIsSubmitting(false);
       toast.error("Failed to update class: " + error.message);
     },
@@ -178,8 +177,7 @@ export default function Classes() {
       const { error } = await supabase
         .from("classes")
         .delete()
-        .eq("id", id)
-        .eq("user_id", session.user.id); // Ensure we only delete our own classes
+        .eq("id", id);
         
       if (error) throw error;
     },
@@ -187,7 +185,7 @@ export default function Classes() {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
       toast.success("Class deleted successfully");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Failed to delete class: " + error.message);
     },
   });
