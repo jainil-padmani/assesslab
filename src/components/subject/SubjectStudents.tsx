@@ -62,6 +62,16 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
   const { data: availableStudents, isLoading: isAvailableLoading } = useQuery({
     queryKey: ["available-subject-students", subject.id],
     queryFn: async () => {
+      // Get current user's profile to check team_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("team_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      
       // Get IDs of students already enrolled
       const { data: enrollments, error: enrollmentsError } = await supabase
         .from("subject_enrollments")
@@ -74,6 +84,13 @@ export function SubjectStudents({ subject, fetchSubjectData }: SubjectStudentsPr
       
       // Get students not enrolled in this subject
       let query = supabase.from("students").select("*").order("name");
+      
+      // Filter by team if user is in a team, otherwise by user_id
+      if (profile?.team_id) {
+        query = query.eq("team_id", profile.team_id);
+      } else {
+        query = query.eq("user_id", user.id);
+      }
       
       if (enrolledIds.length > 0) {
         query = query.not("id", "in", `(${enrolledIds.join(",")})`);
