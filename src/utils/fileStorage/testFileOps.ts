@@ -12,6 +12,15 @@ import { mapTestFiles } from "./fileMappers";
 // Function to fetch test files
 export const fetchTestFiles = async (testId: string): Promise<any[]> => {
   try {
+    // Verify test exists and get ownership info
+    const { data: test, error: testError } = await supabase
+      .from('tests')
+      .select('user_id, subject_id')
+      .eq('id', testId)
+      .single();
+      
+    if (testError) throw testError;
+    
     // Get all files from storage
     const storageData = await listStorageFiles();
 
@@ -38,6 +47,25 @@ export const assignSubjectFilesToTest = async (
   subjectFile: SubjectFile
 ): Promise<boolean> => {
   try {
+    // Verify ownership of test and subject
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
+    const { data: test } = await supabase
+      .from('tests')
+      .select('user_id, subject_id')
+      .eq('id', testId)
+      .single();
+      
+    if (!test) throw new Error("Test not found");
+    if (test.user_id !== user.id) {
+      throw new Error("You don't have permission to modify this test");
+    }
+    
+    if (test.subject_id !== subjectFile.subject_id) {
+      throw new Error("The selected file belongs to a different subject");
+    }
+
     // First, fetch the original file names from storage
     const storageData = await listStorageFiles();
 
@@ -49,6 +77,7 @@ export const assignSubjectFilesToTest = async (
     // Try multiple strategies to find the files
     let questionPaperFile = null;
     let answerKeyFile = null;
+    let handwrittenPaperFile = null;
 
     // 1. First try with exact subject_id prefix
     questionPaperFile = storageData?.find(file => 
@@ -60,6 +89,11 @@ export const assignSubjectFilesToTest = async (
       file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
       file.name.includes('answerKey')
     );
+    
+    handwrittenPaperFile = storageData?.find(file => 
+      file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
+      file.name.includes('handwrittenPaper')
+    );
 
     // 2. If not found, try looking for test file format
     if (!questionPaperFile || !answerKeyFile) {
@@ -69,13 +103,18 @@ export const assignSubjectFilesToTest = async (
         const originalTestId = idParts[1];
         
         questionPaperFile = storageData?.find(file => 
-          file.name.startsWith(`${originalTestId}_${cleanTopic}_`) && 
+          file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
           file.name.includes('questionPaper')
         );
         
         answerKeyFile = storageData?.find(file => 
-          file.name.startsWith(`${originalTestId}_${cleanTopic}_`) && 
+          file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
           file.name.includes('answerKey')
+        );
+        
+        handwrittenPaperFile = storageData?.find(file => 
+          file.name.startsWith(`test_${originalTestId}_${cleanTopic}_`) && 
+          file.name.includes('handwrittenPaper')
         );
       }
     }
@@ -91,6 +130,11 @@ export const assignSubjectFilesToTest = async (
         file.name.includes(`_${cleanTopic}_`) && 
         file.name.includes('answerKey')
       );
+      
+      handwrittenPaperFile = storageData?.find(file => 
+        file.name.includes(`_${cleanTopic}_`) && 
+        file.name.includes('handwrittenPaper')
+      );
     }
 
     if (!questionPaperFile || !answerKeyFile) {
@@ -103,14 +147,22 @@ export const assignSubjectFilesToTest = async (
     const answerKeyExt = answerKeyFile.name.split('.').pop();
 
     // Create new filenames prefixed with test ID
-    const newQuestionPaperName = `${testId}_${cleanTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    const newAnswerKeyName = `${testId}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
+    const testPrefix = `test_${testId}`;
+    const newQuestionPaperName = `${testPrefix}_${cleanTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testPrefix}_${cleanTopic}_answerKey_${timestamp}.${answerKeyExt}`;
 
     // Copy question paper
     await copyStorageFile(questionPaperFile.name, newQuestionPaperName);
 
     // Copy answer key
     await copyStorageFile(answerKeyFile.name, newAnswerKeyName);
+    
+    // Copy handwritten paper if it exists
+    if (handwrittenPaperFile) {
+      const handwrittenExt = handwrittenPaperFile.name.split('.').pop();
+      const newHandwrittenName = `${testPrefix}_${cleanTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
+      await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
+    }
 
     toast.success("Files assigned to test successfully");
     return true;

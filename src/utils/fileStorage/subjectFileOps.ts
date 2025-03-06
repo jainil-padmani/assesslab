@@ -19,6 +19,23 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
     // Get files from storage
     const storageData = await listStorageFiles();
     
+    // Get the current user ID to filter by ownership
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
+    // Get the subject to verify ownership
+    const { data: subject, error: subjectError } = await supabase
+      .from('subjects')
+      .select('user_id')
+      .eq('id', subjectId)
+      .single();
+      
+    if (subjectError) throw subjectError;
+    if (subject?.user_id !== user.id) {
+      console.warn("User does not own this subject");
+      // Still continue to allow viewing in some contexts
+    }
+    
     // Initialize the files map
     let filesMap = mapSubjectFiles(storageData, subjectId);
     
@@ -53,6 +70,40 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
   try {
     // Get all files from storage
     const storageFiles = await listStorageFiles();
+    
+    // Get current user to verify ownership
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
+    // Verify ownership if it's a subject ID
+    if (!filePrefix.startsWith('test_')) {
+      const { data: subject } = await supabase
+        .from('subjects')
+        .select('user_id')
+        .eq('id', filePrefix)
+        .single();
+        
+      if (subject && subject.user_id !== user.id) {
+        toast.error("You don't have permission to delete these files");
+        return false;
+      }
+    } else {
+      // If it's a test file, verify ownership of the test
+      const parts = filePrefix.split('_');
+      if (parts.length >= 2) {
+        const testId = parts[1];
+        const { data: test } = await supabase
+          .from('tests')
+          .select('user_id')
+          .eq('id', testId)
+          .single();
+          
+        if (test && test.user_id !== user.id) {
+          toast.error("You don't have permission to delete these files");
+          return false;
+        }
+      }
+    }
     
     // Filter files by the group prefix
     const groupPrefix = `${filePrefix}_${topic}_`;
@@ -111,6 +162,20 @@ export const uploadSubjectFile = async (
   fileType: 'questionPaper' | 'answerKey' | 'handwrittenPaper'
 ): Promise<string> => {
   try {
+    // Verify ownership of the subject
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
+    const { data: subject } = await supabase
+      .from('subjects')
+      .select('user_id')
+      .eq('id', subjectId)
+      .single();
+      
+    if (subject && subject.user_id !== user.id) {
+      throw new Error("You don't have permission to upload files to this subject");
+    }
+    
     const fileExt = file.name.split('.').pop();
     const sanitizedTopic = topic.replace(/\s+/g, '_');
     const fileName = `${subjectId}_${sanitizedTopic}_${fileType}_${Date.now()}.${fileExt}`;

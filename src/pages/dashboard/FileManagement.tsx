@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -58,6 +59,7 @@ type UploadedFile = {
   answer_key_url: string;
   handwritten_paper_url: string | null;
   created_at: string;
+  user_id: string | null;
 }
 
 const FileManagement = () => {
@@ -105,17 +107,32 @@ const FileManagement = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    getCurrentUser();
     fetchSubjects();
     fetchUploadedFiles();
   }, []);
 
+  const getCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setCurrentUserId(user?.id || null);
+  };
+
   const fetchSubjects = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('You must be logged in to view subjects');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('subjects')
         .select('*')
+        .eq('user_id', user.id)
         .order('name');
       
       if (error) throw error;
@@ -128,6 +145,13 @@ const FileManagement = () => {
 
   const fetchUploadedFiles = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('You must be logged in to view files');
+        return;
+      }
+      
       // Get all files from storage.objects
       const { data: storageData, error: storageError } = await supabase
         .storage
@@ -136,6 +160,25 @@ const FileManagement = () => {
 
       if (storageError) throw storageError;
 
+      // Get all subjects owned by the current user
+      const { data: userSubjects, error: subjectsError } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .eq('user_id', user.id);
+        
+      if (subjectsError) throw subjectsError;
+      
+      // Build a set of subject IDs for quick lookups
+      const userSubjectIds = new Set(userSubjects?.map(s => s.id) || []);
+      
+      // Get all tests owned by the current user
+      const { data: userTests, error: testsError } = await supabase
+        .from('tests')
+        .select('id, name, subject_id')
+        .eq('user_id', user.id);
+        
+      if (testsError) throw testsError;
+      
       // Group files by prefix (we'll use subject_topic_ or testId_topic_ as prefix patterns)
       const fileGroups: { [key: string]: UploadedFile } = {};
       
@@ -149,7 +192,29 @@ const FileManagement = () => {
           
           const filePrefix = parts[0];
           const topic = parts[1];
-          const groupKey = `${filePrefix}_${topic}`;
+          let groupKey = `${filePrefix}_${topic}`;
+          let subjectId = '';
+          let isUserFile = false;
+          
+          // Check if it's a test prefix (starts with "test_")
+          if (filePrefix === 'test' && parts.length >= 4) {
+            const testId = parts[1];
+            groupKey = `test_${testId}_${topic}`;
+            
+            // Check if this test belongs to the user
+            const userTest = userTests?.find(t => t.id === testId);
+            if (userTest) {
+              isUserFile = true;
+              subjectId = userTest.subject_id;
+            }
+          } else {
+            // Regular subject file - check if it belongs to the user
+            subjectId = filePrefix;
+            isUserFile = userSubjectIds.has(subjectId);
+          }
+          
+          // Skip files that don't belong to this user
+          if (!isUserFile) continue;
           
           // Determine file type
           const fileTypePart = parts[2].split('.')[0];
@@ -159,24 +224,21 @@ const FileManagement = () => {
                            
           if (!fileType) continue; // Skip if not a recognized file type
           
-          // Check if it's a test ID
-          let subjectId = filePrefix;
+          // Find the subject information
           let subjectName = 'Unknown Subject';
           
           // If it's a test ID, get the subject information
-          const { data: testData } = await supabase
-            .from('tests')
-            .select('subject_id, name')
-            .eq('id', filePrefix)
-            .maybeSingle();
+          if (groupKey.startsWith('test_')) {
+            const testId = groupKey.split('_')[1];
+            const userTest = userTests?.find(t => t.id === testId);
             
-          if (testData) {
-            subjectId = testData.subject_id;
-            const subject = subjects.find(s => s.id === subjectId);
-            subjectName = subject ? `${subject.name} (Test: ${testData.name})` : `Test: ${testData.name}`;
+            if (userTest) {
+              const subject = userSubjects?.find(s => s.id === userTest.subject_id);
+              subjectName = subject ? `${subject.name} (Test: ${userTest.name})` : `Test: ${userTest.name}`;
+            }
           } else {
             // Regular subject file
-            const subject = subjects.find(s => s.id === subjectId);
+            const subject = userSubjects?.find(s => s.id === subjectId);
             subjectName = subject ? subject.name : 'Unknown Subject';
           }
           
@@ -190,7 +252,8 @@ const FileManagement = () => {
               question_paper_url: '',
               answer_key_url: '',
               handwritten_paper_url: null,
-              created_at: file.created_at || new Date().toISOString()
+              created_at: file.created_at || new Date().toISOString(),
+              user_id: user.id
             };
           }
           
@@ -271,6 +334,20 @@ const FileManagement = () => {
 
   const uploadFile = async (file: File, uploadType: string) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('You must be logged in to upload files');
+      
+      // Verify the user owns this subject
+      const { data: subject } = await supabase
+        .from('subjects')
+        .select('user_id')
+        .eq('id', fileUploadState.subjectId)
+        .single();
+      
+      if (!subject || subject.user_id !== user.id) {
+        throw new Error('You do not have permission to upload files to this subject');
+      }
+      
       const fileExt = file.name.split('.').pop();
       // Create a filename pattern that contains metadata
       const fileName = `${fileUploadState.subjectId}_${fileUploadState.topic}_${uploadType}_${Date.now()}.${fileExt}`;
@@ -343,8 +420,24 @@ const FileManagement = () => {
 
   const handleDeleteFile = async (fileGroup: UploadedFile) => {
     try {
+      // Verify file ownership
+      if (fileGroup.user_id !== currentUserId) {
+        toast.error("You don't have permission to delete these files");
+        return;
+      }
+      
       const [filePrefix, topic] = fileGroup.id.split('_');
-      const success = await deleteFileGroup(filePrefix, topic);
+      
+      // Handle test prefix format (test_id_topic)
+      let actualPrefix = filePrefix;
+      let actualTopic = topic;
+      
+      if (filePrefix === 'test' && fileGroup.id.split('_').length >= 3) {
+        actualPrefix = `test_${fileGroup.id.split('_')[1]}`;
+        actualTopic = fileGroup.id.split('_')[2];
+      }
+      
+      const success = await deleteFileGroup(actualPrefix, actualTopic);
       
       if (success) {
         fetchUploadedFiles();

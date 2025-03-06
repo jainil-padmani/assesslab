@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   Card,
@@ -19,11 +20,11 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { FilePlus, FileCheck, Trash2 } from "lucide-react";
+import { FilePlus, FileCheck, FileUp, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Subject, SubjectFile } from "@/types/dashboard";
-import { deleteFileGroup } from "@/utils/subjectFilesUtils";
+import { uploadSubjectFile, deleteFileGroup } from "@/utils/subjectFilesUtils";
 
 interface PapersManagementProps {
   subject: Subject;
@@ -37,8 +38,9 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
   const [topic, setTopic] = useState("");
   const [questionPaper, setQuestionPaper] = useState<File | null>(null);
   const [answerKey, setAnswerKey] = useState<File | null>(null);
+  const [handwrittenPaper, setHandwrittenPaper] = useState<File | null>(null);
 
-  const uploadSubjectPaper = async () => {
+  const handleUploadPaper = async () => {
     if (!subject.id || !topic.trim() || !questionPaper || !answerKey) {
       toast.error("Please fill in all required fields");
       return;
@@ -47,74 +49,75 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
     setIsUploadingPaper(true);
 
     try {
-      const questionPaperUrl = await uploadFile(questionPaper, 'questionPaper');
+      // Verify that the current user owns this subject
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("You must be logged in to upload files");
+      }
       
-      const answerKeyUrl = await uploadFile(answerKey, 'answerKey');
+      const { data: subjectData } = await supabase
+        .from('subjects')
+        .select('user_id')
+        .eq('id', subject.id)
+        .single();
+        
+      if (!subjectData || subjectData.user_id !== user.id) {
+        throw new Error("You don't have permission to upload files to this subject");
+      }
+      
+      const sanitizedTopic = topic.replace(/\s+/g, '_');
+      
+      await uploadSubjectFile(subject.id, sanitizedTopic, questionPaper, 'questionPaper');
+      await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
+      
+      if (handwrittenPaper) {
+        await uploadSubjectFile(subject.id, sanitizedTopic, handwrittenPaper, 'handwrittenPaper');
+      }
       
       toast.success("Files uploaded successfully!");
       
       setTopic("");
       setQuestionPaper(null);
       setAnswerKey(null);
+      setHandwrittenPaper(null);
       setOpenUploadDialog(false);
       
       fetchSubjectFiles();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading files:", error);
-      toast.error("Failed to upload files. Please try again.");
+      toast.error(`Failed to upload files: ${error.message}`);
     } finally {
       setIsUploadingPaper(false);
     }
   };
 
-  const uploadFile = async (file: File, fileType: string): Promise<string> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const sanitizedTopic = topic.replace(/\s+/g, '_');
-      const fileName = `${subject.id}_${sanitizedTopic}_${fileType}_${Date.now()}.${fileExt}`;
-
-      const { data, error } = await supabase.storage
-        .from('files')
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('files')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error(`Error uploading ${fileType}:`, error);
-      throw error;
-    }
-  };
-
   const handleDeleteFile = async (file: SubjectFile) => {
     try {
-      const { data: storageFiles, error: listError } = await supabase
-        .storage
-        .from('files')
-        .list();
-        
-      if (listError) throw listError;
-      
-      const groupPrefix = `${file.subject_id}_${file.topic}_`;
-      const filesToDelete = storageFiles?.filter(storageFile => 
-        storageFile.name.startsWith(groupPrefix)
-      ) || [];
-        
-      for (const storageFile of filesToDelete) {
-        const { error: deleteError } = await supabase
-          .storage
-          .from('files')
-          .remove([storageFile.name]);
-            
-        if (deleteError) throw deleteError;
+      // Verify ownership before deletion
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in to delete files");
+        return;
       }
-
-      toast.success("Files deleted successfully");
-      fetchSubjectFiles();
+      
+      const { data: subjectData } = await supabase
+        .from('subjects')
+        .select('user_id')
+        .eq('id', subject.id)
+        .single();
+        
+      if (!subjectData || subjectData.user_id !== user.id) {
+        toast.error("You don't have permission to delete files from this subject");
+        return;
+      }
+      
+      // Extract prefix and topic from file.id
+      const [prefix, topic] = file.id.split('_');
+      const success = await deleteFileGroup(prefix, topic);
+      
+      if (success) {
+        fetchSubjectFiles();
+      }
     } catch (error) {
       console.error("Error deleting files:", error);
       toast.error("Failed to delete files");
@@ -194,12 +197,32 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
                   )}
                 </div>
               </div>
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="handwritten-paper" className="text-right">
+                  Handwritten Paper
+                  <span className="text-xs text-muted-foreground"> (Optional)</span>
+                </Label>
+                <div className="col-span-3">
+                  <Input
+                    id="handwritten-paper"
+                    type="file"
+                    accept=".pdf,.png,.jpeg,.jpg"
+                    onChange={(e) => setHandwrittenPaper(e.target.files?.[0] || null)}
+                  />
+                  {handwrittenPaper && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {handwrittenPaper.name}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
             
             <DialogFooter>
               <Button
                 type="submit"
-                onClick={uploadSubjectPaper}
+                onClick={handleUploadPaper}
                 disabled={isUploadingPaper || !topic.trim() || !questionPaper || !answerKey}
               >
                 {isUploadingPaper ? 'Uploading...' : 'Upload Papers'}
@@ -263,6 +286,21 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
                         <div className="text-xs text-muted-foreground">View document</div>
                       </div>
                     </a>
+                    
+                    {file.handwritten_paper_url && (
+                      <a 
+                        href={file.handwritten_paper_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        <FileUp className="h-5 w-5 mr-2 text-primary" />
+                        <div>
+                          <div className="text-sm font-medium">Handwritten Paper</div>
+                          <div className="text-xs text-muted-foreground">View document</div>
+                        </div>
+                      </a>
+                    )}
                   </div>
                 </CardContent>
               </Card>

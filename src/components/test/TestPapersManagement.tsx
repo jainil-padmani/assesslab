@@ -90,6 +90,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       const success = await assignSubjectFilesToTest(test.id, fileToAssign);
       
       if (success) {
+        toast.success("Files assigned successfully!");
         setOpenUploadDialog(false);
         setSelectedExistingFile(null);
         refetchTestFiles();
@@ -104,28 +105,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
 
   const handleDeleteFile = async (file: TestFile) => {
     try {
-      const { data: storageFiles, error: listError } = await supabase
-        .storage
-        .from('files')
-        .list();
-        
-      if (listError) throw listError;
-      
-      const groupPrefix = `${file.test_id}_${file.topic}_`;
-      const filesToDelete = storageFiles?.filter(storageFile => 
-        storageFile.name.startsWith(groupPrefix)
-      ) || [];
-        
-      for (const storageFile of filesToDelete) {
-        const { error: deleteError } = await supabase
-          .storage
-          .from('files')
-          .remove([storageFile.name]);
-            
-        if (deleteError) throw deleteError;
-      }
-
-      toast.success("Files deleted successfully");
+      const testPrefix = `test_${file.test_id}`;
+      await deleteFileGroup(testPrefix, file.topic);
       refetchTestFiles();
     } catch (error) {
       console.error("Error deleting files:", error);
@@ -141,6 +122,12 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           <CardDescription>Manage question papers and answer keys for this test</CardDescription>
         </div>
         <Dialog open={openUploadDialog} onOpenChange={setOpenUploadDialog}>
+          <DialogTrigger asChild>
+            <Button>
+              <FilePlus className="mr-2 h-4 w-4" />
+              Add Papers
+            </Button>
+          </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Add Papers to Test</DialogTitle>
@@ -254,6 +241,21 @@ export function TestPapersManagement({ test }: TestPapersProps) {
                         <div className="text-xs text-muted-foreground">View document</div>
                       </div>
                     </a>
+                    
+                    {file.handwritten_paper_url && (
+                      <a 
+                        href={file.handwritten_paper_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        <FileCheck className="h-5 w-5 mr-2 text-primary" />
+                        <div>
+                          <div className="text-sm font-medium">Handwritten Paper</div>
+                          <div className="text-xs text-muted-foreground">View document</div>
+                        </div>
+                      </a>
+                    )}
                   </div>
                 </CardContent>
               </Card>
