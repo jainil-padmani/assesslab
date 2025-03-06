@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, UploadCloud, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import CsvImport from "@/components/student/CsvImport";
 import { generateSampleCsv } from "@/utils/csvUtils";
 import { Student } from "@/types/dashboard";
 import { Class } from "@/hooks/useClassData";
-import { useEffect, useState as useReactState } from "react";
+import { useMobile } from "@/hooks/use-mobile";
 
 interface StudentHeaderProps {
   onEdit: (student: Student | null) => void;
@@ -31,20 +31,26 @@ export default function StudentHeader({
 }: StudentHeaderProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
-  const [isMobile, setIsMobile] = useReactState(window.innerWidth < 768);
+  const isMobile = useMobile();
 
+  // This effect watches for changes to editingStudent and opens the dialog when it's set
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    if (editingStudent) {
+      setIsAddDialogOpen(true);
+    }
+  }, [editingStudent]);
 
   const handleOpenAddStudent = () => {
     onEdit(null);
     setIsAddDialogOpen(true);
+  };
+
+  // This function handles dialog close and resets the editing state
+  const handleDialogClose = () => {
+    setIsAddDialogOpen(false);
+    if (editingStudent) {
+      onEdit(null);
+    }
   };
 
   return (
@@ -99,7 +105,7 @@ export default function StudentHeader({
             </DialogHeader>
             <StudentForm 
               student={editingStudent} 
-              onClose={() => setIsAddDialogOpen(false)} 
+              onClose={handleDialogClose} 
               classes={classes}
               isClassesLoading={isClassesLoading}
             />

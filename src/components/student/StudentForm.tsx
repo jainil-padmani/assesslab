@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Student } from "@/types/dashboard";
 import StudentFormFields from "./form/StudentFormFields";
 import StudentFormActions from "./form/StudentFormActions";
@@ -18,6 +18,14 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
   
   const { createStudentMutation, updateStudentMutation } = useStudentMutations();
 
+  // Update state when student prop changes
+  useEffect(() => {
+    if (student) {
+      setSelectedYear(student.year ? student.year.toString() : "");
+      setSelectedDepartment(student.department || "");
+    }
+  }, [student]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -34,10 +42,15 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       class_id: formData.get("class_id") as string || null,
     };
 
-    if (student) {
-      updateStudentMutation.mutate({ id: student.id, ...studentData });
-    } else {
-      createStudentMutation.mutate(studentData as any);
+    try {
+      if (student) {
+        await updateStudentMutation.mutateAsync({ id: student.id, ...studentData });
+      } else {
+        await createStudentMutation.mutateAsync(studentData as any);
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error submitting form:", error);
     }
   };
 
