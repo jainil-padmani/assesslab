@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type Profile = {
-  team_id: string | null;
-  team_code: string | null;
+  id: string;
+  name: string | null;
 };
 
 export type Subject = {
@@ -17,18 +17,19 @@ export type Class = {
   name: string;
 };
 
-export function useTestFormData(profileData: Profile | null | undefined) {
+export function useTestFormData() {
   // Fetch subjects
   const subjectsQuery = useQuery<Subject[]>({
-    queryKey: ["subjects", profileData?.team_id],
+    queryKey: ["subjects"],
     queryFn: async (): Promise<Subject[]> => {
-      let query = supabase.from("subjects").select("id, name");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
       
-      if (profileData?.team_id) {
-        query = query.eq("team_id", profileData.team_id);
-      }
-      
-      const { data, error } = await query.order("name");
+      const { data, error } = await supabase
+        .from("subjects")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .order("name");
         
       if (error) {
         console.error("Error fetching subjects:", error);
@@ -36,21 +37,21 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       }
       
       return data || [];
-    },
-    enabled: profileData !== undefined
+    }
   });
 
   // Fetch classes
   const classesQuery = useQuery<Class[]>({
-    queryKey: ["classes", profileData?.team_id],
+    queryKey: ["classes"],
     queryFn: async (): Promise<Class[]> => {
-      let query = supabase.from("classes").select("id, name");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
       
-      if (profileData?.team_id) {
-        query = query.eq("team_id", profileData.team_id);
-      }
-      
-      const { data, error } = await query.order("name");
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .order("name");
         
       if (error) {
         console.error("Error fetching classes:", error);
@@ -58,8 +59,7 @@ export function useTestFormData(profileData: Profile | null | undefined) {
       }
       
       return data || [];
-    },
-    enabled: profileData !== undefined
+    }
   });
 
   return { 
@@ -77,16 +77,16 @@ export function useUserProfile() {
       
       const { data, error } = await supabase
         .from('profiles')
-        .select('team_id, team_code')
+        .select('id, name')
         .eq('id', user.id)
         .maybeSingle();
         
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error("Error fetching profile:", error);
         return null;
       }
       
-      return data || null;
+      return data;
     }
   });
 }

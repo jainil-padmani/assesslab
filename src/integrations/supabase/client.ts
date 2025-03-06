@@ -12,7 +12,8 @@ export const TableNames = {
   students: 'students',
   classes: 'classes',
   subjects: 'subjects',
-  tests: 'tests'
+  tests: 'tests',
+  subject_enrollments: 'subject_enrollments'
 } as const;
 
 // Create a type from the values of TableNames

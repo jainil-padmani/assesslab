@@ -76,27 +76,18 @@ export default function ClassDetail() {
   const { data: availableStudents, isLoading: isAvailableLoading } = useQuery({
     queryKey: ["available-students", id],
     queryFn: async () => {
-      // Get current user's profile to check team_id
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
       
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", user.id)
-        .maybeSingle();
-      
-      // Query for students without a class
-      let query = supabase.from("students").select("*").is("class_id", null);
-      
-      // Filter by team if user is in a team, otherwise by user_id
-      if (profile?.team_id) {
-        query = query.eq("team_id", profile.team_id);
-      } else {
-        query = query.eq("user_id", user.id);
-      }
-      
-      const { data, error } = await query.order("name");
+      // Query for students without a class and belonging to the current user
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .is("class_id", null)
+        .eq("user_id", user.id)
+        .order("name");
+        
       if (error) throw error;
       
       return data as Student[];
