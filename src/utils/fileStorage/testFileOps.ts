@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
@@ -77,131 +76,42 @@ export const assignSubjectFilesToTest = async (
     // Force a refresh to ensure we get the latest files
     await forceRefreshStorage();
 
-    // First, fetch the original file names from storage
-    const storageData = await listStorageFiles();
-
-    // Extract the topic from the subjectFile
-    // For test files that were assigned from subjects, clean up the topic
+    // Extract topic and sanitize it
     const topicParts = subjectFile.topic.split(': ');
     const cleanTopic = topicParts.length > 1 ? topicParts[1] : subjectFile.topic;
     const sanitizedTopic = cleanTopic.replace(/\s+/g, '_');
 
-    console.log('Looking for files for topic:', cleanTopic, 'sanitized as:', sanitizedTopic);
-
-    // Try multiple strategies to find the files
-    let questionPaperFile = null;
-    let answerKeyFile = null;
-    let handwrittenPaperFile = null;
-
-    // 1. First try with exact subject_id prefix and sanitized topic
-    questionPaperFile = storageData?.find(file => 
+    // Get the original files from storage
+    const storageData = await listStorageFiles();
+    
+    // Find question paper (required)
+    const questionPaperFile = storageData?.find(file => 
       file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
       file.name.includes('questionPaper')
     );
-    
-    // Answer key is now optional
-    answerKeyFile = storageData?.find(file => 
+
+    if (!questionPaperFile) {
+      throw new Error("Could not find the question paper to copy");
+    }
+
+    // Find optional answer key and handwritten paper
+    const answerKeyFile = storageData?.find(file => 
       file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
       file.name.includes('answerKey')
     );
     
-    handwrittenPaperFile = storageData?.find(file => 
+    const handwrittenPaperFile = storageData?.find(file => 
       file.name.startsWith(`${subjectFile.subject_id}_${sanitizedTopic}_`) && 
       file.name.includes('handwrittenPaper')
     );
 
-    // 2. If not found, try with original spaces in topic
-    if (!questionPaperFile) {
-      questionPaperFile = storageData?.find(file => 
-        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
-        file.name.includes('questionPaper')
-      );
-    }
-    
-    if (!answerKeyFile) {
-      answerKeyFile = storageData?.find(file => 
-        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
-        file.name.includes('answerKey')
-      );
-    }
-    
-    if (!handwrittenPaperFile) {
-      handwrittenPaperFile = storageData?.find(file => 
-        file.name.startsWith(`${subjectFile.subject_id}_${cleanTopic}_`) && 
-        file.name.includes('handwrittenPaper')
-      );
-    }
-
-    // 3. If not found, try looking for test file format
-    if (!questionPaperFile) {
-      // Extract test ID if present in the ID
-      const idParts = subjectFile.id.split(':');
-      if (idParts.length > 1) {
-        const originalTestId = idParts[1];
-        
-        questionPaperFile = storageData?.find(file => 
-          file.name.startsWith(`test_${originalTestId}_${sanitizedTopic}_`) && 
-          file.name.includes('questionPaper')
-        );
-        
-        if (!answerKeyFile) {
-          answerKeyFile = storageData?.find(file => 
-            file.name.startsWith(`test_${originalTestId}_${sanitizedTopic}_`) && 
-            file.name.includes('answerKey')
-          );
-        }
-        
-        if (!handwrittenPaperFile) {
-          handwrittenPaperFile = storageData?.find(file => 
-            file.name.startsWith(`test_${originalTestId}_${sanitizedTopic}_`) && 
-            file.name.includes('handwrittenPaper')
-          );
-        }
-      }
-    }
-
-    // 4. If still not found, try a more general search
-    if (!questionPaperFile) {
-      questionPaperFile = storageData?.find(file => 
-        file.name.includes(`_${sanitizedTopic}_`) && 
-        file.name.includes('questionPaper')
-      );
-      
-      if (!answerKeyFile) {
-        answerKeyFile = storageData?.find(file => 
-          file.name.includes(`_${sanitizedTopic}_`) && 
-          file.name.includes('answerKey')
-        );
-      }
-      
-      if (!handwrittenPaperFile) {
-        handwrittenPaperFile = storageData?.find(file => 
-          file.name.includes(`_${sanitizedTopic}_`) && 
-          file.name.includes('handwrittenPaper')
-        );
-      }
-    }
-
-    // Now only require question paper
-    if (!questionPaperFile) {
-      throw new Error("Could not find the question paper to copy");
-    }
-    
-    console.log('Found files to copy:', {
-      questionPaper: questionPaperFile?.name,
-      answerKey: answerKeyFile?.name,
-      handwrittenPaper: handwrittenPaperFile?.name
-    });
-
     // Copy the files with new names for the test
     const timestamp = Date.now();
-    const questionPaperExt = questionPaperFile.name.split('.').pop();
-
-    // Create new filenames prefixed with test ID
     const testPrefix = `test_${testId}`;
+
+    // Copy question paper (required)
+    const questionPaperExt = questionPaperFile.name.split('.').pop();
     const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    
-    // Copy question paper
     await copyStorageFile(questionPaperFile.name, newQuestionPaperName);
     
     // Copy answer key if it exists
@@ -217,6 +127,17 @@ export const assignSubjectFilesToTest = async (
       const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
       await copyStorageFile(handwrittenPaperFile.name, newHandwrittenName);
     }
+
+    // Insert records into subject_documents for test files
+    await supabase.from('subject_documents').insert({
+      subject_id: test.subject_id,
+      user_id: user.id,
+      file_name: newQuestionPaperName,
+      document_type: 'questionPaper',
+      document_url: getPublicUrl(newQuestionPaperName).data.publicUrl,
+      file_type: questionPaperExt,
+      file_size: questionPaperFile.metadata?.size || 0
+    });
 
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();

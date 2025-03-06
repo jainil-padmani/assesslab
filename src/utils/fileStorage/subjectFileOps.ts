@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
@@ -201,7 +200,7 @@ export const uploadSubjectFile = async (
       .eq('id', subjectId)
       .single();
       
-    if (subject && subject.user_id !== user.id) {
+    if (!subject || subject.user_id !== user.id) {
       throw new Error("You don't have permission to upload files to this subject");
     }
     
@@ -210,6 +209,17 @@ export const uploadSubjectFile = async (
     const fileName = `${subjectId}_${sanitizedTopic}_${fileType}_${Date.now()}.${fileExt}`;
 
     await uploadStorageFile(fileName, file);
+
+    // Insert record into subject_documents
+    await supabase.from('subject_documents').insert({
+      subject_id: subjectId,
+      user_id: user.id,
+      file_name: fileName,
+      document_type: fileType,
+      document_url: getPublicUrl(fileName).data.publicUrl,
+      file_type: fileExt,
+      file_size: file.size
+    });
 
     const { data: { publicUrl } } = getPublicUrl(fileName);
     
