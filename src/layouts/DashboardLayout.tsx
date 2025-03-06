@@ -1,3 +1,4 @@
+
 import { DashboardNav } from "@/components/DashboardNav";
 import { Outlet, Navigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -95,13 +96,13 @@ export default function DashboardLayout() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center">
-              <h1 className="text-2xl font-bold text-primary">
+              <h1 className={cn("font-bold text-primary", isMobile ? "text-xl" : "text-2xl")}>
                 Assess<span className="text-accent">Lab</span>
               </h1>
             </Link>
             <div className="flex items-center gap-4">
               {userName && (
-                <div className="text-sm text-muted-foreground hidden sm:block">
+                <div className="text-muted-foreground hidden sm:block">
                   Welcome, {userName}
                 </div>
               )}
@@ -111,11 +112,11 @@ export default function DashboardLayout() {
                 <Sheet>
                   <SheetTrigger asChild>
                     <Button variant="ghost" size="icon" className="md:hidden">
-                      <Menu className="h-5 w-5" />
+                      <Menu className="h-6 w-6" />
                       <span className="sr-only">Toggle menu</span>
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="left" className="p-0">
+                  <SheetContent side="left" className="p-0 w-[85%] sm:w-[350px]">
                     <ScrollArea className="h-full">
                       <DashboardNav onSignOut={handleSignOut} />
                     </ScrollArea>

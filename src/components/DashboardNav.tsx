@@ -16,6 +16,7 @@ import {
   School
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
 
 const links = [
   {
@@ -75,7 +76,16 @@ interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function DashboardNav({ className, onSignOut, ...props }: DashboardNavProps) {
-  const isMobile = window.innerWidth < 768;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   return (
     <div className={cn("relative", className)} {...props}>
@@ -84,10 +94,10 @@ export function DashboardNav({ className, onSignOut, ...props }: DashboardNavPro
           <div className="space-y-1">
             {isMobile && (
               <div className="flex items-center justify-between mb-6 px-4">
-                <h2 className="text-xl font-semibold">Menu</h2>
+                <h2 className="text-xl font-semibold tracking-tight">Menu</h2>
               </div>
             )}
-            {!isMobile && <h2 className="mb-4 px-4 text-xl font-semibold">Menu</h2>}
+            {!isMobile && <h2 className="mb-4 px-4 text-xl font-semibold tracking-tight">Menu</h2>}
             <nav className="space-y-2">
               {links.map((link) => (
                 <NavLink
@@ -95,21 +105,25 @@ export function DashboardNav({ className, onSignOut, ...props }: DashboardNavPro
                   to={link.href}
                   className={({ isActive }) =>
                     cn(
-                      "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      "group flex items-center rounded-md px-3 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      isMobile ? "text-base py-3" : "text-sm py-2.5",
                       isActive ? "bg-accent text-accent-foreground" : "transparent"
                     )
                   }
                 >
-                  <link.icon className="mr-2 h-4 w-4" />
+                  <link.icon className={cn("mr-2", isMobile ? "h-5 w-5" : "h-4 w-4")} />
                   <span>{link.title}</span>
                 </NavLink>
               ))}
               <Button
                 variant="ghost"
-                className="w-full justify-start"
+                className={cn(
+                  "w-full justify-start",
+                  isMobile ? "text-base py-3" : "text-sm py-2.5"
+                )}
                 onClick={onSignOut}
               >
-                <LogOut className="mr-2 h-4 w-4" />
+                <LogOut className={cn("mr-2", isMobile ? "h-5 w-5" : "h-4 w-4")} />
                 Sign Out
               </Button>
             </nav>
