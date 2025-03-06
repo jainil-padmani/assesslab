@@ -8,25 +8,18 @@ interface StudentWithClass extends Student {
   classes: { name: string } | null;
 }
 
-export function useStudentData(teamId: string | null | undefined) {
+export function useStudentData() {
   return useQuery({
-    queryKey: ["students", teamId],
+    queryKey: ["students"],
     queryFn: async (): Promise<StudentWithClass[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
-      let query = supabase.from("students").select('*, classes(name)');
-      
-      // Apply team_id filter if available
-      if (teamId) {
-        query = query.eq('team_id', teamId);
-      } else {
-        // If no team_id, filter by user_id
-        query = query.eq('user_id', user.id);
-      }
-      
-      // Execute the query with explicit error handling
-      const { data, error } = await query;
+      // Simple query filtering by user_id only
+      const { data, error } = await supabase
+        .from("students")
+        .select('*, classes(name)')
+        .eq('user_id', user.id);
       
       if (error) {
         console.error("Error fetching students:", error);

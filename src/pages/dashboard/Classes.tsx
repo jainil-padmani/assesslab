@@ -49,46 +49,19 @@ export default function Classes() {
     },
   });
 
-  // Get user's team_id
-  const { data: userProfile } = useQuery({
-    queryKey: ["user-profile"],
-    queryFn: async () => {
-      if (!session?.user) return null;
-      
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", session.user.id)
-        .maybeSingle();
-        
-      if (error) {
-        console.error("Error fetching profile:", error);
-      }
-      
-      return data;
-    },
-    enabled: !!session,
-  });
-
-  // Fetch classes
+  // Fetch classes - simple filtering by user_id
   const { data: classes, isLoading } = useQuery({
-    queryKey: ["classes", userProfile?.team_id],
+    queryKey: ["classes"],
     queryFn: async () => {
       if (!session?.user.id) {
         return [];
       }
       
-      let query = supabase.from("classes").select("*");
-      
-      // If user has a team, filter by team_id
-      if (userProfile?.team_id) {
-        query = query.eq("team_id", userProfile.team_id);
-      } else {
-        // Otherwise, show only user's own classes
-        query = query.eq("user_id", session.user.id);
-      }
-      
-      const { data, error } = await query.order("name");
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("name");
         
       if (error) {
         console.error("Error fetching classes:", error);
@@ -106,13 +79,9 @@ export default function Classes() {
         throw new Error("You must be logged in to add a class");
       }
       
-      // Include team_id if user has one
-      const team_id = userProfile?.team_id || null;
-      
       const classWithUserId = {
         ...newClass,
-        user_id: session.user.id,
-        team_id
+        user_id: session.user.id
       };
       
       const { data, error } = await supabase

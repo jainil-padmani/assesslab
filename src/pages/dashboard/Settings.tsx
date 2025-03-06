@@ -2,10 +2,9 @@
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import TeamSettings from "@/components/team/TeamSettings";
-import TeamManagement from "@/components/team/TeamManagement";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
+import AccountSettings from "@/components/account/AccountSettings";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("account");
@@ -18,17 +17,12 @@ export default function Settings() {
       <Tabs defaultValue="account" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
         
         <TabsContent value="account">
-          <TeamSettings />
-        </TabsContent>
-        
-        <TabsContent value="team">
-          <TeamManagement />
+          <AccountSettings />
         </TabsContent>
         
         <TabsContent value="appearance">

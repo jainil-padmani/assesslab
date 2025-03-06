@@ -41,42 +41,19 @@ export default function Subjects() {
     },
   });
 
-  // Get user's team_id
-  const { data: userProfile } = useQuery({
-    queryKey: ["user-profile"],
+  // Fetch subjects - simple filtering by user_id
+  const { data: subjects, isLoading } = useQuery({
+    queryKey: ["subjects"],
     queryFn: async () => {
-      if (!session?.user) return null;
+      if (!session?.user.id) {
+        return [];
+      }
       
       const { data, error } = await supabase
-        .from("profiles")
-        .select("team_id")
-        .eq("id", session.user.id)
-        .single();
-        
-      if (error && error.code !== 'PGRST116') {
-        console.error("Error fetching profile:", error);
-      }
-      
-      return data;
-    },
-    enabled: !!session,
-  });
-
-  // Fetch subjects - team-based filtering using RLS or explicit filter
-  const { data: subjects, isLoading } = useQuery({
-    queryKey: ["subjects", userProfile?.team_id],
-    queryFn: async () => {
-      let query = supabase.from("subjects").select("*");
-      
-      // If user has a team, filter by team_id
-      if (userProfile?.team_id) {
-        query = query.eq("team_id", userProfile.team_id);
-      } else {
-        // Otherwise, show only user's own subjects
-        query = query.eq("user_id", session?.user.id);
-      }
-      
-      const { data, error } = await query.order("name");
+        .from("subjects")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("name");
         
       if (error) {
         console.error("Error fetching subjects:", error);
@@ -91,14 +68,9 @@ export default function Subjects() {
   // Add subject mutation
   const addSubjectMutation = useMutation({
     mutationFn: async (newSubject: Omit<Subject, "id" | "created_at">) => {
-      // Include team_id if user has one
-      const team_id = userProfile?.team_id || null;
-      
-      console.log("Adding subject with team_id:", team_id);
-      
       const { data, error } = await supabase
         .from("subjects")
-        .insert([{ ...newSubject, user_id: session?.user.id, team_id }])
+        .insert([{ ...newSubject, user_id: session?.user.id }])
         .select()
         .single();
         
@@ -121,7 +93,6 @@ export default function Subjects() {
   // Update subject mutation
   const updateSubjectMutation = useMutation({
     mutationFn: async (subject: Partial<Subject> & { id: string }) => {
-      // Ensure team_id is preserved during update
       const { data, error } = await supabase
         .from("subjects")
         .update(subject)

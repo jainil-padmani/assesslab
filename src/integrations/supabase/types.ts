@@ -169,8 +169,6 @@ export type Database = {
           nationality: string | null
           post: string | null
           subject: string | null
-          team_code: string | null
-          team_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -180,8 +178,6 @@ export type Database = {
           nationality?: string | null
           post?: string | null
           subject?: string | null
-          team_code?: string | null
-          team_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -191,19 +187,9 @@ export type Database = {
           nationality?: string | null
           post?: string | null
           subject?: string | null
-          team_code?: string | null
-          team_id?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       student_subjects: {
         Row: {
@@ -388,7 +374,6 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
-          team_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -398,7 +383,6 @@ export type Database = {
           name: string
           semester: number
           subject_code: string
-          team_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -408,40 +392,7 @@ export type Database = {
           name?: string
           semester?: number
           subject_code?: string
-          team_id?: string | null
           user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subjects_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      teams: {
-        Row: {
-          admin_id: string
-          created_at: string
-          id: string
-          name: string
-          team_code: string | null
-        }
-        Insert: {
-          admin_id: string
-          created_at?: string
-          id?: string
-          name: string
-          team_code?: string | null
-        }
-        Update: {
-          admin_id?: string
-          created_at?: string
-          id?: string
-          name?: string
-          team_code?: string | null
         }
         Relationships: []
       }

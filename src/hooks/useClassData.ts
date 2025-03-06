@@ -9,25 +9,18 @@ export interface Class {
   year: number | null;
 }
 
-export function useClassData(teamId: string | null | undefined) {
+export function useClassData() {
   return useQuery({
-    queryKey: ["classes", teamId],
+    queryKey: ["classes"],
     queryFn: async (): Promise<Class[]> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       
-      let query = supabase.from("classes").select('id, name, department, year');
-      
-      // Apply team_id filter if available
-      if (teamId) {
-        query = query.eq('team_id', teamId);
-      } else {
-        // If no team_id, filter by user_id
-        query = query.eq('user_id', user.id);
-      }
-      
-      // Execute the query with explicit error handling
-      const { data, error } = await query;
+      // Simple query filtering by user_id only
+      const { data, error } = await supabase
+        .from("classes")
+        .select('id, name, department, year')
+        .eq('user_id', user.id);
       
       if (error) {
         console.error("Error fetching classes:", error);

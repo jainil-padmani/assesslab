@@ -11,7 +11,6 @@ export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
-  const [teamName, setTeamName] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -19,27 +18,14 @@ export default function DashboardLayout() {
       setIsAuthenticated(!!session);
       
       if (session?.user) {
-        // Get user profile to display name and team info
+        // Get user profile to display name
         const { data } = await supabase
           .from('profiles')
-          .select('name, team_id')
+          .select('name')
           .eq('id', session.user.id)
           .single();
           
         setUserName(data?.name || session.user.email);
-        
-        // If user has a team, fetch team name
-        if (data?.team_id) {
-          const { data: teamData } = await supabase
-            .from('teams')
-            .select('name')
-            .eq('id', data.team_id)
-            .single();
-            
-          if (teamData) {
-            setTeamName(teamData.name);
-          }
-        }
       }
     };
     
@@ -49,32 +35,17 @@ export default function DashboardLayout() {
       setIsAuthenticated(!!session);
       if (session?.user) {
         // Get user profile when auth state changes
-        const fetchProfileAndTeam = async () => {
+        const fetchProfile = async () => {
           const { data } = await supabase
             .from('profiles')
-            .select('name, team_id')
+            .select('name')
             .eq('id', session.user.id)
             .single();
             
           setUserName(data?.name || session.user.email);
-          
-          // If user has a team, fetch team name
-          if (data?.team_id) {
-            const { data: teamData } = await supabase
-              .from('teams')
-              .select('name')
-              .eq('id', data.team_id)
-              .single();
-              
-            if (teamData) {
-              setTeamName(teamData.name);
-            }
-          } else {
-            setTeamName(null);
-          }
         };
         
-        fetchProfileAndTeam();
+        fetchProfile();
       }
     });
 
@@ -114,7 +85,6 @@ export default function DashboardLayout() {
               {userName && (
                 <div className="text-sm text-muted-foreground">
                   Welcome, {userName}
-                  {teamName && <span className="ml-1">({teamName})</span>}
                 </div>
               )}
               <ThemeToggle />

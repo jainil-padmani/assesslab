@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Student } from "@/types/dashboard";
 import { toast } from "sonner";
-import { getUserTeamId } from "@/integrations/supabase/client";
 
 // Define a simplified type for student updates
 type StudentUpdateData = Omit<Partial<Student>, 'created_at'> & { id: string };
@@ -22,18 +21,12 @@ export const useStudentMutations = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("User not authenticated");
         
-        // Get the team_id using the helper function
-        const team_id = await getUserTeamId();
-        
-        console.log("Creating student with team_id:", team_id);
-        
         // Create the student record
         const { data, error } = await supabase
           .from("students")
           .insert({ 
             ...studentData, 
-            user_id: user.id, 
-            team_id: team_id 
+            user_id: user.id
           })
           .select();
 
