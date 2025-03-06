@@ -12,11 +12,40 @@ export const useStudentMutations = () => {
   const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
 
+  // Helper function to check if GR number exists
+  const checkGRNumberExists = async (grNumber: string, studentId?: string): Promise<boolean> => {
+    // If editing a student, exclude the current student ID from the check
+    const query = supabase
+      .from("students")
+      .select("id")
+      .eq("gr_number", grNumber);
+      
+    // If we're updating an existing student, exclude that student from the check
+    if (studentId) {
+      query.neq("id", studentId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error("Error checking GR number:", error);
+      return false;
+    }
+    
+    return data.length > 0;
+  };
+
   // Create student mutation
   const createStudentMutation = useMutation({
     mutationFn: async (studentData: Omit<Student, "id" | "created_at">) => {
       setIsLoading(true);
       try {
+        // Check if GR number already exists
+        const grNumberExists = await checkGRNumberExists(studentData.gr_number);
+        if (grNumberExists) {
+          throw new Error("A student with this GR number already exists. Please use a different GR number.");
+        }
+        
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("User not authenticated");
@@ -58,6 +87,14 @@ export const useStudentMutations = () => {
     mutationFn: async (studentData: StudentUpdateData) => {
       setIsLoading(true);
       try {
+        // Check if updated GR number already exists (excluding this student)
+        if (studentData.gr_number) {
+          const grNumberExists = await checkGRNumberExists(studentData.gr_number, studentData.id);
+          if (grNumberExists) {
+            throw new Error("A student with this GR number already exists. Please use a different GR number.");
+          }
+        }
+        
         const { data, error } = await supabase
           .from("students")
           .update(studentData)

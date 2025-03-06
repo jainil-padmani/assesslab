@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,16 +40,53 @@ export default function CsvImport({ onClose }: CsvImportProps) {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [fieldMapping, setFieldMapping] = useState<CsvMappingField[]>([]);
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
 
-  // Batch add students mutation
+  const checkDuplicateGRNumbers = async (grNumbers: string[]): Promise<string[]> => {
+    if (!grNumbers.length) return [];
+    
+    const { data, error } = await supabase
+      .from("students")
+      .select("gr_number")
+      .in("gr_number", grNumbers);
+      
+    if (error) {
+      console.error("Error checking duplicate GR numbers:", error);
+      return [];
+    }
+    
+    return data.map(student => student.gr_number);
+  };
+
   const batchAddStudentsMutation = useMutation({
     mutationFn: async (students: Omit<Student, "id" | "created_at" | "email" | "parent_name" | "parent_contact" | "class">[]) => {
-      const { data, error } = await supabase
-        .from("students")
-        .insert(students)
-        .select();
-      if (error) throw error;
-      return data;
+      setImporting(true);
+      try {
+        const grNumbers = students.map(student => student.gr_number);
+        const existingGRNumbers = await checkDuplicateGRNumbers(grNumbers);
+        
+        if (existingGRNumbers.length > 0) {
+          throw new Error(`The following GR numbers already exist: ${existingGRNumbers.join(", ")}`);
+        }
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User not authenticated");
+        
+        const studentsWithUserId = students.map(student => ({
+          ...student,
+          user_id: user.id
+        }));
+        
+        const { data, error } = await supabase
+          .from("students")
+          .insert(studentsWithUserId)
+          .select();
+          
+        if (error) throw error;
+        return data;
+      } finally {
+        setImporting(false);
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
@@ -72,12 +108,10 @@ export default function CsvImport({ onClose }: CsvImportProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Function to automatically map CSV headers to student fields
   const autoMapFields = (headers: string[]): CsvMappingField[] => {
     return headers.map(header => {
       const lowerHeader = header.toLowerCase();
       
-      // Map common CSV header patterns to student fields
       if (lowerHeader.includes('name')) {
         return { csvHeader: header, studentField: "name" };
       } else if (lowerHeader.includes('gr') || lowerHeader === 'gr_number') {
@@ -91,7 +125,6 @@ export default function CsvImport({ onClose }: CsvImportProps) {
       } else if (lowerHeader.includes('percentage') || lowerHeader === 'overall_percentage') {
         return { csvHeader: header, studentField: "overall_percentage" };
       } else {
-        // Skip fields that don't match any pattern
         return { csvHeader: header, studentField: "" };
       }
     });
@@ -112,7 +145,6 @@ export default function CsvImport({ onClose }: CsvImportProps) {
           setCsvData(results.data);
           setCsvPreview(results.data.slice(0, 5));
           
-          // Auto-map fields based on header names
           const mappedFields = autoMapFields(headers);
           setFieldMapping(mappedFields);
         },
@@ -149,7 +181,6 @@ export default function CsvImport({ onClose }: CsvImportProps) {
       return;
     }
 
-    // Transform CSV data to student objects based on mapping
     const studentsToAdd = csvData.map(row => {
       const studentObj: Record<string, any> = {};
       
@@ -157,7 +188,6 @@ export default function CsvImport({ onClose }: CsvImportProps) {
         if (mapping.studentField) {
           const value = row[mapping.csvHeader];
           
-          // Handle type conversions
           if (mapping.studentField === "year" && value) {
             studentObj[mapping.studentField] = parseInt(value);
           } else if (mapping.studentField === "overall_percentage" && value) {
@@ -299,9 +329,9 @@ export default function CsvImport({ onClose }: CsvImportProps) {
             <Button 
               type="button"
               onClick={handleImportCsv}
-              disabled={!csvFile || !csvData.length}
+              disabled={!csvFile || !csvData.length || importing}
             >
-              Import Students
+              {importing ? "Importing..." : "Import Students"}
             </Button>
           </div>
         </div>
