@@ -12,13 +12,18 @@ export const useStudentMutations = () => {
   const [isLoading, setIsLoading] = useState(false);
   const queryClient = useQueryClient();
 
-  // Helper function to check if GR number exists
+  // Helper function to check if GR number exists for the current user
   const checkGRNumberExists = async (grNumber: string, studentId?: string): Promise<boolean> => {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
     // If editing a student, exclude the current student ID from the check
     const query = supabase
       .from("students")
       .select("id")
-      .eq("gr_number", grNumber);
+      .eq("gr_number", grNumber)
+      .eq("user_id", user.id);
       
     // If we're updating an existing student, exclude that student from the check
     if (studentId) {
@@ -40,10 +45,10 @@ export const useStudentMutations = () => {
     mutationFn: async (studentData: Omit<Student, "id" | "created_at">) => {
       setIsLoading(true);
       try {
-        // Check if GR number already exists
+        // Check if GR number already exists for this user
         const grNumberExists = await checkGRNumberExists(studentData.gr_number);
         if (grNumberExists) {
-          throw new Error("A student with this GR number already exists. Please use a different GR number.");
+          throw new Error("A student with this GR number already exists in your account. Please use a different GR number.");
         }
         
         // Get current user
@@ -91,7 +96,7 @@ export const useStudentMutations = () => {
         if (studentData.gr_number) {
           const grNumberExists = await checkGRNumberExists(studentData.gr_number, studentData.id);
           if (grNumberExists) {
-            throw new Error("A student with this GR number already exists. Please use a different GR number.");
+            throw new Error("A student with this GR number already exists in your account. Please use a different GR number.");
           }
         }
         
@@ -102,6 +107,11 @@ export const useStudentMutations = () => {
           .select();
 
         if (error) throw error;
+        
+        if (!data || data.length === 0) {
+          throw new Error("Failed to update student: No data returned");
+        }
+        
         return data[0] as Student;
       } finally {
         setIsLoading(false);

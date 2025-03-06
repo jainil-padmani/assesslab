@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,10 +46,15 @@ export default function CsvImport({ onClose }: CsvImportProps) {
   const checkDuplicateGRNumbers = async (grNumbers: string[]): Promise<string[]> => {
     if (!grNumbers.length) return [];
     
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+    
     const { data, error } = await supabase
       .from("students")
       .select("gr_number")
-      .in("gr_number", grNumbers);
+      .in("gr_number", grNumbers)
+      .eq("user_id", user.id);
       
     if (error) {
       console.error("Error checking duplicate GR numbers:", error);
@@ -66,7 +72,7 @@ export default function CsvImport({ onClose }: CsvImportProps) {
         const existingGRNumbers = await checkDuplicateGRNumbers(grNumbers);
         
         if (existingGRNumbers.length > 0) {
-          throw new Error(`The following GR numbers already exist: ${existingGRNumbers.join(", ")}`);
+          throw new Error(`The following GR numbers already exist in your account: ${existingGRNumbers.join(", ")}`);
         }
         
         const { data: { user } } = await supabase.auth.getUser();
