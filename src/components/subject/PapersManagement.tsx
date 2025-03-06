@@ -41,8 +41,8 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
   const [handwrittenPaper, setHandwrittenPaper] = useState<File | null>(null);
 
   const handleUploadPaper = async () => {
-    if (!subject.id || !topic.trim() || !questionPaper || !answerKey) {
-      toast.error("Please fill in all required fields");
+    if (!subject.id || !topic.trim() || !questionPaper) {
+      toast.error("Please provide a topic and upload a question paper");
       return;
     }
 
@@ -67,9 +67,15 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
       
       const sanitizedTopic = topic.replace(/\s+/g, '_');
       
+      // Upload question paper (required)
       await uploadSubjectFile(subject.id, sanitizedTopic, questionPaper, 'questionPaper');
-      await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
       
+      // Upload answer key (optional)
+      if (answerKey) {
+        await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
+      }
+      
+      // Upload handwritten paper (optional)
       if (handwrittenPaper) {
         await uploadSubjectFile(subject.id, sanitizedTopic, handwrittenPaper, 'handwrittenPaper');
       }
@@ -112,11 +118,17 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
       }
       
       // Extract prefix and topic from file.id
-      const [prefix, topic] = file.id.split('_');
-      const success = await deleteFileGroup(prefix, topic);
-      
-      if (success) {
-        fetchSubjectFiles();
+      const parts = file.id.split('_');
+      if (parts.length >= 2) {
+        const prefix = parts[0];
+        const topic = parts[1];
+        const success = await deleteFileGroup(prefix, topic);
+        
+        if (success) {
+          fetchSubjectFiles();
+        }
+      } else {
+        toast.error("Invalid file identifier");
       }
     } catch (error) {
       console.error("Error deleting files:", error);
@@ -142,7 +154,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
             <DialogHeader>
               <DialogTitle>Upload Subject Papers</DialogTitle>
               <DialogDescription>
-                Add a question paper and its answer key for this subject.
+                Add a question paper with optional answer key for this subject.
               </DialogDescription>
             </DialogHeader>
             
@@ -162,7 +174,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="question-paper" className="text-right">
-                  Question Paper
+                  Question Paper <span className="text-xs text-red-500">*</span>
                 </Label>
                 <div className="col-span-3">
                   <Input
@@ -182,6 +194,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="answer-key" className="text-right">
                   Answer Key
+                  <span className="text-xs text-muted-foreground"> (Optional)</span>
                 </Label>
                 <div className="col-span-3">
                   <Input
@@ -223,7 +236,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
               <Button
                 type="submit"
                 onClick={handleUploadPaper}
-                disabled={isUploadingPaper || !topic.trim() || !questionPaper || !answerKey}
+                disabled={isUploadingPaper || !topic.trim() || !questionPaper}
               >
                 {isUploadingPaper ? 'Uploading...' : 'Upload Papers'}
               </Button>
@@ -251,7 +264,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
                       {file.topic}
                     </CardTitle>
                     <Button 
-                      variant="ghost" 
+                      variant="destructive" 
                       size="sm" 
                       onClick={() => handleDeleteFile(file)}
                     >
@@ -274,18 +287,20 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
                       </div>
                     </a>
                     
-                    <a 
-                      href={file.answer_key_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
-                    >
-                      <FileCheck className="h-5 w-5 mr-2 text-primary" />
-                      <div>
-                        <div className="text-sm font-medium">Answer Key</div>
-                        <div className="text-xs text-muted-foreground">View document</div>
-                      </div>
-                    </a>
+                    {file.answer_key_url && (
+                      <a 
+                        href={file.answer_key_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        <FileCheck className="h-5 w-5 mr-2 text-primary" />
+                        <div>
+                          <div className="text-sm font-medium">Answer Key</div>
+                          <div className="text-xs text-muted-foreground">View document</div>
+                        </div>
+                      </a>
+                    )}
                     
                     {file.handwritten_paper_url && (
                       <a 

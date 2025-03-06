@@ -16,6 +16,8 @@ import {
 // Fetch subject files including test files related to the subject
 export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[]> => {
   try {
+    console.log('Fetching subject files for subject ID:', subjectId);
+    
     // Get files from storage
     const storageData = await listStorageFiles();
     
@@ -52,11 +54,12 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
       filesMap = await mapTestFilesToSubject(storageData, subjectId, subjectTests, filesMap);
     }
     
-    // Filter out incomplete entries
+    // Filter to include files with at least a question paper
     const files = Array.from(filesMap.values()).filter(
-      file => file.question_paper_url && file.answer_key_url
+      file => file.question_paper_url
     );
     
+    console.log('Found subject files:', files.length);
     return files;
   } catch (error: any) {
     console.error('Error fetching subject files:', error);
@@ -68,6 +71,8 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
 // Function to delete files by group
 export const deleteFileGroup = async (filePrefix: string, topic: string): Promise<boolean> => {
   try {
+    console.log(`Attempting to delete file group with prefix: ${filePrefix}, topic: ${topic}`);
+    
     // Get all files from storage
     const storageFiles = await listStorageFiles();
     
@@ -105,17 +110,24 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
       }
     }
     
-    // Filter files by the group prefix
-    // Handle spaces in topic by using both original and URL-encoded versions
+    // Prepare various formats of the topic for matching
     const sanitizedTopic = topic.replace(/\s+/g, '_');
-    const groupPrefix = `${filePrefix}_${sanitizedTopic}_`;
-    const spacedGroupPrefix = `${filePrefix}_${topic}_`;
+    const originalTopic = topic;
     
+    // Create multiple possible prefixes for more flexible matching
+    const possiblePrefixes = [
+      `${filePrefix}_${sanitizedTopic}_`,
+      `${filePrefix}_${originalTopic}_`
+    ];
+    
+    console.log("Looking for files with these prefixes:", possiblePrefixes);
+    
+    // Find files matching any of the possible prefixes
     const filesToDelete = storageFiles?.filter(file => 
-      file.name.startsWith(groupPrefix) || file.name.startsWith(spacedGroupPrefix)
+      possiblePrefixes.some(prefix => file.name.startsWith(prefix))
     ) || [];
     
-    console.log("Found files to delete:", filesToDelete);
+    console.log("Found files to delete:", filesToDelete.length, filesToDelete.map(f => f.name));
         
     // Delete each file
     for (const file of filesToDelete) {
@@ -135,13 +147,17 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
           .single();
           
         if (testData?.subject_id) {
-          // Also delete subject copies
-          const subjectPrefix = `${testData.subject_id}_${sanitizedTopic}_`;
-          const subjectSpacedPrefix = `${testData.subject_id}_${topic}_`;
+          // Also check for subject copies with various naming patterns
+          const subjectPrefixes = [
+            `${testData.subject_id}_${sanitizedTopic}_`,
+            `${testData.subject_id}_${originalTopic}_`
+          ];
           
           const subjectFilesToDelete = storageFiles?.filter(file => 
-            file.name.startsWith(subjectPrefix) || file.name.startsWith(subjectSpacedPrefix)
+            subjectPrefixes.some(prefix => file.name.startsWith(prefix))
           ) || [];
+          
+          console.log("Found subject files to delete:", subjectFilesToDelete.length);
           
           for (const file of subjectFilesToDelete) {
             await deleteStorageFile(file.name);
@@ -150,6 +166,7 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
       }
     }
 
+    toast.success("Files deleted successfully");
     return true;
   } catch (error) {
     console.error("Error deleting files:", error);

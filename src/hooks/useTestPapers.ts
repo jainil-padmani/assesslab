@@ -37,7 +37,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     queryFn: () => fetchSubjectFiles(test.subject_id)
   });
 
-  const assignExistingPaper = async (fileId: string, questionPaperOnly: boolean) => {
+  const assignExistingPaper = async (fileId: string) => {
     if (!fileId) {
       toast.error("Please select a file to assign");
       return;
@@ -52,12 +52,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         throw new Error("Selected file not found");
       }
       
-      // Always pass false for questionPaperOnly now
-      const success = await assignSubjectFilesToTest(
-        test.id, 
-        fileToAssign, 
-        false // Always assign full paper set
-      );
+      const success = await assignSubjectFilesToTest(test.id, fileToAssign);
       
       if (success) {
         toast.success("Files assigned successfully!");

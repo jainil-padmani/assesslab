@@ -19,6 +19,7 @@ export const listStorageFiles = async (bucket = 'files') => {
       .list();
       
     if (error) throw error;
+    console.log(`Listed ${data?.length || 0} files from storage`);
     return data || [];
   } catch (error: any) {
     console.error('Error listing files:', error);
@@ -30,12 +31,14 @@ export const listStorageFiles = async (bucket = 'files') => {
 // Upload a file to storage
 export const uploadStorageFile = async (fileName: string, file: File, bucket = 'files') => {
   try {
+    console.log(`Uploading file: ${fileName}, size: ${file.size} bytes`);
     const { data, error } = await supabase
       .storage
       .from(bucket)
       .upload(fileName, file);
       
     if (error) throw error;
+    console.log(`Successfully uploaded: ${fileName}`);
     return data;
   } catch (error: any) {
     console.error('Error uploading file:', error);
@@ -47,12 +50,14 @@ export const uploadStorageFile = async (fileName: string, file: File, bucket = '
 // Copy a file within storage
 export const copyStorageFile = async (sourceFileName: string, destinationFileName: string, bucket = 'files') => {
   try {
+    console.log(`Copying file: ${sourceFileName} to ${destinationFileName}`);
     const { data, error } = await supabase
       .storage
       .from(bucket)
       .copy(sourceFileName, destinationFileName);
       
     if (error) throw error;
+    console.log(`Successfully copied file to: ${destinationFileName}`);
     return data;
   } catch (error: any) {
     console.error('Error copying file:', error);
@@ -70,7 +75,12 @@ export const deleteStorageFile = async (fileName: string, bucket = 'files') => {
       .from(bucket)
       .remove([fileName]);
       
-    if (error) throw error;
+    if (error) {
+      console.error(`Error deleting ${fileName}:`, error);
+      throw error;
+    }
+    
+    console.log(`Successfully deleted: ${fileName}`);
     return true;
   } catch (error: any) {
     console.error('Error deleting file:', error);

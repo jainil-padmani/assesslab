@@ -27,7 +27,7 @@ interface TestPaperAssignDialogProps {
   onOpenChange: (open: boolean) => void;
   subjectFiles: SubjectFile[] | undefined;
   isUploading: boolean;
-  onAssignPaper: (fileId: string, questionPaperOnly: boolean) => Promise<void>;
+  onAssignPaper: (fileId: string) => Promise<void>;
 }
 
 export function TestPaperAssignDialog({
@@ -42,8 +42,7 @@ export function TestPaperAssignDialog({
 
   const handleAssignPaper = async () => {
     if (selectedExistingFile) {
-      // Always pass false for questionPaperOnly now that we're removing this option
-      await onAssignPaper(selectedExistingFile, false);
+      await onAssignPaper(selectedExistingFile);
       setSelectedExistingFile(null);
     }
   };
@@ -66,7 +65,7 @@ export function TestPaperAssignDialog({
         
         <div className="space-y-4 py-4">
           <div className="text-sm text-muted-foreground mb-4">
-            Assign both question paper and answer key to this test.
+            Choose a subject paper to assign to this test. The question paper is required, but answer keys are now optional.
           </div>
 
           <div className="space-y-2">

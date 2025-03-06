@@ -1,15 +1,15 @@
 
-import React from "react";
+import React from 'react';
 import {
   Card,
   CardHeader,
-  CardContent,
   CardTitle,
+  CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FilePlus, FileCheck, Trash2 } from "lucide-react";
+import { FilePlus, FileCheck, FileUp, Trash2 } from "lucide-react";
 
-interface TestFileProps {
+interface TestFile {
   id: string;
   test_id: string;
   topic: string;
@@ -20,23 +20,22 @@ interface TestFileProps {
 }
 
 interface TestPaperCardProps {
-  file: TestFileProps;
-  onDelete: (file: TestFileProps) => void;
+  file: TestFile;
+  onDelete: (file: TestFile) => void;
 }
 
 export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
   return (
-    <Card key={file.id} className="overflow-hidden">
+    <Card className="overflow-hidden">
       <CardHeader className="bg-muted/50 py-3">
         <div className="flex justify-between items-center">
           <CardTitle className="text-base truncate" title={file.topic}>
             {file.topic}
           </CardTitle>
           <Button 
-            variant="ghost" 
+            variant="destructive" 
             size="sm" 
             onClick={() => onDelete(file)}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -57,18 +56,20 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
             </div>
           </a>
           
-          <a 
-            href={file.answer_key_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
-          >
-            <FileCheck className="h-5 w-5 mr-2 text-primary" />
-            <div>
-              <div className="text-sm font-medium">Answer Key</div>
-              <div className="text-xs text-muted-foreground">View document</div>
-            </div>
-          </a>
+          {file.answer_key_url && (
+            <a 
+              href={file.answer_key_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
+            >
+              <FileCheck className="h-5 w-5 mr-2 text-primary" />
+              <div>
+                <div className="text-sm font-medium">Answer Key</div>
+                <div className="text-xs text-muted-foreground">View document</div>
+              </div>
+            </a>
+          )}
           
           {file.handwritten_paper_url && (
             <a 
@@ -77,7 +78,7 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
               rel="noopener noreferrer"
               className="flex items-center p-2 border rounded-md hover:bg-muted/50 transition-colors"
             >
-              <FileCheck className="h-5 w-5 mr-2 text-primary" />
+              <FileUp className="h-5 w-5 mr-2 text-primary" />
               <div>
                 <div className="text-sm font-medium">Handwritten Paper</div>
                 <div className="text-xs text-muted-foreground">View document</div>
