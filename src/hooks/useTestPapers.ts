@@ -75,8 +75,11 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   const handleDeleteFile = async (file: TestFile) => {
     try {
       const testPrefix = `test_${file.test_id}`;
-      await deleteFileGroup(testPrefix, file.topic);
-      refetchTestFiles();
+      const success = await deleteFileGroup(testPrefix, file.topic);
+      if (success) {
+        toast.success("Files deleted successfully");
+        refetchTestFiles();
+      }
     } catch (error) {
       console.error("Error deleting files:", error);
       toast.error("Failed to delete files");

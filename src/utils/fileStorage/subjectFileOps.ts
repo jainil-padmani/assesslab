@@ -6,7 +6,7 @@ import {
   listStorageFiles, 
   getPublicUrl, 
   uploadStorageFile, 
-  copyStorageFile 
+  deleteStorageFile
 } from "./storageHelpers";
 import { 
   mapSubjectFiles,
@@ -106,17 +106,20 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
     }
     
     // Filter files by the group prefix
-    const groupPrefix = `${filePrefix}_${topic}_`;
+    // Handle spaces in topic by using both original and URL-encoded versions
+    const sanitizedTopic = topic.replace(/\s+/g, '_');
+    const groupPrefix = `${filePrefix}_${sanitizedTopic}_`;
+    const spacedGroupPrefix = `${filePrefix}_${topic}_`;
+    
     const filesToDelete = storageFiles?.filter(file => 
-      file.name.startsWith(groupPrefix)
+      file.name.startsWith(groupPrefix) || file.name.startsWith(spacedGroupPrefix)
     ) || [];
+    
+    console.log("Found files to delete:", filesToDelete);
         
     // Delete each file
     for (const file of filesToDelete) {
-      await supabase
-        .storage
-        .from('files')
-        .remove([file.name]);
+      await deleteStorageFile(file.name);
     }
 
     // If this is a test file, also check for subject copies
@@ -133,19 +136,20 @@ export const deleteFileGroup = async (filePrefix: string, topic: string): Promis
           
         if (testData?.subject_id) {
           // Also delete subject copies
-          const subjectPrefix = `${testData.subject_id}_${topic}_`;
+          const subjectPrefix = `${testData.subject_id}_${sanitizedTopic}_`;
+          const subjectSpacedPrefix = `${testData.subject_id}_${topic}_`;
+          
           const subjectFilesToDelete = storageFiles?.filter(file => 
-            file.name.startsWith(subjectPrefix)
+            file.name.startsWith(subjectPrefix) || file.name.startsWith(subjectSpacedPrefix)
           ) || [];
           
           for (const file of subjectFilesToDelete) {
-            await supabase.storage.from('files').remove([file.name]);
+            await deleteStorageFile(file.name);
           }
         }
       }
     }
 
-    toast.success("Files deleted successfully");
     return true;
   } catch (error) {
     console.error("Error deleting files:", error);

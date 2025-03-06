@@ -102,7 +102,7 @@ export function TestPaperAssignDialog({
           </Tabs>
 
           <div className="space-y-2">
-            <Label htmlFor="existing-file">Select Existing Subject Paper</Label>
+            <Label htmlFor="existing-file">Select Subject Paper</Label>
             <Select 
               value={selectedExistingFile || ""} 
               onValueChange={setSelectedExistingFile}

@@ -64,6 +64,7 @@ export const copyStorageFile = async (sourceFileName: string, destinationFileNam
 // Delete a file from storage
 export const deleteStorageFile = async (fileName: string, bucket = 'files') => {
   try {
+    console.log(`Attempting to delete: ${fileName}`);
     const { error } = await supabase
       .storage
       .from(bucket)
