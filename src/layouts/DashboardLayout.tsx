@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -71,9 +72,9 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="border-b bg-background">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Fixed Header */}
+      <header className="border-b bg-background sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link to="/dashboard" className="flex items-center">
@@ -93,22 +94,29 @@ export default function DashboardLayout() {
         </div>
       </header>
 
-      <div className="flex flex-1">
-        {/* Sidebar */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Fixed Sidebar */}
         <aside 
-          className={`fixed md:relative z-30 w-64 border-r bg-background h-[calc(100vh-64px)] transition-all duration-300 ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-16'
-          }`}
+          className={cn(
+            "fixed h-[calc(100vh-64px)] z-30 border-r bg-background transition-all duration-300",
+            isSidebarOpen ? "w-64" : "w-0 md:w-16"
+          )}
         >
-          <DashboardNav onSignOut={handleSignOut} />
+          <ScrollArea className="h-full">
+            <DashboardNav onSignOut={handleSignOut} />
+          </ScrollArea>
         </aside>
 
-        {/* Main content */}
-        <main className={cn(
-          "flex-1 p-8 transition-all duration-300",
-          isSidebarOpen ? "md:ml-0" : "md:ml-16"
-        )}>
-          <Outlet />
+        {/* Main content - scrollable */}
+        <main 
+          className={cn(
+            "flex-1 overflow-y-auto transition-all duration-300 h-[calc(100vh-64px)]",
+            isSidebarOpen ? "ml-64" : "ml-0 md:ml-16"
+          )}
+        >
+          <div className="p-8">
+            <Outlet />
+          </div>
         </main>
 
         {/* Sidebar toggle button */}
