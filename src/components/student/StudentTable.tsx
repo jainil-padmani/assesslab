@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useEffect, useState } from "react";
 
 interface StudentWithClass extends Student {
   classes: { name: string } | null;
@@ -27,6 +28,16 @@ interface StudentTableProps {
 export default function StudentTable({ students, onEdit }: StudentTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Delete student mutation
   const deleteStudentMutation = useMutation({
@@ -50,59 +61,59 @@ export default function StudentTable({ students, onEdit }: StudentTableProps) {
   };
 
   return (
-    <div className="border rounded-lg">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>GR Number</TableHead>
-            <TableHead>Roll Number</TableHead>
-            <TableHead>Year</TableHead>
-            <TableHead>Class</TableHead>
-            <TableHead>Department</TableHead>
-            <TableHead>Overall %</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {students.map((student) => (
-            <TableRow key={student.id}>
-              <TableCell
-                className="font-medium cursor-pointer hover:text-primary"
-                onClick={() => navigate(`/dashboard/students/${student.id}`)}
-              >
-                {student.name}
-              </TableCell>
-              <TableCell>{student.gr_number}</TableCell>
-              <TableCell>{student.roll_number}</TableCell>
-              <TableCell>{student.year}</TableCell>
-              <TableCell>
-                {student.classes?.name || student.class || "-"}
-              </TableCell>
-              <TableCell>{student.department}</TableCell>
-              <TableCell>{student.overall_percentage}%</TableCell>
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEdit(student)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(student.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
+    <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-semibold text-sm md:text-base">Name</TableHead>
+              <TableHead className={`${isMobile ? 'px-2' : ''} text-sm md:text-base`}>GR#</TableHead>
+              <TableHead className={`${isMobile ? 'px-2' : ''} text-sm md:text-base`}>Roll#</TableHead>
+              {!isMobile && <TableHead>Year</TableHead>}
+              {!isMobile && <TableHead>Class</TableHead>}
+              {!isMobile && <TableHead>Department</TableHead>}
+              {!isMobile && <TableHead>Overall %</TableHead>}
+              <TableHead className="text-right md:text-left text-sm md:text-base">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {students.map((student) => (
+              <TableRow key={student.id}>
+                <TableCell
+                  className="font-medium cursor-pointer hover:text-primary text-sm md:text-base whitespace-nowrap"
+                  onClick={() => navigate(`/dashboard/students/${student.id}`)}
+                >
+                  {student.name}
+                </TableCell>
+                <TableCell className={`${isMobile ? 'px-2' : ''} text-sm md:text-base whitespace-nowrap`}>{student.gr_number}</TableCell>
+                <TableCell className={`${isMobile ? 'px-2' : ''} text-sm md:text-base whitespace-nowrap`}>{student.roll_number}</TableCell>
+                {!isMobile && <TableCell>{student.year}</TableCell>}
+                {!isMobile && <TableCell>{student.classes?.name || student.class || "-"}</TableCell>}
+                {!isMobile && <TableCell>{student.department}</TableCell>}
+                {!isMobile && <TableCell>{student.overall_percentage}%</TableCell>}
+                <TableCell className="text-right md:text-left">
+                  <div className="flex space-x-1 md:space-x-2 justify-end md:justify-start">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEdit(student)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(student.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

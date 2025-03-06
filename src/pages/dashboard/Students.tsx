@@ -18,11 +18,11 @@ export default function Students() {
   };
 
   if (isStudentsLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex justify-center items-center p-8 text-lg">Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto px-4">
+    <div className="container mx-auto px-2 md:px-4">
       <StudentHeader 
         onEdit={setEditingStudent}
         classes={classes}
@@ -30,10 +30,12 @@ export default function Students() {
         editingStudent={editingStudent}
       />
 
-      <StudentTable 
-        students={students}
-        onEdit={handleEditStudent}
-      />
+      <div className="overflow-x-auto -mx-2 md:mx-0">
+        <StudentTable 
+          students={students}
+          onEdit={handleEditStudent}
+        />
+      </div>
     </div>
   );
 }
