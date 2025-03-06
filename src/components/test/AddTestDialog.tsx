@@ -32,7 +32,7 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
   const { data: profile } = useUserProfile();
 
   // Fetch subjects and classes
-  const { subjects, classes } = useTestFormData(profile);
+  const { subjects, classes } = useTestFormData();
 
   // Add test mutation
   const addTestMutation = useMutation({
@@ -49,8 +49,7 @@ export function AddTestDialog({ open, onOpenChange, defaultSubjectId }: AddTestD
           class_id: classId,
           max_marks: maxMarks,
           test_date: date ? date.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          user_id: user.id,
-          team_id: profile?.team_id
+          user_id: user.id
         })
         .select();
         
