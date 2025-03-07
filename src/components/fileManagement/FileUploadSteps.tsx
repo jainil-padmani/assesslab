@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { FileUp, FilePlus, FileCheck, FileX } from "lucide-react";
+import { FileUp, FilePlus, FileCheck, FileX, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
@@ -20,6 +20,7 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Subject } from "@/types/dashboard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export type UploadStep = {
   id: number;
@@ -70,19 +71,22 @@ const FileUploadSteps: React.FC<FileUploadStepsProps> = ({
   if (!currentStep) return null;
 
   const canProceed = (step: UploadStep) => {
-    if (!step.isRequired) return true;
-    
-    switch (step.id) {
-      case 1:
-        return !!fileUploadState.subjectId && !!fileUploadState.topic.trim();
-      case 2:
-        return !!fileUploadState.questionPaper;
-      case 3:
-        return !!fileUploadState.answerKey;
-      case 4:
-        return true;
-      default:
-        return false;
+    if (step.id === 3) {
+      // Answer key is now required, regardless of the isRequired flag
+      return !!fileUploadState.answerKey;
+    } else if (!step.isRequired) {
+      return true;
+    } else {
+      switch (step.id) {
+        case 1:
+          return !!fileUploadState.subjectId && !!fileUploadState.topic.trim();
+        case 2:
+          return !!fileUploadState.questionPaper;
+        case 4:
+          return true;
+        default:
+          return false;
+      }
     }
   };
 
@@ -129,6 +133,15 @@ const FileUploadSteps: React.FC<FileUploadStepsProps> = ({
             <CardTitle>{currentStep.title}</CardTitle>
           </div>
           <CardDescription>{currentStep.description}</CardDescription>
+          
+          {fileUploadState.currentStep === 3 && (
+            <Alert className="mt-4 flex items-center space-x-2 rounded-md bg-amber-50 border-amber-300 text-amber-900 dark:bg-amber-950 dark:border-amber-700 dark:text-amber-100">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <AlertDescription className="text-sm">
+                Answer key is now required for all paper uploads.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -238,7 +251,7 @@ const FileUploadSteps: React.FC<FileUploadStepsProps> = ({
             Previous
           </Button>
           <div className="flex space-x-2">
-            {!currentStep.isRequired && (
+            {fileUploadState.currentStep !== 3 && !currentStep.isRequired && (
               <Button
                 variant="ghost"
                 onClick={onSkipStep}

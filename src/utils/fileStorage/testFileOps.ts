@@ -33,9 +33,9 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
     // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
     
-    // Filter to include files with at least a question paper
+    // Filter to include files with at least a question paper and answer key
     const files = Array.from(filesMap.values()).filter(
-      file => file.question_paper_url
+      file => file.question_paper_url && file.answer_key_url
     );
     
     console.log("Fetched test files:", files.length);
@@ -87,14 +87,17 @@ export const assignSubjectFilesToTest = async (
     // Get direct file URLs from the SubjectFile object
     const questionPaperUrl = subjectFile.question_paper_url;
     const answerKeyUrl = subjectFile.answer_key_url;
-    const handwrittenPaperUrl = subjectFile.handwritten_paper_url;
     
-    // Extract filenames from URLs
+    // Validate both question paper and answer key are present
     if (!questionPaperUrl) {
       throw new Error("Question paper URL is missing");
     }
     
-    // Extract filename from URL
+    if (!answerKeyUrl) {
+      throw new Error("Answer key URL is missing - this is now required");
+    }
+    
+    // Extract filenames from URLs
     const extractFilenameFromUrl = (url: string): string => {
       try {
         const urlObj = new URL(url);
@@ -110,7 +113,9 @@ export const assignSubjectFilesToTest = async (
     };
     
     const questionPaperFileName = extractFilenameFromUrl(questionPaperUrl);
+    const answerKeyFileName = extractFilenameFromUrl(answerKeyUrl);
     console.log("Extracted question paper filename:", questionPaperFileName);
+    console.log("Extracted answer key filename:", answerKeyFileName);
     
     // Create new filenames for test copies
     const timestamp = Date.now();
@@ -123,40 +128,48 @@ export const assignSubjectFilesToTest = async (
     };
     
     const questionPaperExt = getFileExtension(questionPaperFileName);
+    const answerKeyExt = getFileExtension(answerKeyFileName);
     
     // Create new filenames
     const sanitizedTopic = topic.replace(/\s+/g, '_');
     const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
     
     // Copy question paper (required)
     await copyStorageFile(questionPaperFileName, newQuestionPaperName);
     
-    // Copy answer key if it exists
-    if (answerKeyUrl) {
-      const answerKeyFileName = extractFilenameFromUrl(answerKeyUrl);
-      const answerKeyExt = getFileExtension(answerKeyFileName);
-      const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
-      await copyStorageFile(answerKeyFileName, newAnswerKeyName);
-    }
+    // Copy answer key (now required)
+    await copyStorageFile(answerKeyFileName, newAnswerKeyName);
     
     // Copy handwritten paper if it exists
-    if (handwrittenPaperUrl) {
-      const handwrittenFileName = extractFilenameFromUrl(handwrittenPaperUrl);
+    if (subjectFile.handwritten_paper_url) {
+      const handwrittenFileName = extractFilenameFromUrl(subjectFile.handwritten_paper_url);
       const handwrittenExt = getFileExtension(handwrittenFileName);
       const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
       await copyStorageFile(handwrittenFileName, newHandwrittenName);
     }
 
     // Insert records into subject_documents for test files
-    await supabase.from('subject_documents').insert({
-      subject_id: test.subject_id,
-      user_id: user.id,
-      file_name: newQuestionPaperName,
-      document_type: 'questionPaper',
-      document_url: getPublicUrl(newQuestionPaperName).data.publicUrl,
-      file_type: questionPaperExt,
-      file_size: 0 // We don't have the actual file size here
-    });
+    await supabase.from('subject_documents').insert([
+      {
+        subject_id: test.subject_id,
+        user_id: user.id,
+        file_name: newQuestionPaperName,
+        document_type: 'questionPaper',
+        document_url: getPublicUrl(newQuestionPaperName).data.publicUrl,
+        file_type: questionPaperExt,
+        file_size: 0 // We don't have the actual file size here
+      },
+      {
+        subject_id: test.subject_id,
+        user_id: user.id,
+        file_name: newAnswerKeyName,
+        document_type: 'answerKey',
+        document_url: getPublicUrl(newAnswerKeyName).data.publicUrl,
+        file_type: answerKeyExt,
+        file_size: 0 // We don't have the actual file size here
+      }
+    ]);
 
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();

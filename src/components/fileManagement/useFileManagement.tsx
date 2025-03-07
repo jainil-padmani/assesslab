@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,9 +31,9 @@ export const useFileManagement = () => {
     {
       id: 3,
       title: "Add Answer Key",
-      description: "Upload the answer key file. This is optional.",
+      description: "Upload the answer key file. This is now required for all papers.",
       fileTypes: [".pdf", ".docx", ".png", ".jpeg", ".jpg"],
-      isRequired: false
+      isRequired: true
     },
     {
       id: 4,
@@ -278,8 +277,10 @@ export const useFileManagement = () => {
   const handleSkipStep = () => {
     if (fileUploadState.currentStep === 4) {
       handleSubmitFiles();
-    } else {
+    } else if (fileUploadState.currentStep !== 3) {
       handleNextStep();
+    } else {
+      toast.error("Answer key is now required. Please upload an answer key before proceeding.");
     }
   };
 
@@ -338,14 +339,16 @@ export const useFileManagement = () => {
       return;
     }
 
+    if (!fileUploadState.answerKey) {
+      toast.error("Answer key is now required");
+      return;
+    }
+
     setIsUploading(true);
 
     try {
       await uploadFile(fileUploadState.questionPaper, 'questionPaper');
-      
-      if (fileUploadState.answerKey) {
-        await uploadFile(fileUploadState.answerKey, 'answerKey');
-      }
+      await uploadFile(fileUploadState.answerKey, 'answerKey');
       
       if (fileUploadState.handwrittenPaper) {
         await uploadFile(fileUploadState.handwrittenPaper, 'handwrittenPaper');

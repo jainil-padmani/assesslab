@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Card,
@@ -20,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { FilePlus, FileCheck, FileUp, Trash2 } from "lucide-react";
+import { FilePlus, FileCheck, FileUp, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Subject, SubjectFile } from "@/types/dashboard";
@@ -43,6 +42,11 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
   const handleUploadPaper = async () => {
     if (!subject.id || !topic.trim() || !questionPaper) {
       toast.error("Please provide a topic and upload a question paper");
+      return;
+    }
+
+    if (!answerKey) {
+      toast.error("Answer key is now required. Please upload an answer key file");
       return;
     }
 
@@ -70,10 +74,8 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
       // Upload question paper (required)
       await uploadSubjectFile(subject.id, sanitizedTopic, questionPaper, 'questionPaper');
       
-      // Upload answer key (optional)
-      if (answerKey) {
-        await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
-      }
+      // Upload answer key (required)
+      await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
       
       // Upload handwritten paper (optional)
       if (handwrittenPaper) {
@@ -154,11 +156,18 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
             <DialogHeader>
               <DialogTitle>Upload Subject Papers</DialogTitle>
               <DialogDescription>
-                Add a question paper with optional answer key for this subject.
+                Add a question paper with a required answer key for this subject.
               </DialogDescription>
             </DialogHeader>
             
             <div className="grid gap-4 py-4">
+              <div className="flex items-center space-x-2 rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <div className="text-sm">
+                  Answer keys are now required when uploading papers.
+                </div>
+              </div>
+            
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="topic" className="text-right">
                   Topic
@@ -193,8 +202,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
               
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="answer-key" className="text-right">
-                  Answer Key
-                  <span className="text-xs text-muted-foreground"> (Optional)</span>
+                  Answer Key <span className="text-xs text-red-500">*</span>
                 </Label>
                 <div className="col-span-3">
                   <Input
@@ -236,7 +244,7 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
               <Button
                 type="submit"
                 onClick={handleUploadPaper}
-                disabled={isUploadingPaper || !topic.trim() || !questionPaper}
+                disabled={isUploadingPaper || !topic.trim() || !questionPaper || !answerKey}
               >
                 {isUploadingPaper ? 'Uploading...' : 'Upload Papers'}
               </Button>

@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { FilePlus } from "lucide-react";
+import { FilePlus, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import type { SubjectFile } from "@/types/dashboard";
 
 interface TestPaperAssignDialogProps {
@@ -39,9 +40,30 @@ export function TestPaperAssignDialog({
   onAssignPaper
 }: TestPaperAssignDialogProps) {
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
+  const [validSubjectFiles, setValidSubjectFiles] = useState<SubjectFile[]>([]);
+
+  // Filter out files that don't have answer keys
+  useEffect(() => {
+    if (subjectFiles) {
+      const validFiles = subjectFiles.filter(file => file.question_paper_url && file.answer_key_url);
+      setValidSubjectFiles(validFiles);
+      
+      // Reset selection if the selected file is no longer valid
+      if (selectedExistingFile && !validFiles.some(file => file.id === selectedExistingFile)) {
+        setSelectedExistingFile(null);
+      }
+    }
+  }, [subjectFiles, selectedExistingFile]);
 
   const handleAssignPaper = async () => {
     if (selectedExistingFile) {
+      const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
+      
+      if (!selectedFile?.answer_key_url) {
+        toast.error("Selected file does not have an answer key, which is required");
+        return;
+      }
+      
       await onAssignPaper(selectedExistingFile);
       setSelectedExistingFile(null);
     }
@@ -64,8 +86,11 @@ export function TestPaperAssignDialog({
         </DialogHeader>
         
         <div className="space-y-4 py-4">
-          <div className="text-sm text-muted-foreground mb-4">
-            Choose a subject paper to assign to this test. The question paper is required, but answer keys are now optional.
+          <div className="flex items-center space-x-2 rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="text-sm">
+              Note: Only papers with both question papers and answer keys are shown. Answer keys are now required.
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -78,15 +103,15 @@ export function TestPaperAssignDialog({
                 <SelectValue placeholder="Select a paper" />
               </SelectTrigger>
               <SelectContent>
-                {subjectFiles && subjectFiles.length > 0 ? (
-                  subjectFiles.map(file => (
+                {validSubjectFiles && validSubjectFiles.length > 0 ? (
+                  validSubjectFiles.map(file => (
                     <SelectItem key={file.id} value={file.id}>
                       {file.topic}
                     </SelectItem>
                   ))
                 ) : (
                   <SelectItem value="none" disabled>
-                    No subject papers available
+                    No subject papers with answer keys available
                   </SelectItem>
                 )}
               </SelectContent>
@@ -96,10 +121,10 @@ export function TestPaperAssignDialog({
           {selectedExistingFile && (
             <div className="border rounded-md p-3 bg-muted/30">
               <p className="text-sm font-medium mb-1">
-                Selected Paper: {subjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
+                Selected Paper: {validSubjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
               </p>
               <p className="text-xs text-muted-foreground">
-                This will create a copy of the selected paper for this test.
+                This will create a copy of the selected paper and its answer key for this test.
               </p>
             </div>
           )}
