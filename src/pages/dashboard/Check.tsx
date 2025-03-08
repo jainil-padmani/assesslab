@@ -6,8 +6,14 @@ import { useEvaluations } from "@/hooks/useEvaluations";
 import { TestSelectionCard } from "@/components/check/TestSelectionCard";
 import { StudentAnswerSheetsCard } from "@/components/check/StudentAnswerSheetsCard";
 import { EvaluationResultsCard } from "@/components/check/EvaluationResultsCard";
+import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
+import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
 
 export default function Check() {
+  // State for showing the guide
+  const [showGuide, setShowGuide] = useState(false);
+  
   // Use custom hooks for test selection and evaluations
   const { 
     selectedClass, setSelectedClass,
@@ -196,45 +202,59 @@ export default function Check() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Auto Check</h1>
-      
-      <div className="grid gap-6 md:grid-cols-1">
-        <TestSelectionCard
-          classes={classes}
-          subjects={subjects}
-          tests={tests}
-          testFiles={testFiles}
-          selectedClass={selectedClass}
-          selectedSubject={selectedSubject}
-          selectedTest={selectedTest}
-          setSelectedClass={setSelectedClass}
-          setSelectedSubject={setSelectedSubject}
-          setSelectedTest={setSelectedTest}
-        />
-
-        {selectedTest && testFiles.length > 0 && classStudents.length > 0 && (
-          <StudentAnswerSheetsCard
-            selectedTest={selectedTest}
-            selectedSubject={selectedSubject}
-            testFiles={testFiles}
-            classStudents={classStudents}
-            subjects={subjects}
-            evaluations={evaluations}
-            evaluatingStudents={evaluatingStudents}
-            evaluationProgress={evaluationProgress}
-            onEvaluateSingle={handleEvaluateSingle}
-            onEvaluateAll={handleEvaluateAll}
-          />
-        )}
-        
-        {showResults && evaluations.length > 0 && (
-          <EvaluationResultsCard
-            evaluations={evaluations}
-            classStudents={classStudents}
-            selectedTest={selectedTest}
-          />
-        )}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Auto Check</h1>
+        <Button
+          variant="outline"
+          onClick={() => setShowGuide(true)}
+          className="flex items-center gap-2"
+        >
+          <Info className="h-4 w-4" />
+          How to Use Auto Check
+        </Button>
       </div>
+      
+      {showGuide ? (
+        <AutoCheckGuide onClose={() => setShowGuide(false)} />
+      ) : (
+        <div className="grid gap-6 md:grid-cols-1">
+          <TestSelectionCard
+            classes={classes}
+            subjects={subjects}
+            tests={tests}
+            testFiles={testFiles}
+            selectedClass={selectedClass}
+            selectedSubject={selectedSubject}
+            selectedTest={selectedTest}
+            setSelectedClass={setSelectedClass}
+            setSelectedSubject={setSelectedSubject}
+            setSelectedTest={setSelectedTest}
+          />
+
+          {selectedTest && testFiles.length > 0 && classStudents.length > 0 && (
+            <StudentAnswerSheetsCard
+              selectedTest={selectedTest}
+              selectedSubject={selectedSubject}
+              testFiles={testFiles}
+              classStudents={classStudents}
+              subjects={subjects}
+              evaluations={evaluations}
+              evaluatingStudents={evaluatingStudents}
+              evaluationProgress={evaluationProgress}
+              onEvaluateSingle={handleEvaluateSingle}
+              onEvaluateAll={handleEvaluateAll}
+            />
+          )}
+          
+          {showResults && evaluations.length > 0 && (
+            <EvaluationResultsCard
+              evaluations={evaluations}
+              classStudents={classStudents}
+              selectedTest={selectedTest}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

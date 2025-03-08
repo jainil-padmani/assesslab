@@ -1,10 +1,16 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { fetchTestFiles } from "@/utils/subjectFilesUtils";
 import type { Test } from "@/types/tests";
-import type { Class, Student, Subject } from "@/types/dashboard";
+import type { Student, Subject } from "@/types/dashboard";
+
+export interface Class {
+  id: string;
+  name: string;
+  department: string | null;
+  year: number | null;
+}
 
 export interface TestFile {
   id: string;
