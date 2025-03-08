@@ -3,13 +3,14 @@ import { useState } from "react";
 import { useClasses } from "./test-selection/useClasses";
 import { useSubjects } from "./test-selection/useSubjects";
 import { useTests } from "./test-selection/useTests";
-import { useTestFiles, TestFile } from "./test-selection/useTestFiles";
+import { useTestFiles } from "./test-selection/useTestFiles";
 import { useClassStudents } from "./test-selection/useClassStudents";
 import type { Class } from "@/hooks/useClassData";
 import type { Student, Subject } from "@/types/dashboard";
 import type { Test } from "@/types/tests";
 
-export { TestFile } from "./test-selection/useTestFiles";
+// Use 'export type' to re-export the type
+export type { TestFile } from "./test-selection/useTestFiles";
 
 export function useTestSelection() {
   // Step selections
