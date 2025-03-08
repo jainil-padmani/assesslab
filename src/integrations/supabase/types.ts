@@ -161,6 +161,61 @@ export type Database = {
         }
         Relationships: []
       }
+      paper_evaluations: {
+        Row: {
+          created_at: string
+          evaluation_data: Json
+          id: string
+          status: string
+          student_id: string
+          subject_id: string
+          test_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          evaluation_data?: Json
+          id?: string
+          status?: string
+          student_id: string
+          subject_id: string
+          test_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          evaluation_data?: Json
+          id?: string
+          status?: string
+          student_id?: string
+          subject_id?: string
+          test_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_evaluations_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paper_evaluations_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paper_evaluations_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           id: string
