@@ -132,6 +132,51 @@ export const useStudentMutations = () => {
     mutationFn: async (studentId: string) => {
       setIsLoading(true);
       try {
+        // First, delete related paper_evaluations
+        const { error: evaluationsError } = await supabase
+          .from("paper_evaluations")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (evaluationsError) {
+          console.error("Error deleting related evaluations:", evaluationsError);
+          throw evaluationsError;
+        }
+        
+        // Then, delete related subject_enrollments
+        const { error: enrollmentsError } = await supabase
+          .from("subject_enrollments")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (enrollmentsError) {
+          console.error("Error deleting related enrollments:", enrollmentsError);
+          throw enrollmentsError;
+        }
+        
+        // Delete related student_subjects
+        const { error: subjectsError } = await supabase
+          .from("student_subjects")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (subjectsError) {
+          console.error("Error deleting related student subjects:", subjectsError);
+          throw subjectsError;
+        }
+        
+        // Delete related test_grades
+        const { error: gradesError } = await supabase
+          .from("test_grades")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (gradesError) {
+          console.error("Error deleting related test grades:", gradesError);
+          throw gradesError;
+        }
+        
+        // Finally, delete the student
         const { error } = await supabase
           .from("students")
           .delete()
