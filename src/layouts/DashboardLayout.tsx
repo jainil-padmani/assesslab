@@ -1,6 +1,6 @@
 
 import { DashboardNav } from "@/components/DashboardNav";
-import { Outlet, Navigate, Link } from "react-router-dom";
+import { Outlet, Navigate, Link, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -8,8 +8,15 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu } from "lucide-react";
+import { Menu, User, ArrowLeft, Settings, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function DashboardLayout() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -17,6 +24,11 @@ export default function DashboardLayout() {
   const [userName, setUserName] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Check if current path is dashboard root
+  const isDashboardRoot = location.pathname === "/dashboard";
 
   useEffect(() => {
     const handleResize = () => {
@@ -82,6 +94,17 @@ export default function DashboardLayout() {
     }
   };
 
+  const handleGoToSettings = () => {
+    navigate("/dashboard/settings");
+    if (isMobile) {
+      setIsSheetOpen(false);
+    }
+  };
+
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
   const closeMenu = () => {
     setIsSheetOpen(false);
   };
@@ -100,16 +123,50 @@ export default function DashboardLayout() {
       <header className="border-b bg-background sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center">
-              <h1 className={cn("font-bold text-primary", isMobile ? "text-lg" : "text-2xl")}>
-                Assess<span className="text-accent">Lab</span>
-              </h1>
-            </Link>
+            <div className="flex items-center gap-2">
+              {!isDashboardRoot && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={handleGoBack}
+                  className="mr-1"
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              )}
+              <Link to="/dashboard" className="flex items-center">
+                <h1 className={cn("font-bold text-primary", isMobile ? "text-lg" : "text-2xl")}>
+                  Assess<span className="text-accent">Lab</span>
+                </h1>
+              </Link>
+            </div>
             <div className="flex items-center gap-4">
               {userName && (
-                <div className="text-muted-foreground text-sm hidden sm:block">
-                  Welcome, {userName}
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors rounded-full p-1 pr-2 hover:bg-accent">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="hidden sm:inline">{userName}</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground sm:hidden">
+                      {userName}
+                    </div>
+                    <DropdownMenuSeparator className="sm:hidden" />
+                    <DropdownMenuItem onClick={handleGoToSettings}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Sign out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               
               {/* Mobile menu button - only visible on small screens */}
