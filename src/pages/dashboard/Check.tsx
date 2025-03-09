@@ -8,7 +8,8 @@ import { StudentAnswerSheetsCard } from "@/components/check/StudentAnswerSheetsC
 import { EvaluationResultsCard } from "@/components/check/EvaluationResultsCard";
 import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
 import { Button } from "@/components/ui/button";
-import { Info } from "lucide-react";
+import { Info, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Check() {
   // State for showing the guide
@@ -89,6 +90,9 @@ export default function Check() {
       // Set the student as evaluating
       setEvaluatingStudents(prev => [...prev, studentId]);
       
+      // Show toast
+      toast.info(`Evaluating ${student.name}'s answer sheet...`);
+      
       // Evaluate the paper
       await evaluatePaperMutation.mutateAsync({
         studentId,
@@ -102,10 +106,9 @@ export default function Check() {
         studentInfo
       });
       
-      toast.success('Evaluation completed successfully');
     } catch (error) {
       console.error('Error in handleEvaluateSingle:', error);
-      toast.error('Failed to evaluate paper');
+      toast.error('Failed to evaluate paper: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       // Remove the student from evaluating list
       setEvaluatingStudents(prev => prev.filter(id => id !== studentId));
@@ -193,7 +196,7 @@ export default function Check() {
       toast.success('All evaluations completed');
     } catch (error) {
       console.error('Error in handleEvaluateAll:', error);
-      toast.error('Failed to evaluate papers');
+      toast.error('Failed to evaluate papers: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       // Clear evaluating students
       setEvaluatingStudents([]);
@@ -218,6 +221,13 @@ export default function Check() {
         <AutoCheckGuide onClose={() => setShowGuide(false)} />
       ) : (
         <div className="grid gap-6 md:grid-cols-1">
+          <Alert variant="default" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription className="text-blue-800 dark:text-blue-300">
+              Auto Check uses AI to evaluate student answer sheets. Select a test, ensure it has question papers and answer keys, then evaluate student submissions.
+            </AlertDescription>
+          </Alert>
+          
           <TestSelectionCard
             classes={classes}
             subjects={subjects}
@@ -231,7 +241,7 @@ export default function Check() {
             setSelectedTest={setSelectedTest}
           />
 
-          {selectedTest && testFiles.length > 0 && classStudents.length > 0 && (
+          {selectedTest && classStudents.length > 0 && (
             <StudentAnswerSheetsCard
               selectedTest={selectedTest}
               selectedSubject={selectedSubject}
@@ -246,7 +256,7 @@ export default function Check() {
             />
           )}
           
-          {showResults && evaluations.length > 0 && (
+          {(showResults || evaluations.some(e => e.status === 'completed')) && (
             <EvaluationResultsCard
               evaluations={evaluations}
               classStudents={classStudents}

@@ -81,6 +81,24 @@ export function useEvaluations(
         subject: string;
       }
     }) => {
+      console.log("Starting evaluation for student:", studentInfo.name);
+      
+      // Update status to in_progress
+      const { error: statusError } = await supabase
+        .from('paper_evaluations')
+        .upsert({
+          test_id: testId,
+          student_id: studentId,
+          subject_id: subjectId,
+          evaluation_data: {},
+          status: 'in_progress',
+          updated_at: new Date().toISOString()
+        });
+      
+      if (statusError) {
+        console.error("Error updating evaluation status:", statusError);
+      }
+      
       // Call the edge function to evaluate the paper
       const { data, error } = await supabase.functions.invoke('evaluate-paper', {
         body: {
@@ -100,7 +118,25 @@ export function useEvaluations(
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        
+        // Update status to failed
+        await supabase
+          .from('paper_evaluations')
+          .upsert({
+            test_id: testId,
+            student_id: studentId,
+            subject_id: subjectId,
+            evaluation_data: {},
+            status: 'failed',
+            updated_at: new Date().toISOString()
+          });
+        
+        throw error;
+      }
+      
+      console.log("Evaluation data received:", data ? "success" : "empty");
       
       // Store the evaluation results
       const { error: dbError } = await supabase
@@ -110,14 +146,20 @@ export function useEvaluations(
           student_id: studentId,
           subject_id: subjectId,
           evaluation_data: data,
-          status: 'completed'
+          status: 'completed',
+          updated_at: new Date().toISOString()
         });
       
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error("Database error updating evaluation:", dbError);
+        throw dbError;
+      }
       
       // Update test grades with the score
       if (data?.summary?.totalScore) {
         const [score, maxScore] = data.summary.totalScore;
+        
+        console.log(`Updating grades for ${studentInfo.name}: ${score}/${maxScore}`);
         
         const { error: gradeError } = await supabase
           .from('test_grades')
@@ -128,7 +170,9 @@ export function useEvaluations(
             remarks: `Auto-evaluated: ${score}/${maxScore}`
           });
         
-        if (gradeError) console.error('Error updating test grade:', gradeError);
+        if (gradeError) {
+          console.error('Error updating test grade:', gradeError);
+        }
       }
       
       return data;
@@ -142,10 +186,12 @@ export function useEvaluations(
       
       // Refetch evaluations
       refetchEvaluations();
+      
+      toast.success(`Evaluation completed for ${variables.studentInfo.name}`);
     },
-    onError: (error) => {
+    onError: (error, variables) => {
       console.error('Error evaluating paper:', error);
-      toast.error(`Evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Evaluation failed for ${variables.studentInfo.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 

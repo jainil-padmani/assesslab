@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { FileCheck } from "lucide-react";
+import { FileCheck, AlertCircle } from "lucide-react";
 import { StudentEvaluationRow } from "./StudentEvaluationRow";
 import type { Student, Subject } from "@/types/dashboard";
 import type { TestFile } from "@/hooks/useTestSelection";
@@ -59,6 +59,9 @@ export function StudentAnswerSheetsCard({
     return evaluation?.status || 'pending';
   };
 
+  // Check if test files are available for evaluation
+  const areTestFilesReady = questionPapers.length > 0 && answerKeys.length > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -69,7 +72,7 @@ export function StudentAnswerSheetsCard({
           </div>
           <Button 
             onClick={onEvaluateAll}
-            disabled={evaluatingStudents.length > 0 || testFiles.length === 0}
+            disabled={evaluatingStudents.length > 0 || !areTestFilesReady}
           >
             <FileCheck className="mr-2 h-4 w-4" />
             Evaluate All
@@ -77,10 +80,19 @@ export function StudentAnswerSheetsCard({
         </div>
       </CardHeader>
       <CardContent>
+        {!areTestFilesReady && (
+          <div className="mb-4 p-3 bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md flex items-center">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 mr-2" />
+            <p className="text-sm text-amber-800 dark:text-amber-400">
+              Both question paper and answer key are required for evaluation.
+            </p>
+          </div>
+        )}
+        
         {evaluatingStudents.length > 0 && (
           <div className="mb-6 space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm">Evaluating papers...</span>
+              <span className="text-sm">Evaluating papers... {evaluatingStudents.length} remaining</span>
               <span className="text-sm font-medium">{evaluationProgress}%</span>
             </div>
             <Progress value={evaluationProgress} className="h-2" />
@@ -106,7 +118,7 @@ export function StudentAnswerSheetsCard({
                 evaluationData={getEvaluationData(student.id)}
                 isEvaluating={isStudentEvaluating(student.id)}
                 selectedSubject={selectedSubject}
-                testFilesAvailable={testFiles.length > 0}
+                testFilesAvailable={areTestFilesReady}
                 onEvaluate={onEvaluateSingle}
               />
             ))}

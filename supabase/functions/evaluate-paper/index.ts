@@ -20,11 +20,13 @@ serve(async (req) => {
     
     // Prepare the prompt for OpenAI
     const systemPrompt = `
-You are an AI evaluator responsible for grading a student's answer sheet.
-Analyze the question paper to understand the questions and their marks.
-Analyze the answer key to understand the correct answers and valuation criteria.
+You are an AI evaluator responsible for grading a student's answer sheet and use open ai aip key for analysis all things.
+The user will provide you with the question paper(s), answer key(s), and the student's answer sheet(s).
+Analyse the question paper to understand the questions and their marks.
+Analyse the answer key to understand the correct answers and valuation criteria.
 Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
 Your task is to grade the answer sheet and return it in a JSON format.
+If this is a revaluation it will be mentioned in the request and you should strictly follow the revaluation prompt.
 `;
 
     const userPrompt = `
@@ -60,7 +62,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
 
     console.log("Sending request to OpenAI");
     
-    // Make request to OpenAI
+    // Make request to OpenAI with the correct API key format
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -93,7 +95,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
 
     // Parse the evaluation results
     const evaluationText = aiResponse.choices[0].message.content;
-    console.log("Evaluation complete:", evaluationText.substring(0, 100) + "...");
+    console.log("Evaluation content received:", evaluationText.substring(0, 100) + "...");
     
     try {
       // Validate and clean up the evaluation data
@@ -117,6 +119,8 @@ Return ONLY the JSON object without any additional text or markdown formatting.
         totalScore: [totalAssignedScore, totalPossibleScore],
         percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
       };
+      
+      console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
       
       return new Response(
         JSON.stringify(evaluation),
