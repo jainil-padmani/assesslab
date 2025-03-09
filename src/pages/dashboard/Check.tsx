@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
 import { useEvaluations } from "@/hooks/useEvaluations";
@@ -10,6 +10,7 @@ import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
 import { Button } from "@/components/ui/button";
 import { Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Check() {
   // State for showing the guide
@@ -31,6 +32,7 @@ export default function Check() {
     setEvaluationProgress,
     showResults,
     setShowResults,
+    refetchEvaluations,
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
@@ -41,6 +43,51 @@ export default function Check() {
     const answerKeys = testFiles.filter(file => file.answer_key_url);
     return { questionPapers, answerKeys };
   }, [testFiles]);
+
+  // Handler for deleting an evaluation
+  const handleDeleteEvaluation = useCallback(async (studentId: string) => {
+    try {
+      if (!selectedTest) {
+        toast.error('No test selected');
+        return;
+      }
+      
+      // Display a loading toast
+      toast.loading('Deleting evaluation...');
+      
+      // Delete the evaluation from the database
+      const { error: evalError } = await supabase
+        .from('paper_evaluations')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('test_id', selectedTest);
+      
+      if (evalError) throw evalError;
+      
+      // Also delete the corresponding test grade
+      const { error: gradeError } = await supabase
+        .from('test_grades')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('test_id', selectedTest);
+      
+      if (gradeError) {
+        console.error('Error deleting test grade:', gradeError);
+        // Continue even if there's an error deleting the grade
+      }
+      
+      // Dismiss the loading toast
+      toast.dismiss();
+      toast.success('Evaluation deleted successfully');
+      
+      // Refetch evaluations to update the UI
+      refetchEvaluations();
+    } catch (error) {
+      toast.dismiss();
+      console.error('Error deleting evaluation:', error);
+      toast.error('Failed to delete evaluation');
+    }
+  }, [selectedTest, refetchEvaluations]);
 
   const handleEvaluateSingle = async (studentId: string) => {
     try {
@@ -92,6 +139,9 @@ export default function Check() {
       
       // Show toast
       toast.info(`Evaluating ${student.name}'s answer sheet...`);
+      
+      // First delete any existing evaluations for this student
+      await handleDeleteEvaluation(studentId);
       
       // Evaluate the paper
       await evaluatePaperMutation.mutateAsync({
@@ -253,6 +303,7 @@ export default function Check() {
               evaluationProgress={evaluationProgress}
               onEvaluateSingle={handleEvaluateSingle}
               onEvaluateAll={handleEvaluateAll}
+              onDeleteEvaluation={handleDeleteEvaluation}
             />
           )}
           
@@ -261,6 +312,7 @@ export default function Check() {
               evaluations={evaluations}
               classStudents={classStudents}
               selectedTest={selectedTest}
+              onDelete={(_, studentId) => handleDeleteEvaluation(studentId)}
             />
           )}
         </div>

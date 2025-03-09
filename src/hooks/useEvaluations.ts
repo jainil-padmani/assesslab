@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -161,17 +161,41 @@ export function useEvaluations(
         
         console.log(`Updating grades for ${studentInfo.name}: ${score}/${maxScore}`);
         
-        const { error: gradeError } = await supabase
+        // First check if a grade already exists
+        const { data: existingGrade } = await supabase
           .from('test_grades')
-          .upsert({
-            test_id: testId,
-            student_id: studentId,
-            marks: score,
-            remarks: `Auto-evaluated: ${score}/${maxScore}`
-          });
-        
-        if (gradeError) {
-          console.error('Error updating test grade:', gradeError);
+          .select('id')
+          .eq('test_id', testId)
+          .eq('student_id', studentId)
+          .maybeSingle();
+          
+        if (existingGrade) {
+          // Update existing grade
+          const { error: updateError } = await supabase
+            .from('test_grades')
+            .update({
+              marks: score,
+              remarks: `Auto-evaluated: ${score}/${maxScore}`
+            })
+            .eq('id', existingGrade.id);
+            
+          if (updateError) {
+            console.error('Error updating test grade:', updateError);
+          }
+        } else {
+          // Insert new grade
+          const { error: insertError } = await supabase
+            .from('test_grades')
+            .insert({
+              test_id: testId,
+              student_id: studentId,
+              marks: score,
+              remarks: `Auto-evaluated: ${score}/${maxScore}`
+            });
+            
+          if (insertError) {
+            console.error('Error inserting test grade:', insertError);
+          }
         }
       }
       
@@ -223,6 +247,48 @@ export function useEvaluations(
     }
   };
 
+  // Delete an evaluation
+  const deleteEvaluation = useCallback(async (studentId: string) => {
+    try {
+      if (!selectedTest) {
+        toast.error('No test selected');
+        return;
+      }
+      
+      // Delete the evaluation from the database
+      const { error: evalError } = await supabase
+        .from('paper_evaluations')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('test_id', selectedTest);
+      
+      if (evalError) throw evalError;
+      
+      // Also delete the corresponding test grade
+      const { error: gradeError } = await supabase
+        .from('test_grades')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('test_id', selectedTest);
+      
+      if (gradeError) {
+        console.error('Error deleting test grade:', gradeError);
+        // Continue even if there's an error deleting the grade
+      }
+      
+      toast.success('Evaluation deleted successfully');
+      
+      // Refetch evaluations
+      refetchEvaluations();
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting evaluation:', error);
+      toast.error('Failed to delete evaluation');
+      return false;
+    }
+  }, [selectedTest, refetchEvaluations]);
+
   return {
     evaluations,
     evaluatingStudents,
@@ -236,6 +302,7 @@ export function useEvaluations(
     refetchEvaluations,
     evaluatePaperMutation,
     getStudentEvaluationStatus,
-    getStudentAnswerSheetUrl
+    getStudentAnswerSheetUrl,
+    deleteEvaluation
   };
 }

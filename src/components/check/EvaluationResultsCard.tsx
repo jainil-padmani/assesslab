@@ -2,7 +2,9 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
 
@@ -10,12 +12,14 @@ interface EvaluationResultsCardProps {
   evaluations: PaperEvaluation[];
   classStudents: Student[];
   selectedTest: string;
+  onDelete?: (evaluationId: string, studentId: string) => void;
 }
 
 export function EvaluationResultsCard({ 
   evaluations, 
   classStudents,
-  selectedTest
+  selectedTest,
+  onDelete
 }: EvaluationResultsCardProps) {
   // Filter completed evaluations
   const completedEvaluations = evaluations.filter(e => 
@@ -35,6 +39,39 @@ export function EvaluationResultsCard({
     
     return Math.round(totalPercentage / completedEvaluations.length);
   })();
+
+  // Function to handle deleting an evaluation
+  const handleDelete = async (evaluationId: string, studentId: string) => {
+    try {
+      if (!onDelete) {
+        // Use internal delete logic if no onDelete handler is provided
+        const { error } = await supabase
+          .from('paper_evaluations')
+          .delete()
+          .eq('id', evaluationId);
+          
+        if (error) throw error;
+        
+        // Also clean up any test grades
+        await supabase
+          .from('test_grades')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('test_id', selectedTest);
+          
+        toast.success(`Deleted evaluation successfully`);
+        
+        // Refresh the page to update the UI
+        window.location.reload();
+      } else {
+        // Use provided onDelete handler
+        onDelete(evaluationId, studentId);
+      }
+    } catch (error) {
+      console.error('Error deleting evaluation:', error);
+      toast.error('Failed to delete evaluation');
+    }
+  };
 
   return (
     <Card>
@@ -61,7 +98,7 @@ export function EvaluationResultsCard({
               <TableRow>
                 <TableHead>Student Name</TableHead>
                 <TableHead>Score</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,16 +123,28 @@ export function EvaluationResultsCard({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        asChild
-                      >
-                        <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          View Details
-                        </a>
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          asChild
+                        >
+                          <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
+                            <FileText className="h-4 w-4 mr-2" />
+                            View Details
+                          </a>
+                        </Button>
+                        
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(evaluation.id, evaluation.student_id)}
+                          className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

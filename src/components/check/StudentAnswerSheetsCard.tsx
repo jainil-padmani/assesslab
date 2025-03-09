@@ -21,6 +21,7 @@ interface StudentAnswerSheetsCardProps {
   evaluationProgress: number;
   onEvaluateSingle: (studentId: string) => void;
   onEvaluateAll: () => void;
+  onDeleteEvaluation?: (studentId: string) => void;
 }
 
 export function StudentAnswerSheetsCard({ 
@@ -33,7 +34,8 @@ export function StudentAnswerSheetsCard({
   evaluatingStudents,
   evaluationProgress,
   onEvaluateSingle,
-  onEvaluateAll
+  onEvaluateAll,
+  onDeleteEvaluation
 }: StudentAnswerSheetsCardProps) {
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
@@ -120,6 +122,7 @@ export function StudentAnswerSheetsCard({
                 selectedSubject={selectedSubject}
                 testFilesAvailable={areTestFilesReady}
                 onEvaluate={onEvaluateSingle}
+                onDelete={onDeleteEvaluation}
               />
             ))}
           </TableBody>

@@ -1,9 +1,11 @@
 
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2 } from "lucide-react";
+import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { EvaluationStatus } from "@/hooks/useEvaluations";
 
@@ -15,6 +17,7 @@ interface StudentEvaluationRowProps {
   selectedSubject: string;
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
+  onDelete?: (studentId: string) => void;
 }
 
 export function StudentEvaluationRow({ 
@@ -24,7 +27,8 @@ export function StudentEvaluationRow({
   isEvaluating, 
   selectedSubject,
   testFilesAvailable,
-  onEvaluate 
+  onEvaluate,
+  onDelete
 }: StudentEvaluationRowProps) {
   // Function to render the status badge with appropriate color
   const renderStatusBadge = () => {
@@ -68,6 +72,38 @@ export function StudentEvaluationRow({
     }
   };
 
+  // Function to handle deleting an evaluation
+  const handleDelete = async () => {
+    try {
+      if (!onDelete) {
+        // Use internal delete logic if no onDelete handler is provided
+        const { error } = await supabase
+          .from('paper_evaluations')
+          .delete()
+          .eq('student_id', student.id);
+          
+        if (error) throw error;
+        
+        // Also clean up any test grades
+        await supabase
+          .from('test_grades')
+          .delete()
+          .eq('student_id', student.id);
+          
+        toast.success(`Deleted evaluation for ${student.name}`);
+        
+        // Refresh the page to update the UI
+        window.location.reload();
+      } else {
+        // Use provided onDelete handler
+        onDelete(student.id);
+      }
+    } catch (error) {
+      console.error('Error deleting evaluation:', error);
+      toast.error('Failed to delete evaluation');
+    }
+  };
+
   return (
     <TableRow key={student.id}>
       <TableCell className="font-medium">{student.name}</TableCell>
@@ -106,6 +142,19 @@ export function StudentEvaluationRow({
             >
               <FileCheck className="mr-2 h-4 w-4" />
               Retry
+            </Button>
+          )}
+          
+          {status === 'completed' && (
+            <Button 
+              size="sm"
+              variant="outline"
+              onClick={handleDelete}
+              disabled={isEvaluating}
+              className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
             </Button>
           )}
         </div>

@@ -18,9 +18,71 @@ serve(async (req) => {
 
     console.log("Received evaluation request for student:", studentInfo?.name);
     
-    // Prepare the prompt for OpenAI
+    // First, check if the student answer is an image/handwritten document
+    // If so, we need to run OCR on it
+    let processedStudentAnswer = studentAnswer;
+    
+    if (studentAnswer?.url && (
+        studentAnswer.url.includes('.jpg') || 
+        studentAnswer.url.includes('.jpeg') || 
+        studentAnswer.url.includes('.png') ||
+        studentAnswer.url.includes('.pdf')
+    )) {
+      console.log("Detected handwritten/PDF answer sheet, performing OCR...");
+      
+      // Use OpenAI's vision capabilities to extract text from image/PDF
+      try {
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'You are an OCR expert. Extract all text from this image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
+              },
+              { 
+                role: 'user', 
+                content: [
+                  { type: 'text', text: 'This is a student\'s handwritten answer sheet. Extract all the text, preserving the structure of questions and answers:' },
+                  { type: 'image_url', image_url: { url: studentAnswer.url } }
+                ] 
+              }
+            ],
+            temperature: 0.3,
+          }),
+        });
+
+        if (!ocrResponse.ok) {
+          const error = await ocrResponse.text();
+          console.error("OpenAI OCR error:", error);
+          throw new Error(`OCR failed: ${error}`);
+        }
+
+        const ocrResult = await ocrResponse.json();
+        const extractedText = ocrResult.choices[0]?.message?.content;
+        
+        console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
+        
+        // Update the student answer with OCR text
+        processedStudentAnswer = {
+          ...studentAnswer,
+          text: extractedText,
+          isOcrProcessed: true
+        };
+      } catch (ocrError) {
+        console.error("Error during OCR processing:", ocrError);
+        throw new Error(`OCR processing failed: ${ocrError.message}`);
+      }
+    }
+    
+    // Prepare the prompt for OpenAI evaluation
     const systemPrompt = `
-You are an AI evaluator responsible for grading a student's answer sheet and use open ai aip key for analysis all things.
+You are an AI evaluator responsible for grading a student's answer sheet.
 The user will provide you with the question paper(s), answer key(s), and the student's answer sheet(s).
 Analyse the question paper to understand the questions and their marks.
 Analyse the answer key to understand the correct answers and valuation criteria.
@@ -37,7 +99,7 @@ Answer Key:
 ${JSON.stringify(answerKey)}
 
 Student Answer Sheet:
-${JSON.stringify(studentAnswer)}
+${JSON.stringify(processedStudentAnswer)}
 
 Student Info:
 ${JSON.stringify(studentInfo)}
@@ -60,7 +122,7 @@ answers: an array of objects containing the following fields:
 Return ONLY the JSON object without any additional text or markdown formatting.
 `;
 
-    console.log("Sending request to OpenAI");
+    console.log("Sending request to OpenAI for evaluation");
     
     // Make request to OpenAI with the correct API key format
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -95,7 +157,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
 
     // Parse the evaluation results
     const evaluationText = aiResponse.choices[0].message.content;
-    console.log("Evaluation content received:", evaluationText.substring(0, 100) + "...");
+    console.log("Evaluation content received:", evaluationText.substring(0, 200) + "...");
     
     try {
       // Validate and clean up the evaluation data
