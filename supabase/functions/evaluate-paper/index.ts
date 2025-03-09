@@ -14,6 +14,10 @@ serve(async (req) => {
   }
 
   try {
+    // Log the API Key being used (masked)
+    const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
+    console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
+    
     const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
 
     console.log("Received evaluation request for student:", studentInfo?.name);
@@ -39,7 +43,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages: [
               { 
                 role: 'system', 
@@ -132,7 +136,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -143,16 +147,23 @@ Return ONLY the JSON object without any additional text or markdown formatting.
     });
 
     if (!openAIResponse.ok) {
-      const error = await openAIResponse.text();
-      console.error("OpenAI API error:", error);
-      throw new Error(`OpenAI API error: ${error}`);
+      const errorBody = await openAIResponse.text();
+      console.error("OpenAI API error:", errorBody);
+      return new Response(
+        JSON.stringify({ error: `OpenAI API error: ${errorBody}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const aiResponse = await openAIResponse.json();
     console.log("Received response from OpenAI");
     
     if (!aiResponse.choices || !aiResponse.choices[0]?.message?.content) {
-      throw new Error('Invalid response from OpenAI');
+      console.error("Invalid response format from OpenAI:", JSON.stringify(aiResponse));
+      return new Response(
+        JSON.stringify({ error: 'Invalid response from OpenAI' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Parse the evaluation results
@@ -190,7 +201,10 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       );
     } catch (parseError) {
       console.error("Error parsing evaluation results:", parseError, evaluationText);
-      throw new Error(`Failed to parse evaluation results: ${parseError.message}`);
+      return new Response(
+        JSON.stringify({ error: `Failed to parse evaluation results: ${parseError.message}`, raw: evaluationText }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
   } catch (error) {
     console.error('Error in evaluate-paper function:', error);
