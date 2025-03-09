@@ -10,7 +10,6 @@ import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
 import { Button } from "@/components/ui/button";
 import { Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function Check() {
   // State for showing the guide
@@ -34,7 +33,8 @@ export default function Check() {
     setShowResults,
     refetchEvaluations,
     evaluatePaperMutation,
-    getStudentAnswerSheetUrl
+    getStudentAnswerSheetUrl,
+    deleteEvaluation
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
 
   // Extract question papers and answer keys from test files
@@ -45,7 +45,7 @@ export default function Check() {
   }, [testFiles]);
 
   // Handler for deleting an evaluation
-  const handleDeleteEvaluation = useCallback(async (studentId: string) => {
+  const handleDeleteEvaluation = useCallback(async (evaluationId: string, studentId: string) => {
     try {
       if (!selectedTest) {
         toast.error('No test selected');
@@ -53,41 +53,23 @@ export default function Check() {
       }
       
       // Display a loading toast
-      toast.loading('Deleting evaluation...');
+      toast.loading('Deleting evaluation...', { id: 'delete-eval' });
       
-      // Delete the evaluation from the database
-      const { error: evalError } = await supabase
-        .from('paper_evaluations')
-        .delete()
-        .eq('student_id', studentId)
-        .eq('test_id', selectedTest);
-      
-      if (evalError) throw evalError;
-      
-      // Also delete the corresponding test grade
-      const { error: gradeError } = await supabase
-        .from('test_grades')
-        .delete()
-        .eq('student_id', studentId)
-        .eq('test_id', selectedTest);
-      
-      if (gradeError) {
-        console.error('Error deleting test grade:', gradeError);
-        // Continue even if there's an error deleting the grade
-      }
+      // Delete the evaluation
+      await deleteEvaluation(studentId);
       
       // Dismiss the loading toast
-      toast.dismiss();
+      toast.dismiss('delete-eval');
       toast.success('Evaluation deleted successfully');
       
       // Refetch evaluations to update the UI
       refetchEvaluations();
     } catch (error) {
-      toast.dismiss();
+      toast.dismiss('delete-eval');
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');
     }
-  }, [selectedTest, refetchEvaluations]);
+  }, [selectedTest, deleteEvaluation, refetchEvaluations]);
 
   const handleEvaluateSingle = async (studentId: string) => {
     try {
@@ -141,7 +123,10 @@ export default function Check() {
       toast.info(`Evaluating ${student.name}'s answer sheet...`);
       
       // First delete any existing evaluations for this student
-      await handleDeleteEvaluation(studentId);
+      const existingEvaluation = evaluations.find(e => e.student_id === studentId);
+      if (existingEvaluation && existingEvaluation.status === 'completed') {
+        await deleteEvaluation(studentId);
+      }
       
       // Evaluate the paper
       await evaluatePaperMutation.mutateAsync({
@@ -155,6 +140,9 @@ export default function Check() {
         answerKeyTopic: answerKeys[0].topic,
         studentInfo
       });
+      
+      // Refetch evaluations to update the UI
+      refetchEvaluations();
       
     } catch (error) {
       console.error('Error in handleEvaluateSingle:', error);
@@ -212,6 +200,12 @@ export default function Check() {
         const { student, answerSheetUrl } = validStudents[i];
         
         try {
+          // First delete any existing evaluations for this student
+          const existingEvaluation = evaluations.find(e => e.student_id === student.id);
+          if (existingEvaluation && existingEvaluation.status === 'completed') {
+            await deleteEvaluation(student.id);
+          }
+
           // Prepare student info
           const studentInfo = {
             id: student.id,
@@ -240,9 +234,10 @@ export default function Check() {
         }
       }
       
-      // Complete
+      // Complete and refetch evaluations
       setEvaluationProgress(100);
       setShowResults(true);
+      refetchEvaluations();
       toast.success('All evaluations completed');
     } catch (error) {
       console.error('Error in handleEvaluateAll:', error);
@@ -303,7 +298,7 @@ export default function Check() {
               evaluationProgress={evaluationProgress}
               onEvaluateSingle={handleEvaluateSingle}
               onEvaluateAll={handleEvaluateAll}
-              onDeleteEvaluation={handleDeleteEvaluation}
+              onDeleteEvaluation={deleteEvaluation}
             />
           )}
           
@@ -312,7 +307,8 @@ export default function Check() {
               evaluations={evaluations}
               classStudents={classStudents}
               selectedTest={selectedTest}
-              onDelete={(_, studentId) => handleDeleteEvaluation(studentId)}
+              onDelete={handleDeleteEvaluation}
+              refetchEvaluations={refetchEvaluations}
             />
           )}
         </div>

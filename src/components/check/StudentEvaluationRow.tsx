@@ -1,10 +1,9 @@
 
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { EvaluationStatus } from "@/hooks/useEvaluations";
@@ -30,13 +29,12 @@ export function StudentEvaluationRow({
   onEvaluate,
   onDelete
 }: StudentEvaluationRowProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Function to render the status badge with appropriate color
   const renderStatusBadge = () => {
     if (status === 'completed') {
       const score = evaluationData?.summary?.percentage || 0;
-      const colorClass = score >= 60 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 
-                          score >= 40 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' : 
-                          'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
       
       return (
         <div className="flex items-center">
@@ -76,31 +74,18 @@ export function StudentEvaluationRow({
   const handleDelete = async () => {
     try {
       if (!onDelete) {
-        // Use internal delete logic if no onDelete handler is provided
-        const { error } = await supabase
-          .from('paper_evaluations')
-          .delete()
-          .eq('student_id', student.id);
-          
-        if (error) throw error;
-        
-        // Also clean up any test grades
-        await supabase
-          .from('test_grades')
-          .delete()
-          .eq('student_id', student.id);
-          
-        toast.success(`Deleted evaluation for ${student.name}`);
-        
-        // Refresh the page to update the UI
-        window.location.reload();
-      } else {
-        // Use provided onDelete handler
-        onDelete(student.id);
+        toast.error('Delete handler not provided');
+        return;
       }
+
+      setIsDeleting(true);
+      await onDelete(student.id);
+      toast.success(`Deleted evaluation for ${student.name}`);
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -120,28 +105,31 @@ export function StudentEvaluationRow({
       </TableCell>
       <TableCell>
         <div className="flex space-x-2">
-          {(status !== 'completed' && status !== 'in_progress' && !isEvaluating) && (
+          {/* Always show Evaluate button, but with different styles based on status */}
+          {(status !== 'in_progress' && !isEvaluating) && (
             <Button 
               size="sm"
-              variant="outline"
+              variant={status === 'failed' ? "outline" : (status === 'completed' ? "secondary" : "outline")}
               onClick={() => onEvaluate(student.id)}
               disabled={isEvaluating || !testFilesAvailable}
+              className={status === 'failed' ? "text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" : ""}
             >
-              <FileCheck className="mr-2 h-4 w-4" />
-              Evaluate
-            </Button>
-          )}
-          
-          {status === 'failed' && (
-            <Button 
-              size="sm"
-              variant="outline"
-              onClick={() => onEvaluate(student.id)}
-              disabled={isEvaluating || !testFilesAvailable}
-              className="text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
-            >
-              <FileCheck className="mr-2 h-4 w-4" />
-              Retry
+              {status === 'failed' ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry
+                </>
+              ) : status === 'completed' ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Re-evaluate
+                </>
+              ) : (
+                <>
+                  <FileCheck className="mr-2 h-4 w-4" />
+                  Evaluate
+                </>
+              )}
             </Button>
           )}
           
@@ -150,11 +138,20 @@ export function StudentEvaluationRow({
               size="sm"
               variant="outline"
               onClick={handleDelete}
-              disabled={isEvaluating}
+              disabled={isEvaluating || isDeleting}
               className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
             </Button>
           )}
         </div>

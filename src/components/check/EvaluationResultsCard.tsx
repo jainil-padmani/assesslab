@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { FileText, AlertCircle, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
@@ -13,14 +13,18 @@ interface EvaluationResultsCardProps {
   classStudents: Student[];
   selectedTest: string;
   onDelete?: (evaluationId: string, studentId: string) => void;
+  refetchEvaluations: () => void;
 }
 
 export function EvaluationResultsCard({ 
   evaluations, 
   classStudents,
   selectedTest,
-  onDelete
+  onDelete,
+  refetchEvaluations
 }: EvaluationResultsCardProps) {
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
+
   // Filter completed evaluations
   const completedEvaluations = evaluations.filter(e => 
     e.status === 'completed' && 
@@ -43,33 +47,22 @@ export function EvaluationResultsCard({
   // Function to handle deleting an evaluation
   const handleDelete = async (evaluationId: string, studentId: string) => {
     try {
-      if (!onDelete) {
-        // Use internal delete logic if no onDelete handler is provided
-        const { error } = await supabase
-          .from('paper_evaluations')
-          .delete()
-          .eq('id', evaluationId);
-          
-        if (error) throw error;
-        
-        // Also clean up any test grades
-        await supabase
-          .from('test_grades')
-          .delete()
-          .eq('student_id', studentId)
-          .eq('test_id', selectedTest);
-          
-        toast.success(`Deleted evaluation successfully`);
-        
-        // Refresh the page to update the UI
-        window.location.reload();
-      } else {
+      setDeletingIds(prev => [...prev, evaluationId]);
+      
+      if (onDelete) {
         // Use provided onDelete handler
-        onDelete(evaluationId, studentId);
+        await onDelete(evaluationId, studentId);
+      } else {
+        toast.error('Delete handler not provided');
       }
+      
+      // Refetch evaluations to update the UI
+      refetchEvaluations();
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');
+    } finally {
+      setDeletingIds(prev => prev.filter(id => id !== evaluationId));
     }
   };
 
@@ -105,6 +98,8 @@ export function EvaluationResultsCard({
               {completedEvaluations.map((evaluation) => {
                 const student = classStudents.find(s => s.id === evaluation.student_id);
                 const data = evaluation.evaluation_data;
+                const isDeleting = deletingIds.includes(evaluation.id);
+                
                 return (
                   <TableRow key={evaluation.id}>
                     <TableCell className="font-medium">{student?.name || 'Unknown'}</TableCell>
@@ -139,10 +134,20 @@ export function EvaluationResultsCard({
                           size="sm"
                           variant="outline"
                           onClick={() => handleDelete(evaluation.id, evaluation.student_id)}
+                          disabled={isDeleting}
                           className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          {isDeleting ? (
+                            <span className="flex items-center">
+                              <AlertCircle className="h-4 w-4 mr-2 animate-spin" />
+                              Deleting...
+                            </span>
+                          ) : (
+                            <span className="flex items-center">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </span>
+                          )}
                         </Button>
                       </div>
                     </TableCell>
