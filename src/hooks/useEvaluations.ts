@@ -37,6 +37,8 @@ export function useEvaluations(
     queryFn: async () => {
       if (!selectedTest) return [];
       
+      console.log("Fetching evaluations for test:", selectedTest);
+      
       const { data, error } = await supabase
         .from('paper_evaluations')
         .select('*')
@@ -47,6 +49,7 @@ export function useEvaluations(
         return [];
       }
       
+      console.log(`Found ${data?.length || 0} evaluations`);
       return data as PaperEvaluation[];
     },
     enabled: !!selectedTest
@@ -99,9 +102,9 @@ export function useEvaluations(
         console.error("Error updating evaluation status:", statusError);
       }
       
-      // Call the edge function to evaluate the paper
-      const { data, error } = await supabase.functions.invoke('evaluate-paper', {
-        body: {
+      try {
+        // Call the edge function to evaluate the paper
+        console.log("Invoking edge function with parameters:", {
           questionPaper: {
             url: questionPaperUrl,
             topic: questionPaperTopic
@@ -115,11 +118,110 @@ export function useEvaluations(
             studentId
           },
           studentInfo
+        });
+        
+        const { data, error } = await supabase.functions.invoke('evaluate-paper', {
+          body: {
+            questionPaper: {
+              url: questionPaperUrl,
+              topic: questionPaperTopic
+            },
+            answerKey: {
+              url: answerKeyUrl,
+              topic: answerKeyTopic
+            },
+            studentAnswer: {
+              url: answerSheetUrl,
+              studentId
+            },
+            studentInfo
+          }
+        });
+        
+        if (error) {
+          console.error("Edge function error:", error);
+          
+          // Update status to failed
+          await supabase
+            .from('paper_evaluations')
+            .upsert({
+              test_id: testId,
+              student_id: studentId,
+              subject_id: subjectId,
+              evaluation_data: {},
+              status: 'failed',
+              updated_at: new Date().toISOString()
+            });
+          
+          throw new Error(`Edge function error: ${error.message}`);
         }
-      });
-      
-      if (error) {
-        console.error("Edge function error:", error);
+        
+        console.log("Evaluation data received:", data ? "success" : "empty");
+        
+        // Store the evaluation results
+        const { error: dbError } = await supabase
+          .from('paper_evaluations')
+          .upsert({
+            test_id: testId,
+            student_id: studentId,
+            subject_id: subjectId,
+            evaluation_data: data,
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          });
+        
+        if (dbError) {
+          console.error("Database error updating evaluation:", dbError);
+          throw new Error(`Database error: ${dbError.message}`);
+        }
+        
+        // Update test grades with the score
+        if (data?.summary?.totalScore) {
+          const [score, maxScore] = data.summary.totalScore;
+          
+          console.log(`Updating grades for ${studentInfo.name}: ${score}/${maxScore}`);
+          
+          // First check if a grade already exists
+          const { data: existingGrade } = await supabase
+            .from('test_grades')
+            .select('id')
+            .eq('test_id', testId)
+            .eq('student_id', studentId)
+            .maybeSingle();
+            
+          if (existingGrade) {
+            // Update existing grade
+            const { error: updateError } = await supabase
+              .from('test_grades')
+              .update({
+                marks: score,
+                remarks: `Auto-evaluated: ${score}/${maxScore}`
+              })
+              .eq('id', existingGrade.id);
+              
+            if (updateError) {
+              console.error('Error updating test grade:', updateError);
+            }
+          } else {
+            // Insert new grade
+            const { error: insertError } = await supabase
+              .from('test_grades')
+              .insert({
+                test_id: testId,
+                student_id: studentId,
+                marks: score,
+                remarks: `Auto-evaluated: ${score}/${maxScore}`
+              });
+              
+            if (insertError) {
+              console.error('Error inserting test grade:', insertError);
+            }
+          }
+        }
+        
+        return data;
+      } catch (error) {
+        console.error("Evaluation failed:", error);
         
         // Update status to failed
         await supabase
@@ -132,74 +234,9 @@ export function useEvaluations(
             status: 'failed',
             updated_at: new Date().toISOString()
           });
-        
+          
         throw error;
       }
-      
-      console.log("Evaluation data received:", data ? "success" : "empty");
-      
-      // Store the evaluation results
-      const { error: dbError } = await supabase
-        .from('paper_evaluations')
-        .upsert({
-          test_id: testId,
-          student_id: studentId,
-          subject_id: subjectId,
-          evaluation_data: data,
-          status: 'completed',
-          updated_at: new Date().toISOString()
-        });
-      
-      if (dbError) {
-        console.error("Database error updating evaluation:", dbError);
-        throw dbError;
-      }
-      
-      // Update test grades with the score
-      if (data?.summary?.totalScore) {
-        const [score, maxScore] = data.summary.totalScore;
-        
-        console.log(`Updating grades for ${studentInfo.name}: ${score}/${maxScore}`);
-        
-        // First check if a grade already exists
-        const { data: existingGrade } = await supabase
-          .from('test_grades')
-          .select('id')
-          .eq('test_id', testId)
-          .eq('student_id', studentId)
-          .maybeSingle();
-          
-        if (existingGrade) {
-          // Update existing grade
-          const { error: updateError } = await supabase
-            .from('test_grades')
-            .update({
-              marks: score,
-              remarks: `Auto-evaluated: ${score}/${maxScore}`
-            })
-            .eq('id', existingGrade.id);
-            
-          if (updateError) {
-            console.error('Error updating test grade:', updateError);
-          }
-        } else {
-          // Insert new grade
-          const { error: insertError } = await supabase
-            .from('test_grades')
-            .insert({
-              test_id: testId,
-              student_id: studentId,
-              marks: score,
-              remarks: `Auto-evaluated: ${score}/${maxScore}`
-            });
-            
-          if (insertError) {
-            console.error('Error inserting test grade:', insertError);
-          }
-        }
-      }
-      
-      return data;
     },
     onSuccess: (data, variables) => {
       // Update the evaluation results
@@ -252,8 +289,10 @@ export function useEvaluations(
     try {
       if (!selectedTest) {
         toast.error('No test selected');
-        return;
+        return false;
       }
+      
+      console.log("Deleting evaluation for studentId:", studentId, "testId:", selectedTest);
       
       // Delete the evaluation from the database
       const { error: evalError } = await supabase
@@ -262,7 +301,10 @@ export function useEvaluations(
         .eq('student_id', studentId)
         .eq('test_id', selectedTest);
       
-      if (evalError) throw evalError;
+      if (evalError) {
+        console.error("Error deleting paper evaluations:", evalError);
+        throw evalError;
+      }
       
       // Also delete the corresponding test grade
       const { error: gradeError } = await supabase
@@ -276,18 +318,16 @@ export function useEvaluations(
         // Continue even if there's an error deleting the grade
       }
       
-      toast.success('Evaluation deleted successfully');
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
       
-      // Refetch evaluations
-      refetchEvaluations();
-      
+      console.log("Successfully deleted evaluation for student:", studentId);
       return true;
     } catch (error) {
       console.error('Error deleting evaluation:', error);
-      toast.error('Failed to delete evaluation');
       return false;
     }
-  }, [selectedTest, refetchEvaluations]);
+  }, [selectedTest, queryClient]);
 
   return {
     evaluations,

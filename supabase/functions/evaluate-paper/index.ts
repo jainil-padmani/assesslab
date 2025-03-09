@@ -21,6 +21,7 @@ serve(async (req) => {
     const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
 
     console.log("Received evaluation request for student:", studentInfo?.name);
+    console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
     
     // First, check if the student answer is an image/handwritten document
     // If so, we need to run OCR on it
@@ -33,7 +34,12 @@ serve(async (req) => {
         studentAnswer.url.includes('.pdf')
     )) {
       console.log("Detected handwritten/PDF answer sheet, performing OCR...");
+      console.log("URL:", studentAnswer.url);
       
+      // For PDFs, we need to tell OpenAI specifically that it's a document
+      const contentType = studentAnswer.url.toLowerCase().endsWith('.pdf') ? 
+        "application/pdf" : "image/jpeg";
+        
       // Use OpenAI's vision capabilities to extract text from image/PDF
       try {
         const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -47,13 +53,19 @@ serve(async (req) => {
             messages: [
               { 
                 role: 'system', 
-                content: 'You are an OCR expert. Extract all text from this image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
+                content: 'You are an OCR expert. Extract all text from this document or image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
               },
               { 
                 role: 'user', 
                 content: [
-                  { type: 'text', text: 'This is a student\'s handwritten answer sheet. Extract all the text, preserving the structure of questions and answers:' },
-                  { type: 'image_url', image_url: { url: studentAnswer.url } }
+                  { type: 'text', text: 'This is a student\'s handwritten answer sheet or PDF document. Extract all the text, preserving the structure of questions and answers:' },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: studentAnswer.url,
+                      detail: "high" 
+                    } 
+                  }
                 ] 
               }
             ],
@@ -62,25 +74,44 @@ serve(async (req) => {
         });
 
         if (!ocrResponse.ok) {
-          const error = await ocrResponse.text();
-          console.error("OpenAI OCR error:", error);
-          throw new Error(`OCR failed: ${error}`);
+          const errorText = await ocrResponse.text();
+          console.error("OpenAI OCR error:", errorText);
+          
+          // Create a placeholder text if OCR fails
+          processedStudentAnswer = {
+            ...studentAnswer,
+            text: "Unable to extract text from document. Please try with a clearer image or document.",
+            isOcrProcessed: false,
+            ocrError: errorText
+          };
+          
+          // Continue with evaluation despite OCR failure
+        } else {
+          const ocrResult = await ocrResponse.json();
+          const extractedText = ocrResult.choices[0]?.message?.content;
+          
+          console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
+          console.log("Sample extracted text:", extractedText?.substring(0, 100) + "...");
+          
+          // Update the student answer with OCR text
+          processedStudentAnswer = {
+            ...studentAnswer,
+            text: extractedText,
+            isOcrProcessed: true
+          };
         }
-
-        const ocrResult = await ocrResponse.json();
-        const extractedText = ocrResult.choices[0]?.message?.content;
-        
-        console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
-        
-        // Update the student answer with OCR text
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: extractedText,
-          isOcrProcessed: true
-        };
       } catch (ocrError) {
         console.error("Error during OCR processing:", ocrError);
-        throw new Error(`OCR processing failed: ${ocrError.message}`);
+        
+        // Create a placeholder text if OCR fails
+        processedStudentAnswer = {
+          ...studentAnswer,
+          text: "Error processing document. Technical details: " + ocrError.message,
+          isOcrProcessed: false,
+          ocrError: ocrError.message
+        };
+        
+        // Continue with evaluation despite OCR failure
       }
     }
     

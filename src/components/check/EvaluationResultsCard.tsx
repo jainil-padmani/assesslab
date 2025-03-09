@@ -2,8 +2,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { FileText, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
@@ -24,9 +24,15 @@ export function EvaluationResultsCard({
   refetchEvaluations
 }: EvaluationResultsCardProps) {
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
+  const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
+  
+  // Initialize local evaluations from props
+  useEffect(() => {
+    setLocalEvaluations(evaluations.filter(e => e.status === 'completed'));
+  }, [evaluations]);
 
   // Filter completed evaluations
-  const completedEvaluations = evaluations.filter(e => 
+  const completedEvaluations = localEvaluations.filter(e => 
     e.status === 'completed' && 
     e.evaluation_data?.answers && 
     e.evaluation_data?.summary?.totalScore
@@ -52,6 +58,11 @@ export function EvaluationResultsCard({
       if (onDelete) {
         // Use provided onDelete handler
         await onDelete(evaluationId, studentId);
+        
+        // Remove the evaluation from local state
+        setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
+        
+        toast.success("Evaluation deleted successfully");
       } else {
         toast.error('Delete handler not provided');
       }
@@ -138,15 +149,15 @@ export function EvaluationResultsCard({
                           className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                         >
                           {isDeleting ? (
-                            <span className="flex items-center">
-                              <AlertCircle className="h-4 w-4 mr-2 animate-spin" />
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                               Deleting...
-                            </span>
+                            </>
                           ) : (
-                            <span className="flex items-center">
+                            <>
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete
-                            </span>
+                            </>
                           )}
                         </Button>
                       </div>

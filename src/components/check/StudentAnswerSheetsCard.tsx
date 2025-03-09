@@ -46,7 +46,7 @@ export function StudentAnswerSheetsCard({
 
   // Find evaluation data for a specific student
   const getEvaluationData = (studentId: string) => {
-    const evaluation = evaluations.find(e => e.student_id === studentId);
+    const evaluation = evaluations.find(e => e.student_id === studentId && e.status === 'completed');
     return evaluation?.evaluation_data;
   };
 
