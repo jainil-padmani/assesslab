@@ -283,7 +283,7 @@ export function useEvaluations(
     }
   };
 
-  // Delete an evaluation - Enhanced for thorough cleanup
+  // Enhanced delete evaluation function for permanent deletion
   const deleteEvaluation = useCallback(async (evaluationId: string, studentId?: string) => {
     try {
       if (!selectedTest) {
@@ -291,21 +291,24 @@ export function useEvaluations(
         return false;
       }
       
-      console.log(`Deleting evaluation ${evaluationId} for student ${studentId || 'unknown'}`);
+      console.log(`Permanently deleting evaluation ${evaluationId} for student ${studentId || 'unknown'}`);
       
       // If studentId is provided but evaluationId isn't specific, find the evaluation
       let targetEvaluationId = evaluationId;
+      let targetStudentId = studentId;
+      
       if (studentId && evaluationId === studentId) {
         const evaluation = evaluations.find(e => e.student_id === studentId && e.test_id === selectedTest);
         if (evaluation) {
           targetEvaluationId = evaluation.id;
+          targetStudentId = evaluation.student_id;
         } else {
           console.error("Evaluation not found for studentId:", studentId);
           return false;
         }
       }
       
-      // Delete the evaluation from the database
+      // Delete from paper_evaluations table
       const { error: evalError } = await supabase
         .from('paper_evaluations')
         .delete()
@@ -316,33 +319,57 @@ export function useEvaluations(
         throw evalError;
       }
       
-      // Also delete the corresponding test grade if studentId is provided
-      if (studentId) {
+      console.log("Successfully deleted from paper_evaluations table");
+      
+      // Delete the corresponding test grade if studentId is provided
+      if (targetStudentId) {
         const { error: gradeError } = await supabase
           .from('test_grades')
           .delete()
-          .eq('student_id', studentId)
+          .eq('student_id', targetStudentId)
           .eq('test_id', selectedTest);
         
         if (gradeError) {
           console.error('Error deleting test grade:', gradeError);
           // Continue even if there's an error deleting the grade
+        } else {
+          console.log("Successfully deleted from test_grades table");
+        }
+        
+        // Also delete any assessment records related to this evaluation
+        const { error: assessmentError } = await supabase
+          .from('assessments')
+          .delete()
+          .eq('student_id', targetStudentId)
+          .eq('subject_id', selectedSubject);
+          
+        if (assessmentError) {
+          console.error('Error deleting assessment:', assessmentError);
+          // Continue even if there's an error deleting the assessment
+        } else {
+          console.log("Successfully deleted related assessment records");
         }
       }
       
-      // Invalidate queries to ensure fresh data on next fetch
+      // Force invalidate queries to ensure fresh data on next fetch
+      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
       queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
+      queryClient.invalidateQueries({ queryKey: ['test-grades'] });
       queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       
-      // Update local state to remove the deleted evaluation
+      // Update local state to remove the deleted evaluation immediately
       setEvaluationResults(prev => {
-        if (studentId) {
+        if (targetStudentId) {
           const updated = { ...prev };
-          delete updated[studentId];
+          delete updated[targetStudentId];
           return updated;
         }
         return prev;
       });
+      
+      // Force refetch to ensure UI is in sync with database
+      await refetchEvaluations();
       
       console.log("Successfully deleted evaluation:", targetEvaluationId);
       return true;
@@ -350,7 +377,7 @@ export function useEvaluations(
       console.error('Error deleting evaluation:', error);
       return false;
     }
-  }, [selectedTest, evaluations, queryClient]);
+  }, [selectedTest, selectedSubject, evaluations, queryClient, refetchEvaluations]);
 
   return {
     evaluations,

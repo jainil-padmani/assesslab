@@ -1,7 +1,7 @@
 
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2 } from "lucide-react";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,7 +16,6 @@ interface StudentEvaluationRowProps {
   selectedSubject: string;
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
-  onDelete?: (studentId: string) => void;
 }
 
 export function StudentEvaluationRow({ 
@@ -26,8 +25,7 @@ export function StudentEvaluationRow({
   isEvaluating, 
   selectedSubject,
   testFilesAvailable,
-  onEvaluate,
-  onDelete
+  onEvaluate
 }: StudentEvaluationRowProps) {
   // Function to render the status badge with appropriate color
   const renderStatusBadge = () => {
@@ -93,17 +91,8 @@ export function StudentEvaluationRow({
               disabled={isEvaluating || !testFilesAvailable}
               className={status === 'failed' ? "text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" : ""}
             >
-              {status === 'failed' ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Retry
-                </>
-              ) : (
-                <>
-                  <FileCheck className="h-4 w-4 mr-2" />
-                  Evaluate
-                </>
-              )}
+              <FileCheck className="h-4 w-4 mr-2" />
+              Evaluate
             </Button>
           )}
         </div>

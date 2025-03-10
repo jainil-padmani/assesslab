@@ -1,3 +1,4 @@
+
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -43,7 +44,7 @@ export default function Check() {
     return { questionPapers, answerKeys };
   }, [testFiles]);
 
-  // Handler for deleting an evaluation
+  // Enhanced handler for permanently deleting an evaluation
   const handleDeleteEvaluation = useCallback(async (evaluationId: string, studentId: string) => {
     try {
       if (!selectedTest) {
@@ -51,13 +52,16 @@ export default function Check() {
         return;
       }
       
-      console.log(`Deleting evaluation ${evaluationId} for student ${studentId}`);
+      console.log(`Permanently deleting evaluation ${evaluationId} for student ${studentId}`);
       
-      // Delete the evaluation using the studentId
+      // Show delete in progress toast
+      toast.loading('Permanently deleting evaluation...');
+      
+      // Delete the evaluation using the enhanced deleteEvaluation function
       const success = await deleteEvaluation(studentId);
       
       if (success) {
-        toast.success('Evaluation deleted successfully');
+        toast.success('Evaluation permanently deleted');
         // Force refresh evaluations to make sure UI is in sync with database
         await refetchEvaluations();
       } else {

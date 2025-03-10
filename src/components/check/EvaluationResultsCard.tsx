@@ -26,7 +26,7 @@ export function EvaluationResultsCard({
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
   
-  // Initialize local evaluations from props and update when evaluations change
+  // Initialize and update local evaluations when props change
   useEffect(() => {
     setLocalEvaluations(evaluations.filter(e => e.status === 'completed'));
   }, [evaluations]);
@@ -50,7 +50,7 @@ export function EvaluationResultsCard({
     return Math.round(totalPercentage / completedEvaluations.length);
   })();
 
-  // Function to handle deleting an evaluation
+  // Enhanced handleDelete function for permanent deletion
   const handleDelete = async (evaluationId: string, studentId: string) => {
     try {
       setDeletingIds(prev => [...prev, evaluationId]);
@@ -59,13 +59,13 @@ export function EvaluationResultsCard({
         // Use provided onDelete handler
         await onDelete(evaluationId, studentId);
         
-        // Remove the evaluation from local state to immediately update the UI
-        setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
+        // Immediately remove the evaluation from local state
+        setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId && e.student_id !== studentId));
         
-        // Also refetch evaluations to ensure database and UI are in sync
-        refetchEvaluations();
+        // Refetch to ensure database and UI are in sync
+        await refetchEvaluations();
         
-        toast.success("Evaluation deleted successfully");
+        toast.success("Evaluation permanently deleted");
       } else {
         toast.error('Delete handler not provided');
       }
