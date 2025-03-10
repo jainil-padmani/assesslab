@@ -34,7 +34,7 @@ export function EvaluationResultsCard({
   // Filter completed evaluations
   const completedEvaluations = localEvaluations.filter(e => 
     e.status === 'completed' && 
-    e.evaluation_data?.answers && .
+    e.evaluation_data?.answers && 
     e.evaluation_data?.summary?.totalScore
   );
 
