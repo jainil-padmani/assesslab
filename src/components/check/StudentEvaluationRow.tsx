@@ -1,7 +1,7 @@
 
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2, RefreshCw } from "lucide-react";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,8 +29,6 @@ export function StudentEvaluationRow({
   onEvaluate,
   onDelete
 }: StudentEvaluationRowProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
-
   // Function to render the status badge with appropriate color
   const renderStatusBadge = () => {
     if (status === 'completed') {
@@ -70,25 +68,6 @@ export function StudentEvaluationRow({
     }
   };
 
-  // Function to handle deleting an evaluation
-  const handleDelete = async () => {
-    try {
-      if (!onDelete) {
-        toast.error('Delete handler not provided');
-        return;
-      }
-
-      setIsDeleting(true);
-      await onDelete(student.id);
-      toast.success(`Deleted evaluation for ${student.name}`);
-    } catch (error) {
-      console.error('Error deleting evaluation:', error);
-      toast.error('Failed to delete evaluation');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   return (
     <TableRow key={student.id}>
       <TableCell className="font-medium">{student.name}</TableCell>
@@ -116,40 +95,13 @@ export function StudentEvaluationRow({
             >
               {status === 'failed' ? (
                 <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
+                  <RefreshCw className="h-4 w-4 mr-2" />
                   Retry
                 </>
-              ) : status === 'completed' ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Re-evaluate
-                </>
               ) : (
                 <>
-                  <FileCheck className="mr-2 h-4 w-4" />
+                  <FileCheck className="h-4 w-4 mr-2" />
                   Evaluate
-                </>
-              )}
-            </Button>
-          )}
-          
-          {status === 'completed' && (
-            <Button 
-              size="sm"
-              variant="outline"
-              onClick={handleDelete}
-              disabled={isEvaluating || isDeleting}
-              className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
                 </>
               )}
             </Button>

@@ -283,45 +283,51 @@ export function useEvaluations(
     }
   };
 
-  // Delete an evaluation - Updated with more thorough cleanup
-  const deleteEvaluation = useCallback(async (studentId: string) => {
+  // Delete an evaluation - Enhanced for thorough cleanup
+  const deleteEvaluation = useCallback(async (evaluationId: string, studentId?: string) => {
     try {
       if (!selectedTest) {
         toast.error('No test selected');
         return false;
       }
       
-      console.log("Deleting evaluation for studentId:", studentId, "testId:", selectedTest);
+      console.log(`Deleting evaluation ${evaluationId} for student ${studentId || 'unknown'}`);
       
-      // First, find the evaluation to get its ID
-      const evaluation = evaluations.find(e => e.student_id === studentId && e.test_id === selectedTest);
-      
-      if (!evaluation) {
-        console.error("Evaluation not found for studentId:", studentId);
-        return false;
+      // If studentId is provided but evaluationId isn't specific, find the evaluation
+      let targetEvaluationId = evaluationId;
+      if (studentId && evaluationId === studentId) {
+        const evaluation = evaluations.find(e => e.student_id === studentId && e.test_id === selectedTest);
+        if (evaluation) {
+          targetEvaluationId = evaluation.id;
+        } else {
+          console.error("Evaluation not found for studentId:", studentId);
+          return false;
+        }
       }
       
       // Delete the evaluation from the database
       const { error: evalError } = await supabase
         .from('paper_evaluations')
         .delete()
-        .eq('id', evaluation.id);
+        .eq('id', targetEvaluationId);
       
       if (evalError) {
         console.error("Error deleting paper evaluations:", evalError);
         throw evalError;
       }
       
-      // Also delete the corresponding test grade
-      const { error: gradeError } = await supabase
-        .from('test_grades')
-        .delete()
-        .eq('student_id', studentId)
-        .eq('test_id', selectedTest);
-      
-      if (gradeError) {
-        console.error('Error deleting test grade:', gradeError);
-        // Continue even if there's an error deleting the grade
+      // Also delete the corresponding test grade if studentId is provided
+      if (studentId) {
+        const { error: gradeError } = await supabase
+          .from('test_grades')
+          .delete()
+          .eq('student_id', studentId)
+          .eq('test_id', selectedTest);
+        
+        if (gradeError) {
+          console.error('Error deleting test grade:', gradeError);
+          // Continue even if there's an error deleting the grade
+        }
       }
       
       // Invalidate queries to ensure fresh data on next fetch
@@ -330,12 +336,15 @@ export function useEvaluations(
       
       // Update local state to remove the deleted evaluation
       setEvaluationResults(prev => {
-        const updated = { ...prev };
-        delete updated[studentId];
-        return updated;
+        if (studentId) {
+          const updated = { ...prev };
+          delete updated[studentId];
+          return updated;
+        }
+        return prev;
       });
       
-      console.log("Successfully deleted evaluation for student:", studentId);
+      console.log("Successfully deleted evaluation:", targetEvaluationId);
       return true;
     } catch (error) {
       console.error('Error deleting evaluation:', error);
