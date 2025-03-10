@@ -293,12 +293,19 @@ export function useEvaluations(
       
       console.log("Deleting evaluation for studentId:", studentId, "testId:", selectedTest);
       
+      // First, find the evaluation to get its ID
+      const evaluation = evaluations.find(e => e.student_id === studentId && e.test_id === selectedTest);
+      
+      if (!evaluation) {
+        console.error("Evaluation not found for studentId:", studentId);
+        return false;
+      }
+      
       // Delete the evaluation from the database
       const { error: evalError } = await supabase
         .from('paper_evaluations')
         .delete()
-        .eq('student_id', studentId)
-        .eq('test_id', selectedTest);
+        .eq('id', evaluation.id);
       
       if (evalError) {
         console.error("Error deleting paper evaluations:", evalError);
@@ -334,7 +341,7 @@ export function useEvaluations(
       console.error('Error deleting evaluation:', error);
       return false;
     }
-  }, [selectedTest, queryClient]);
+  }, [selectedTest, evaluations, queryClient]);
 
   return {
     evaluations,

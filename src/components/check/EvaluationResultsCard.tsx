@@ -59,16 +59,13 @@ export function EvaluationResultsCard({
         // Use provided onDelete handler
         await onDelete(evaluationId, studentId);
         
-        // Remove the evaluation from local state
+        // Remove the evaluation from local state to immediately update the UI
         setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
         
         toast.success("Evaluation deleted successfully");
       } else {
         toast.error('Delete handler not provided');
       }
-      
-      // Explicitly refetch evaluations to update the UI
-      refetchEvaluations();
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');

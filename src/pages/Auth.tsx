@@ -63,7 +63,7 @@ const Auth = () => {
           password,
           options: {
             data: {
-              name: name
+              name: name // This matches the name field in our profiles table trigger
             }
           }
         });

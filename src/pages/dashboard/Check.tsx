@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -52,20 +51,19 @@ export default function Check() {
         return;
       }
       
-      // Display a loading toast
-      toast.loading('Deleting evaluation...', { id: 'delete-eval' });
+      console.log(`Deleting evaluation ${evaluationId} for student ${studentId}`);
       
-      // Delete the evaluation
-      await deleteEvaluation(studentId);
+      // Delete the evaluation using the studentId
+      const success = await deleteEvaluation(studentId);
       
-      // Dismiss the loading toast
-      toast.dismiss('delete-eval');
-      toast.success('Evaluation deleted successfully');
-      
-      // Refetch evaluations to update the UI
-      refetchEvaluations();
+      if (success) {
+        toast.success('Evaluation deleted successfully');
+        // Force refresh evaluations to make sure UI is in sync with database
+        await refetchEvaluations();
+      } else {
+        toast.error('Failed to delete evaluation');
+      }
     } catch (error) {
-      toast.dismiss('delete-eval');
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');
     }
