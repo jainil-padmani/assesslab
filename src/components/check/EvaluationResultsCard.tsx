@@ -12,7 +12,7 @@ interface EvaluationResultsCardProps {
   evaluations: PaperEvaluation[];
   classStudents: Student[];
   selectedTest: string;
-  onDelete?: (evaluationId: string, studentId: string) => void;
+  onDelete?: (evaluationId: string, studentId: string) => Promise<void>;
   refetchEvaluations: () => void;
 }
 
@@ -61,6 +61,9 @@ export function EvaluationResultsCard({
         
         // Remove the evaluation from local state to immediately update the UI
         setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
+        
+        // Also refetch evaluations to ensure database and UI are in sync
+        refetchEvaluations();
         
         toast.success("Evaluation deleted successfully");
       } else {
