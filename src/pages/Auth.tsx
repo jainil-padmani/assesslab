@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -55,8 +55,10 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        // Include name in user_metadata
-        const { error } = await supabase.auth.signUp({
+        console.log("Starting signup process with name:", name);
+        
+        // Include name in user_metadata during signup
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -66,8 +68,24 @@ const Auth = () => {
           }
         });
         
-        if (error) throw error;
-        toast.success("Account created successfully! Please check your email for verification.");
+        if (error) {
+          console.error("Sign up error:", error);
+          throw error;
+        }
+        
+        console.log("Sign up response:", data);
+        
+        if (data.user) {
+          toast.success("Account created successfully! Please check your email for verification.");
+          
+          // Check if email confirmation is required
+          if (!data.user.email_confirmed_at) {
+            toast.info("Please check your email to confirm your account before signing in.");
+          } else {
+            // If email confirmation is not required or already confirmed
+            navigate("/dashboard");
+          }
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -111,7 +129,14 @@ const Auth = () => {
                 className="w-full bg-accent hover:bg-accent/90"
                 disabled={isLoading}
               >
-                {isLoading ? "Sending..." : "Send Reset Instructions"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Reset Instructions"
+                )}
               </Button>
               <Button
                 variant="link"
@@ -174,11 +199,14 @@ const Auth = () => {
               className="w-full bg-accent hover:bg-accent/90"
               disabled={isLoading}
             >
-              {isLoading
-                ? "Loading..."
-                : isSignUp
-                ? "Create Account"
-                : "Sign In"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                isSignUp ? "Create Account" : "Sign In"
+              )}
             </Button>
             <div className="flex flex-col space-y-2 text-center">
               <Button
@@ -205,6 +233,6 @@ const Auth = () => {
       </Card>
     </div>
   );
-}
+};
 
 export default Auth;

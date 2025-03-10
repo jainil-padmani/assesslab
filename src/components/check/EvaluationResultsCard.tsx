@@ -26,7 +26,7 @@ export function EvaluationResultsCard({
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
   
-  // Initialize local evaluations from props
+  // Initialize local evaluations from props and update when evaluations change
   useEffect(() => {
     setLocalEvaluations(evaluations.filter(e => e.status === 'completed'));
   }, [evaluations]);
@@ -34,7 +34,7 @@ export function EvaluationResultsCard({
   // Filter completed evaluations
   const completedEvaluations = localEvaluations.filter(e => 
     e.status === 'completed' && 
-    e.evaluation_data?.answers && 
+    e.evaluation_data?.answers && .
     e.evaluation_data?.summary?.totalScore
   );
 
@@ -67,7 +67,7 @@ export function EvaluationResultsCard({
         toast.error('Delete handler not provided');
       }
       
-      // Refetch evaluations to update the UI
+      // Explicitly refetch evaluations to update the UI
       refetchEvaluations();
     } catch (error) {
       console.error('Error deleting evaluation:', error);

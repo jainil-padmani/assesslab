@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -284,7 +283,7 @@ export function useEvaluations(
     }
   };
 
-  // Delete an evaluation
+  // Delete an evaluation - Updated with more thorough cleanup
   const deleteEvaluation = useCallback(async (studentId: string) => {
     try {
       if (!selectedTest) {
@@ -318,8 +317,16 @@ export function useEvaluations(
         // Continue even if there's an error deleting the grade
       }
       
-      // Invalidate queries
+      // Invalidate queries to ensure fresh data on next fetch
       queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
+      queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
+      
+      // Update local state to remove the deleted evaluation
+      setEvaluationResults(prev => {
+        const updated = { ...prev };
+        delete updated[studentId];
+        return updated;
+      });
       
       console.log("Successfully deleted evaluation for student:", studentId);
       return true;

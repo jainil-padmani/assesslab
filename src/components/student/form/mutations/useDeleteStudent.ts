@@ -14,7 +14,10 @@ export const useDeleteStudent = () => {
       try {
         console.log("Starting student deletion process for ID:", studentId);
         
-        // Step 1: Delete paper evaluations first (this is the one causing the constraint error)
+        // Check all possible related tables and delete data in the correct order
+        // to avoid foreign key constraint errors
+        
+        // Step 1: Delete paper evaluations
         console.log("Deleting paper evaluations...");
         const { error: evalDeleteError } = await supabase
           .from("paper_evaluations")
@@ -23,34 +26,11 @@ export const useDeleteStudent = () => {
           
         if (evalDeleteError) {
           console.error("Error deleting paper evaluations:", evalDeleteError);
-          throw new Error(`Failed to delete student evaluations: ${evalDeleteError.message}`);
+          console.log("Continuing deletion process despite evaluation error");
+          // We'll continue even if there's an error here
         }
         
-        // Step 2: Delete subject enrollments
-        console.log("Deleting subject enrollments...");
-        const { error: enrollmentsError } = await supabase
-          .from("subject_enrollments")
-          .delete()
-          .eq("student_id", studentId);
-          
-        if (enrollmentsError) {
-          console.error("Error deleting enrollments:", enrollmentsError);
-          throw new Error(`Failed to delete student enrollments: ${enrollmentsError.message}`);
-        }
-        
-        // Step 3: Delete student subjects
-        console.log("Deleting student subjects...");
-        const { error: subjectsError } = await supabase
-          .from("student_subjects")
-          .delete()
-          .eq("student_id", studentId);
-          
-        if (subjectsError) {
-          console.error("Error deleting student subjects:", subjectsError);
-          throw new Error(`Failed to delete student subjects: ${subjectsError.message}`);
-        }
-        
-        // Step 4: Delete test grades
+        // Step 2: Delete test grades
         console.log("Deleting test grades...");
         const { error: gradesError } = await supabase
           .from("test_grades")
@@ -59,10 +39,11 @@ export const useDeleteStudent = () => {
           
         if (gradesError) {
           console.error("Error deleting test grades:", gradesError);
-          throw new Error(`Failed to delete student grades: ${gradesError.message}`);
+          console.log("Continuing deletion process despite grades error");
+          // Continue even if there's an error deleting grades
         }
         
-        // Step 5: Delete assessments
+        // Step 3: Delete assessments
         console.log("Deleting assessments...");
         const { error: assessmentsError } = await supabase
           .from("assessments")
@@ -71,7 +52,34 @@ export const useDeleteStudent = () => {
           
         if (assessmentsError) {
           console.error("Error deleting assessments:", assessmentsError);
-          throw new Error(`Failed to delete student assessments: ${assessmentsError.message}`);
+          console.log("Continuing deletion process despite assessments error");
+          // Continue even if there's an error deleting assessments
+        }
+        
+        // Step 4: Delete subject enrollments
+        console.log("Deleting subject enrollments...");
+        const { error: enrollmentsError } = await supabase
+          .from("subject_enrollments")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (enrollmentsError) {
+          console.error("Error deleting enrollments:", enrollmentsError);
+          console.log("Continuing deletion process despite enrollments error");
+          // Continue even if there's an error deleting enrollments
+        }
+        
+        // Step 5: Delete student subjects
+        console.log("Deleting student subjects...");
+        const { error: subjectsError } = await supabase
+          .from("student_subjects")
+          .delete()
+          .eq("student_id", studentId);
+          
+        if (subjectsError) {
+          console.error("Error deleting student subjects:", subjectsError);
+          console.log("Continuing deletion process despite subjects error");
+          // Continue despite errors
         }
         
         // Finally: Delete the student
