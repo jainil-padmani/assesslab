@@ -2,25 +2,29 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { Student } from "@/types/dashboard";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
+import { toast } from "sonner";
 
 interface EvaluationResultsCardProps {
   evaluations: PaperEvaluation[];
   classStudents: Student[];
   selectedTest: string;
   refetchEvaluations: () => void;
+  onDeleteEvaluation: (evaluationId: string, studentId: string) => Promise<boolean>;
 }
 
 export function EvaluationResultsCard({ 
   evaluations, 
   classStudents,
   selectedTest,
-  refetchEvaluations
+  refetchEvaluations,
+  onDeleteEvaluation
 }: EvaluationResultsCardProps) {
   const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
   // Initialize and update local evaluations when props change
   useEffect(() => {
@@ -45,6 +49,29 @@ export function EvaluationResultsCard({
     
     return Math.round(totalPercentage / completedEvaluations.length);
   })();
+
+  const handleDelete = async (evaluation: PaperEvaluation) => {
+    if (confirm(`Are you sure you want to delete evaluation for ${classStudents.find(s => s.id === evaluation.student_id)?.name || 'this student'}?`)) {
+      setIsDeleting(evaluation.id);
+      
+      try {
+        const success = await onDeleteEvaluation(evaluation.id, evaluation.student_id);
+        
+        if (success) {
+          // Remove from local state
+          setLocalEvaluations(prev => prev.filter(e => e.id !== evaluation.id));
+          toast.success("Evaluation deleted successfully");
+        } else {
+          toast.error("Failed to delete evaluation");
+        }
+      } catch (error) {
+        console.error("Error deleting evaluation:", error);
+        toast.error("An error occurred while deleting evaluation");
+      } finally {
+        setIsDeleting(null);
+      }
+    }
+  };
 
   return (
     <Card>
@@ -97,16 +124,28 @@ export function EvaluationResultsCard({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        asChild
-                      >
-                        <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          View Details
-                        </a>
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          asChild
+                        >
+                          <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
+                            <FileText className="h-4 w-4 mr-2" />
+                            View Details
+                          </a>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDelete(evaluation)}
+                          disabled={isDeleting === evaluation.id}
+                          className="flex items-center"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

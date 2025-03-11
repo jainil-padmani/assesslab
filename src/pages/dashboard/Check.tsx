@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -33,7 +32,8 @@ export default function Check() {
     setShowResults,
     refetchEvaluations,
     evaluatePaperMutation,
-    getStudentAnswerSheetUrl
+    getStudentAnswerSheetUrl,
+    deleteEvaluation
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
 
   // Extract question papers and answer keys from test files
@@ -208,6 +208,28 @@ export default function Check() {
     }
   };
 
+  const handleDeleteEvaluation = async (evaluationId: string, studentId: string) => {
+    try {
+      console.log(`Attempting to delete evaluation ${evaluationId} for student ${studentId}`);
+      
+      // Call the deleteEvaluation function from the hook
+      const success = await deleteEvaluation(evaluationId, studentId);
+      
+      if (success) {
+        console.log("Evaluation deleted successfully");
+        // Refetch to update UI
+        await refetchEvaluations();
+        return true;
+      } else {
+        console.error("Failed to delete evaluation");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error in handleDeleteEvaluation:", error);
+      return false;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -267,6 +289,7 @@ export default function Check() {
               classStudents={classStudents}
               selectedTest={selectedTest}
               refetchEvaluations={refetchEvaluations}
+              onDeleteEvaluation={handleDeleteEvaluation}
             />
           )}
         </div>
