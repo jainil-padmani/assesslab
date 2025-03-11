@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -291,7 +292,7 @@ export function useEvaluations(
         return false;
       }
       
-      console.log(`Permanently deleting evaluation ${evaluationId} for student ${studentId || 'unknown'}`);
+      console.log(`Starting permanent deletion for evaluation ${evaluationId} and student ${studentId || 'unknown'}`);
       
       // If studentId is provided but evaluationId isn't specific, find the evaluation
       let targetEvaluationId = evaluationId;

@@ -53,25 +53,33 @@ export function EvaluationResultsCard({
   // Enhanced handleDelete function for permanent deletion
   const handleDelete = async (evaluationId: string, studentId: string) => {
     try {
+      if (!onDelete) {
+        toast.error('Delete handler not provided');
+        return;
+      }
+      
+      // Mark this evaluation as being deleted
       setDeletingIds(prev => [...prev, evaluationId]);
       
-      if (onDelete) {
-        // Use provided onDelete handler
-        await onDelete(evaluationId, studentId);
-        
-        // Immediately remove the evaluation from local state
-        setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId && e.student_id !== studentId));
-        
-        // Refetch to ensure database and UI are in sync
-        await refetchEvaluations();
-        
-        toast.success("Evaluation permanently deleted");
-      } else {
-        toast.error('Delete handler not provided');
-      }
+      // Show delete in progress toast
+      toast.loading('Permanently deleting evaluation...');
+      
+      // Immediately remove from local state to update UI
+      setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
+      
+      // Call the provided delete handler
+      await onDelete(evaluationId, studentId);
+      
+      // Refresh the evaluations list
+      await refetchEvaluations();
+      
+      toast.success('Evaluation permanently deleted');
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       toast.error('Failed to delete evaluation');
+      
+      // Refetch to ensure UI is in sync with database state
+      refetchEvaluations();
     } finally {
       setDeletingIds(prev => prev.filter(id => id !== evaluationId));
     }

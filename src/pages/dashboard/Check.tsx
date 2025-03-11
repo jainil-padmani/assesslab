@@ -58,17 +58,20 @@ export default function Check() {
       toast.loading('Permanently deleting evaluation...');
       
       // Delete the evaluation using the enhanced deleteEvaluation function
-      const success = await deleteEvaluation(studentId);
+      const success = await deleteEvaluation(evaluationId, studentId);
       
       if (success) {
+        toast.dismiss();
         toast.success('Evaluation permanently deleted');
         // Force refresh evaluations to make sure UI is in sync with database
         await refetchEvaluations();
       } else {
+        toast.dismiss();
         toast.error('Failed to delete evaluation');
       }
     } catch (error) {
       console.error('Error deleting evaluation:', error);
+      toast.dismiss();
       toast.error('Failed to delete evaluation');
     }
   }, [selectedTest, deleteEvaluation, refetchEvaluations]);
