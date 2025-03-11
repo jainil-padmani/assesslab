@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -51,8 +52,7 @@ export function useEvaluations(
       console.log(`Found ${data?.length || 0} evaluations`);
       return data as PaperEvaluation[];
     },
-    enabled: !!selectedTest,
-    staleTime: 0
+    enabled: !!selectedTest
   });
 
   // Mutation for evaluating one student's paper
@@ -336,6 +336,20 @@ export function useEvaluations(
         } else {
           console.log("Successfully deleted from test_grades table");
         }
+        
+        // Also delete any assessment records related to this evaluation
+        const { error: assessmentError } = await supabase
+          .from('assessments')
+          .delete()
+          .eq('student_id', targetStudentId)
+          .eq('subject_id', selectedSubject);
+          
+        if (assessmentError) {
+          console.error('Error deleting assessment:', assessmentError);
+          // Continue even if there's an error deleting the assessment
+        } else {
+          console.log("Successfully deleted related assessment records");
+        }
       }
       
       // Force invalidate queries to ensure fresh data on next fetch
@@ -343,6 +357,7 @@ export function useEvaluations(
       queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
       queryClient.invalidateQueries({ queryKey: ['test-grades'] });
       queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       
       // Update local state to remove the deleted evaluation immediately
       setEvaluationResults(prev => {
@@ -354,90 +369,16 @@ export function useEvaluations(
         return prev;
       });
       
+      // Force refetch to ensure UI is in sync with database
+      await refetchEvaluations();
+      
       console.log("Successfully deleted evaluation:", targetEvaluationId);
       return true;
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       return false;
     }
-  }, [selectedTest, evaluations, queryClient]);
-
-  // Batch delete multiple evaluations at once
-  const batchDeleteEvaluations = useCallback(async (evaluationsToDelete: { id: string, studentId: string }[]) => {
-    try {
-      if (!selectedTest || evaluationsToDelete.length === 0) {
-        return;
-      }
-      
-      console.log(`Starting batch deletion for ${evaluationsToDelete.length} evaluations`);
-      
-      // Process deletions in parallel for efficiency
-      const results = await Promise.allSettled(
-        evaluationsToDelete.map(async ({ id, studentId }) => {
-          // Delete the evaluation
-          const { error: evalError } = await supabase
-            .from('paper_evaluations')
-            .delete()
-            .eq('id', id);
-          
-          if (evalError) {
-            console.error(`Error deleting evaluation ${id}:`, evalError);
-            throw evalError;
-          }
-          
-          // Delete the corresponding test grade
-          if (studentId) {
-            const { error: gradeError } = await supabase
-              .from('test_grades')
-              .delete()
-              .eq('student_id', studentId)
-              .eq('test_id', selectedTest);
-            
-            if (gradeError) {
-              console.error(`Error deleting test grade for student ${studentId}:`, gradeError);
-              // Continue despite grade deletion error
-            }
-          }
-          
-          return { id, studentId, success: true };
-        })
-      );
-      
-      // Log results
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
-      const failCount = results.filter(r => r.status === 'rejected').length;
-      
-      console.log(`Batch deletion completed: ${successCount} successful, ${failCount} failed`);
-      
-      // Force invalidate all relevant queries with immediate refetch
-      queryClient.invalidateQueries({ 
-        queryKey: ['evaluations'],
-        refetchType: 'all'
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: ['evaluations', selectedTest],
-        refetchType: 'all'
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: ['test-grades'],
-        refetchType: 'all'
-      });
-      queryClient.invalidateQueries({ 
-        queryKey: ['test-grades', selectedTest],
-        refetchType: 'all'
-      });
-      
-      // Force an immediate data refetch
-      await queryClient.refetchQueries({ 
-        queryKey: ['evaluations', selectedTest],
-        type: 'active'
-      });
-      
-    } catch (error) {
-      console.error('Error in batchDeleteEvaluations:', error);
-      throw error;
-    }
-  }, [selectedTest, queryClient]);
+  }, [selectedTest, selectedSubject, evaluations, queryClient, refetchEvaluations]);
 
   return {
     evaluations,
@@ -453,7 +394,6 @@ export function useEvaluations(
     evaluatePaperMutation,
     getStudentEvaluationStatus,
     getStudentAnswerSheetUrl,
-    deleteEvaluation,
-    batchDeleteEvaluations
+    deleteEvaluation
   };
 }
