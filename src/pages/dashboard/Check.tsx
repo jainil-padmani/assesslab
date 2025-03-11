@@ -33,8 +33,7 @@ export default function Check() {
     setShowResults,
     refetchEvaluations,
     evaluatePaperMutation,
-    getStudentAnswerSheetUrl,
-    deleteEvaluation
+    getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
 
   // Extract question papers and answer keys from test files
@@ -43,38 +42,6 @@ export default function Check() {
     const answerKeys = testFiles.filter(file => file.answer_key_url);
     return { questionPapers, answerKeys };
   }, [testFiles]);
-
-  // Enhanced handler for permanently deleting an evaluation
-  const handleDeleteEvaluation = useCallback(async (evaluationId: string, studentId: string) => {
-    try {
-      if (!selectedTest) {
-        toast.error('No test selected');
-        return;
-      }
-      
-      console.log(`Permanently deleting evaluation ${evaluationId} for student ${studentId}`);
-      
-      // Show delete in progress toast
-      toast.loading('Permanently deleting evaluation...');
-      
-      // Delete the evaluation using the enhanced deleteEvaluation function
-      const success = await deleteEvaluation(evaluationId, studentId);
-      
-      if (success) {
-        toast.dismiss();
-        toast.success('Evaluation permanently deleted');
-        // Force refresh evaluations to make sure UI is in sync with database
-        await refetchEvaluations();
-      } else {
-        toast.dismiss();
-        toast.error('Failed to delete evaluation');
-      }
-    } catch (error) {
-      console.error('Error deleting evaluation:', error);
-      toast.dismiss();
-      toast.error('Failed to delete evaluation');
-    }
-  }, [selectedTest, deleteEvaluation, refetchEvaluations]);
 
   const handleEvaluateSingle = async (studentId: string) => {
     try {
@@ -126,12 +93,6 @@ export default function Check() {
       
       // Show toast
       toast.info(`Evaluating ${student.name}'s answer sheet...`);
-      
-      // First delete any existing evaluations for this student
-      const existingEvaluation = evaluations.find(e => e.student_id === studentId);
-      if (existingEvaluation && existingEvaluation.status === 'completed') {
-        await deleteEvaluation(studentId);
-      }
       
       // Evaluate the paper
       await evaluatePaperMutation.mutateAsync({
@@ -205,12 +166,6 @@ export default function Check() {
         const { student, answerSheetUrl } = validStudents[i];
         
         try {
-          // First delete any existing evaluations for this student
-          const existingEvaluation = evaluations.find(e => e.student_id === student.id);
-          if (existingEvaluation && existingEvaluation.status === 'completed') {
-            await deleteEvaluation(student.id);
-          }
-
           // Prepare student info
           const studentInfo = {
             id: student.id,
@@ -303,7 +258,6 @@ export default function Check() {
               evaluationProgress={evaluationProgress}
               onEvaluateSingle={handleEvaluateSingle}
               onEvaluateAll={handleEvaluateAll}
-              onDeleteEvaluation={deleteEvaluation}
             />
           )}
           
@@ -312,7 +266,6 @@ export default function Check() {
               evaluations={evaluations}
               classStudents={classStudents}
               selectedTest={selectedTest}
-              onDelete={handleDeleteEvaluation}
               refetchEvaluations={refetchEvaluations}
             />
           )}

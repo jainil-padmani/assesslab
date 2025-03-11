@@ -2,9 +2,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
 
@@ -12,7 +11,6 @@ interface EvaluationResultsCardProps {
   evaluations: PaperEvaluation[];
   classStudents: Student[];
   selectedTest: string;
-  onDelete?: (evaluationId: string, studentId: string) => Promise<void>;
   refetchEvaluations: () => void;
 }
 
@@ -20,10 +18,8 @@ export function EvaluationResultsCard({
   evaluations, 
   classStudents,
   selectedTest,
-  onDelete,
   refetchEvaluations
 }: EvaluationResultsCardProps) {
-  const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
   
   // Initialize and update local evaluations when props change
@@ -49,41 +45,6 @@ export function EvaluationResultsCard({
     
     return Math.round(totalPercentage / completedEvaluations.length);
   })();
-
-  // Enhanced handleDelete function for permanent deletion
-  const handleDelete = async (evaluationId: string, studentId: string) => {
-    try {
-      if (!onDelete) {
-        toast.error('Delete handler not provided');
-        return;
-      }
-      
-      // Mark this evaluation as being deleted
-      setDeletingIds(prev => [...prev, evaluationId]);
-      
-      // Show delete in progress toast
-      toast.loading('Permanently deleting evaluation...');
-      
-      // Immediately remove from local state to update UI
-      setLocalEvaluations(prev => prev.filter(e => e.id !== evaluationId));
-      
-      // Call the provided delete handler
-      await onDelete(evaluationId, studentId);
-      
-      // Refresh the evaluations list
-      await refetchEvaluations();
-      
-      toast.success('Evaluation permanently deleted');
-    } catch (error) {
-      console.error('Error deleting evaluation:', error);
-      toast.error('Failed to delete evaluation');
-      
-      // Refetch to ensure UI is in sync with database state
-      refetchEvaluations();
-    } finally {
-      setDeletingIds(prev => prev.filter(id => id !== evaluationId));
-    }
-  };
 
   return (
     <Card>
@@ -117,7 +78,6 @@ export function EvaluationResultsCard({
               {completedEvaluations.map((evaluation) => {
                 const student = classStudents.find(s => s.id === evaluation.student_id);
                 const data = evaluation.evaluation_data;
-                const isDeleting = deletingIds.includes(evaluation.id);
                 
                 return (
                   <TableRow key={evaluation.id}>
@@ -137,38 +97,16 @@ export function EvaluationResultsCard({
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          asChild
-                        >
-                          <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
-                            <FileText className="h-4 w-4 mr-2" />
-                            View Details
-                          </a>
-                        </Button>
-                        
-                        <Button 
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(evaluation.id, evaluation.student_id)}
-                          disabled={isDeleting}
-                          className="text-red-600 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                        >
-                          {isDeleting ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        asChild
+                      >
+                        <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2" />
+                          View Details
+                        </a>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
