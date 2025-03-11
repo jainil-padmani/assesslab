@@ -56,7 +56,7 @@ export function EvaluationResultsCard({
   })();
 
   const handleDelete = async (evaluation: PaperEvaluation) => {
-    if (confirm(`Are you sure you want to delete evaluation for ${classStudents.find(s => s.id === evaluation.student_id)?.name || 'this student'}?`)) {
+    if (confirm(`Are you sure you want to delete evaluation for ${classStudents.find(s => s.id === evaluation.student_id)?.name || 'this student'}? This action cannot be undone.`)) {
       setIsDeleting(evaluation.id);
       
       try {
@@ -65,7 +65,7 @@ export function EvaluationResultsCard({
         if (success) {
           // Remove from local state
           setLocalEvaluations(prev => prev.filter(e => e.id !== evaluation.id));
-          toast.success("Evaluation deleted successfully");
+          toast.success("Evaluation permanently deleted");
         } else {
           toast.error("Failed to delete evaluation");
         }
@@ -102,7 +102,7 @@ export function EvaluationResultsCard({
       return;
     }
 
-    if (confirm(`Are you sure you want to delete ${selectedEvaluations.length} evaluation${selectedEvaluations.length > 1 ? 's' : ''}?`)) {
+    if (confirm(`Are you sure you want to permanently delete ${selectedEvaluations.length} evaluation${selectedEvaluations.length > 1 ? 's' : ''}? This action cannot be undone.`)) {
       setIsBatchDeleting(true);
       
       try {
@@ -120,7 +120,10 @@ export function EvaluationResultsCard({
         setLocalEvaluations(prev => prev.filter(e => !selectedEvaluations.includes(e.id)));
         setSelectedEvaluations([]);
         
-        toast.success("Selected evaluations deleted successfully");
+        toast.success("Selected evaluations permanently deleted");
+        
+        // Force a refetch to ensure the UI is in sync with the backend
+        refetchEvaluations();
       } catch (error) {
         console.error("Error in batch deletion:", error);
         toast.error("An error occurred during batch deletion");

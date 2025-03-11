@@ -34,5 +34,10 @@ export function useTests(selectedClass: string, selectedSubject: string) {
     }
   };
 
-  return { tests };
+  // Add a function to force refresh test data
+  const refreshTests = () => {
+    fetchTests();
+  };
+
+  return { tests, refreshTests };
 }

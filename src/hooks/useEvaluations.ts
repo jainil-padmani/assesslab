@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,7 +51,8 @@ export function useEvaluations(
       console.log(`Found ${data?.length || 0} evaluations`);
       return data as PaperEvaluation[];
     },
-    enabled: !!selectedTest
+    enabled: !!selectedTest,
+    staleTime: 0
   });
 
   // Mutation for evaluating one student's paper
@@ -360,7 +360,7 @@ export function useEvaluations(
       console.error('Error deleting evaluation:', error);
       return false;
     }
-  }, [selectedTest, evaluations, queryClient, refetchEvaluations]);
+  }, [selectedTest, evaluations, queryClient]);
 
   // Batch delete multiple evaluations at once
   const batchDeleteEvaluations = useCallback(async (evaluationsToDelete: { id: string, studentId: string }[]) => {
@@ -409,11 +409,29 @@ export function useEvaluations(
       
       console.log(`Batch deletion completed: ${successCount} successful, ${failCount} failed`);
       
-      // Force invalidate all relevant queries
-      queryClient.invalidateQueries({ queryKey: ['evaluations'] });
-      queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
-      queryClient.invalidateQueries({ queryKey: ['test-grades'] });
-      queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
+      // Force invalidate all relevant queries with immediate refetch
+      queryClient.invalidateQueries({ 
+        queryKey: ['evaluations'],
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['evaluations', selectedTest],
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['test-grades'],
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['test-grades', selectedTest],
+        refetchType: 'all'
+      });
+      
+      // Force an immediate data refetch
+      await queryClient.refetchQueries({ 
+        queryKey: ['evaluations', selectedTest],
+        type: 'active'
+      });
       
     } catch (error) {
       console.error('Error in batchDeleteEvaluations:', error);

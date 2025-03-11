@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -219,7 +218,7 @@ export default function Check() {
       
       if (success) {
         console.log("Evaluation deleted successfully");
-        // Refetch to update UI with the latest data
+        // Explicitly refetch to update UI with the latest data
         await refetchEvaluations();
         return true;
       } else {
@@ -239,8 +238,10 @@ export default function Check() {
       // Call the batchDeleteEvaluations function from the hook
       await batchDeleteEvaluations(evaluationsToDelete);
       
-      // Refetch to update UI
+      // Explicitly refetch to ensure UI is updated
       await refetchEvaluations();
+      
+      return true;
     } catch (error) {
       console.error("Error in handleBatchDeleteEvaluations:", error);
       throw error; // Re-throw to handle in the UI
