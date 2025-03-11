@@ -122,7 +122,6 @@ export function StudentAnswerSheetsCard({
                 selectedSubject={selectedSubject}
                 testFilesAvailable={areTestFilesReady}
                 onEvaluate={onEvaluateSingle}
-                onDelete={onDeleteEvaluation}
               />
             ))}
           </TableBody>
