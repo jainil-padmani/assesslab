@@ -1,3 +1,4 @@
+
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -33,7 +34,8 @@ export default function Check() {
     refetchEvaluations,
     evaluatePaperMutation,
     getStudentAnswerSheetUrl,
-    deleteEvaluation
+    deleteEvaluation,
+    batchDeleteEvaluations
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
 
   // Extract question papers and answer keys from test files
@@ -217,7 +219,7 @@ export default function Check() {
       
       if (success) {
         console.log("Evaluation deleted successfully");
-        // Refetch to update UI
+        // Refetch to update UI with the latest data
         await refetchEvaluations();
         return true;
       } else {
@@ -227,6 +229,21 @@ export default function Check() {
     } catch (error) {
       console.error("Error in handleDeleteEvaluation:", error);
       return false;
+    }
+  };
+
+  const handleBatchDeleteEvaluations = async (evaluationsToDelete: { id: string, studentId: string }[]) => {
+    try {
+      console.log(`Attempting to delete ${evaluationsToDelete.length} evaluations in batch`);
+      
+      // Call the batchDeleteEvaluations function from the hook
+      await batchDeleteEvaluations(evaluationsToDelete);
+      
+      // Refetch to update UI
+      await refetchEvaluations();
+    } catch (error) {
+      console.error("Error in handleBatchDeleteEvaluations:", error);
+      throw error; // Re-throw to handle in the UI
     }
   };
 
@@ -290,6 +307,7 @@ export default function Check() {
               selectedTest={selectedTest}
               refetchEvaluations={refetchEvaluations}
               onDeleteEvaluation={handleDeleteEvaluation}
+              onBatchDeleteEvaluations={handleBatchDeleteEvaluations}
             />
           )}
         </div>
