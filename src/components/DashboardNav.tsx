@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -54,11 +53,6 @@ const links = [
     title: "Paper History",
     icon: BookOpen,
     href: "/dashboard/paper-history",
-  },
-  {
-    title: "Generate Questions",
-    icon: BookOpen,
-    href: "/dashboard/generate",
   },
   {
     title: "File Management",

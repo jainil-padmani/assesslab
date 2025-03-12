@@ -1,15 +1,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { BookOpen, Brain, CheckCircle } from "lucide-react";
+import { BookOpen, Brain, CheckCircle, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const features = [
   {
-    title: "Generate Questions",
+    title: "Paper Generation",
     description: "Generate comprehensive question papers from your study materials in minutes.",
-    icon: BookOpen,
-    href: "/dashboard/generate",
+    icon: FileText,
+    href: "/dashboard/paper-generation",
   },
   {
     title: "Smart Analysis",
