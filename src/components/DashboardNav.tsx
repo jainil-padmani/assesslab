@@ -50,11 +50,6 @@ const links = [
     href: "/dashboard/paper-generation",
   },
   {
-    title: "Paper History",
-    icon: BookOpen,
-    href: "/dashboard/paper-history",
-  },
-  {
     title: "File Management",
     icon: FileUp,
     href: "/dashboard/file-management",

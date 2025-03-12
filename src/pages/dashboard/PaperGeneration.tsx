@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Book, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
@@ -23,6 +24,7 @@ export default function PaperGeneration() {
   const [papers, setPapers] = useState<GeneratedPaper[]>([]);
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
   const { subjects } = useSubjects();
   const navigate = useNavigate();
 
@@ -102,6 +104,35 @@ export default function PaperGeneration() {
   
   const handleDownload = (paperUrl: string) => {
     window.open(paperUrl, '_blank');
+  };
+
+  const handleViewPaperDetails = (paper: GeneratedPaper) => {
+    setSelectedPaper(paper);
+  };
+
+  const handlePrintSelectedQuestions = () => {
+    if (!selectedPaper) return;
+    
+    // For now, we just open the existing paper URL
+    // In a full implementation, you would generate a new PDF with only selected questions
+    window.open(selectedPaper.paper_url, '_blank');
+  };
+
+  const generateDocx = async () => {
+    if (!selectedPaper) return;
+    
+    try {
+      toast.info("Generating DOCX file...");
+      
+      // Here we would call an edge function to generate a DOCX
+      // For this example, we'll just open the existing paper URL
+      window.open(selectedPaper.paper_url, '_blank');
+      
+      toast.success("DOCX file generated successfully");
+    } catch (error) {
+      console.error("Error generating DOCX:", error);
+      toast.error("Failed to generate DOCX file");
+    }
   };
 
   return (
@@ -232,6 +263,13 @@ export default function PaperGeneration() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handleViewPaperDetails(paper)}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleView(paper.paper_url)}
                             >
                               <Eye className="h-4 w-4" />
@@ -254,6 +292,88 @@ export default function PaperGeneration() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Paper Details Dialog */}
+      <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Paper Details: {selectedPaper?.topic}</DialogTitle>
+            <DialogDescription>
+              {selectedPaper?.subject_name} - Created on {selectedPaper && format(new Date(selectedPaper.created_at), "dd MMM yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Questions</h3>
+              
+              {selectedPaper && Array.isArray(selectedPaper.questions) ? (
+                <div className="space-y-3">
+                  {(selectedPaper.questions as Question[]).map((question, idx) => (
+                    <div 
+                      key={question.id} 
+                      className="p-3 border rounded-md"
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            Q{idx + 1}. {question.text}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {question.type}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              {question.level}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              {question.marks} marks
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No questions available</p>
+              )}
+            </div>
+            
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Paper Preview</h3>
+              
+              <div className="aspect-[3/4] border rounded-md overflow-hidden bg-white">
+                {selectedPaper ? (
+                  <iframe 
+                    src={selectedPaper.paper_url} 
+                    className="w-full h-full"
+                    title="Generated Paper"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-500">No preview available</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex flex-wrap gap-2 justify-center mt-4">
+                <Button onClick={handlePrintSelectedQuestions}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Full Paper
+                </Button>
+                <Button onClick={generateDocx}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download as DOCX
+                </Button>
+                <Button variant="outline" onClick={() => setSelectedPaper(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

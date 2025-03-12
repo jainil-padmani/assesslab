@@ -14,7 +14,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { subjectName, subjectCode, topicName, headerUrl, footerUrl, questions } = await req.json();
+    const { subjectName, subjectCode, topicName, headerUrl, questions } = await req.json();
     
     if (!subjectName || !topicName || !questions || questions.length === 0) {
       return new Response(
@@ -26,9 +26,8 @@ serve(async (req: Request) => {
     console.log(`Generating paper for ${subjectName} (${subjectCode}): ${topicName}`);
     console.log(`Selected ${questions.length} questions`);
     
-    // Get header and footer content if provided
+    // Get header content if provided
     let headerContent = "";
-    let footerContent = "";
     
     if (headerUrl) {
       const headerResponse = await fetch(headerUrl);
@@ -36,15 +35,6 @@ serve(async (req: Request) => {
         headerContent = await headerResponse.text();
       } else {
         console.warn("Failed to fetch header content");
-      }
-    }
-    
-    if (footerUrl) {
-      const footerResponse = await fetch(footerUrl);
-      if (footerResponse.ok) {
-        footerContent = await footerResponse.text();
-      } else {
-        console.warn("Failed to fetch footer content");
       }
     }
     
@@ -142,10 +132,8 @@ serve(async (req: Request) => {
         </div>
         
         <div class="footer">
-          ${footerContent || `
-            <p>End of Paper</p>
-            <p>${subjectName} - ${topicName} Test | Total Marks: ${totalMarks}</p>
-          `}
+          <p>End of Paper</p>
+          <p>${subjectName} - ${topicName} Test | Total Marks: ${totalMarks}</p>
         </div>
       </div>
     </body>

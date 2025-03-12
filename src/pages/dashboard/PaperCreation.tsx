@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -30,10 +31,8 @@ export default function PaperCreation() {
   
   const [difficulty, setDifficulty] = useState<number>(50);
   const [headerFile, setHeaderFile] = useState<File | null>(null);
-  const [footerFile, setFooterFile] = useState<File | null>(null);
   const [contentFile, setContentFile] = useState<File | null>(null);
   const [headerUrl, setHeaderUrl] = useState<string>("");
-  const [footerUrl, setFooterUrl] = useState<string>("");
   const [contentUrl, setContentUrl] = useState<string>("");
   const [extractedContent, setExtractedContent] = useState<string>("");
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
@@ -84,7 +83,7 @@ export default function PaperCreation() {
     fetchSubjectDetails();
   }, [subjectId, topicName, navigate]);
   
-  const handleFileUpload = async (file: File, type: 'header' | 'footer' | 'content') => {
+  const handleFileUpload = async (file: File, type: 'header' | 'content') => {
     if (!file) return;
     
     const fileExt = file.name.split('.').pop();
@@ -109,8 +108,6 @@ export default function PaperCreation() {
       
       if (type === 'header') {
         setHeaderUrl(fileUrl);
-      } else if (type === 'footer') {
-        setFooterUrl(fileUrl);
       } else if (type === 'content') {
         setContentUrl(fileUrl);
         
@@ -204,7 +201,6 @@ export default function PaperCreation() {
           subjectCode,
           topicName,
           headerUrl,
-          footerUrl,
           questions: selectedQuestions
         }
       });
@@ -225,7 +221,6 @@ export default function PaperCreation() {
           paper_url: paperUrl,
           questions: selectedQuestions as any,
           header_url: headerUrl || null,
-          footer_url: footerUrl || null,
           content_url: contentUrl || null,
           user_id: (await supabase.auth.getUser()).data.user?.id || ''
         })
@@ -284,7 +279,7 @@ export default function PaperCreation() {
           <Card>
             <CardHeader>
               <CardTitle>Document Templates</CardTitle>
-              <CardDescription>Upload header and footer for your paper</CardDescription>
+              <CardDescription>Upload header for your paper</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -311,34 +306,6 @@ export default function PaperCreation() {
                 {headerUrl && (
                   <div className="text-sm text-green-600 flex items-center mt-1">
                     <Check className="h-4 w-4 mr-1" /> Header uploaded
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <Label htmlFor="footer-file">Footer Template (optional)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    id="footer-file"
-                    type="file"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setFooterFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => footerFile && handleFileUpload(footerFile, 'footer')}
-                    disabled={!footerFile}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Upload
-                  </Button>
-                </div>
-                {footerUrl && (
-                  <div className="text-sm text-green-600 flex items-center mt-1">
-                    <Check className="h-4 w-4 mr-1" /> Footer uploaded
                   </div>
                 )}
               </div>
