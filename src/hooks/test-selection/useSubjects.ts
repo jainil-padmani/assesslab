@@ -4,16 +4,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Subject } from "@/types/dashboard";
 
-export function useSubjects(selectedClass: string) {
+export function useSubjects(selectedClass?: string) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   useEffect(() => {
     if (selectedClass) {
       fetchSubjects();
     } else {
-      setSubjects([]);
+      // If no class is selected, fetch all subjects
+      fetchAllSubjects();
     }
   }, [selectedClass]);
+
+  const fetchAllSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      setSubjects(data || []);
+    } catch (error: any) {
+      toast.error('Failed to fetch subjects');
+      console.error('Error fetching all subjects:', error);
+    }
+  };
 
   const fetchSubjects = async () => {
     try {
