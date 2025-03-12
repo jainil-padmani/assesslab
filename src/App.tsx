@@ -10,8 +10,6 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
-import Generate from "./pages/dashboard/Generate";
-import Questions from "./pages/dashboard/Questions";
 import Analysis from "./pages/dashboard/Analysis";
 import AnalysisResult from "./pages/dashboard/AnalysisResult";
 import AnalysisHistory from "./pages/dashboard/AnalysisHistory";
@@ -54,8 +52,6 @@ const App = () => (
               <Route path="tests" element={<Tests />} />
               <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
               <Route path="tests/detail/:testId" element={<TestDetail />} />
-              <Route path="generate" element={<Generate />} />
-              <Route path="questions" element={<Questions />} />
               <Route path="analysis" element={<Analysis />} />
               <Route path="analysis-result" element={<AnalysisResult />} />
               <Route path="analysis-history" element={<AnalysisHistory />} />
