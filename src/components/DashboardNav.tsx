@@ -13,7 +13,8 @@ import {
   GraduationCap,
   Notebook,
   FileUp,
-  School
+  School,
+  FileText
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -43,6 +44,16 @@ const links = [
     title: "Tests",
     icon: ClipboardList,
     href: "/dashboard/tests",
+  },
+  {
+    title: "Paper Generation",
+    icon: FileText,
+    href: "/dashboard/paper-generation",
+  },
+  {
+    title: "Paper History",
+    icon: BookOpen,
+    href: "/dashboard/paper-history",
   },
   {
     title: "Generate Questions",

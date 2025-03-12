@@ -27,6 +27,9 @@ import ClassDetail from "./pages/dashboard/ClassDetail";
 import Tests from "./pages/dashboard/Tests";
 import SubjectTests from "./pages/dashboard/SubjectTests";
 import TestDetail from "./pages/dashboard/TestDetail";
+import PaperGeneration from "./pages/dashboard/PaperGeneration";
+import PaperCreation from "./pages/dashboard/PaperCreation";
+import PaperHistory from "./pages/dashboard/PaperHistory";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +62,9 @@ const App = () => (
               <Route path="check" element={<Check />} />
               <Route path="settings" element={<Settings />} />
               <Route path="file-management" element={<FileManagement />} />
+              <Route path="paper-generation" element={<PaperGeneration />} />
+              <Route path="paper-generation/create" element={<PaperCreation />} />
+              <Route path="paper-history" element={<PaperHistory />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

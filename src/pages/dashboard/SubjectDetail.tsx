@@ -10,6 +10,7 @@ import { BloomsTaxonomy as BloomsTaxonomyComponent } from "@/components/subject/
 import { PapersManagement } from "@/components/subject/PapersManagement";
 import { SubjectStudents } from "@/components/subject/SubjectStudents";
 import { fetchSubjectFiles } from "@/utils/subjectFilesUtils";
+import { GeneratedPapers } from "@/components/subject/GeneratedPapers";
 
 export default function SubjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -106,10 +107,11 @@ export default function SubjectDetail() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{subject.name}</h1>
         <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-[500px]">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="info">Subject Info</TabsTrigger>
             <TabsTrigger value="students">Students</TabsTrigger>
             <TabsTrigger value="papers">Papers</TabsTrigger>
+            <TabsTrigger value="generated">Generated Papers</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -132,12 +134,14 @@ export default function SubjectDetail() {
             subject={subject}
             fetchSubjectData={fetchSubjectData}
           />
-        ) : (
+        ) : activeTab === "papers" ? (
           <PapersManagement 
             subject={subject} 
             subjectFiles={subjectFiles} 
             fetchSubjectFiles={fetchAndSetSubjectFiles} 
           />
+        ) : (
+          <GeneratedPapers subject={subject} />
         )}
       </div>
     </div>
