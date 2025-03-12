@@ -13,7 +13,7 @@ export default function PaperGeneration() {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [topicName, setTopicName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const { subjects } = useSubjects();
+  const { subjects } = useSubjects(); // No argument needed
   const navigate = useNavigate();
 
   const handleContinue = () => {

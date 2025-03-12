@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Download, Eye } from "lucide-react";
-import { GeneratedPaper } from "@/types/papers";
+import { GeneratedPaper, Question } from "@/types/papers";
 import { toast } from "sonner";
 
 interface GeneratedPapersProps {
@@ -32,7 +32,12 @@ export function GeneratedPapers({ subjectId }: GeneratedPapersProps) {
         if (error) throw error;
         
         if (data) {
-          setPapers(data as GeneratedPaper[]);
+          // Transform the data to match the GeneratedPaper type
+          const typedPapers: GeneratedPaper[] = data.map((paper: any) => ({
+            ...paper,
+            questions: paper.questions as Question[] | any // Cast to the union type
+          }));
+          setPapers(typedPapers);
         }
       } catch (error: any) {
         console.error("Error fetching papers:", error);
@@ -85,7 +90,9 @@ export function GeneratedPapers({ subjectId }: GeneratedPapersProps) {
                     {format(new Date(paper.created_at), "dd MMM yyyy")}
                   </TableCell>
                   <TableCell>{paper.topic}</TableCell>
-                  <TableCell>{paper.questions.length}</TableCell>
+                  <TableCell>
+                    {Array.isArray(paper.questions) ? paper.questions.length : 'N/A'}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button

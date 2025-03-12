@@ -25,10 +25,10 @@ export interface GeneratedPaper {
   subject_id: string;
   topic: string;
   paper_url: string;
-  questions: Question[];
-  header_url?: string;
-  footer_url?: string;
-  content_url?: string;
+  questions: Question[] | Json; // Allow both Question[] and Json for compatibility
+  header_url?: string | null;
+  footer_url?: string | null;
+  content_url?: string | null;
   created_at: string;
   subject_name?: string;
 }

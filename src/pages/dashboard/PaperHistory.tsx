@@ -10,14 +10,14 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Download, Eye, ArrowLeft } from "lucide-react";
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
-import { GeneratedPaper } from "@/types/papers";
+import { GeneratedPaper, Question } from "@/types/papers";
 
 export default function PaperHistory() {
   const [papers, setPapers] = useState<GeneratedPaper[]>([]);
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  const { subjects } = useSubjects();
+  const { subjects } = useSubjects(); // No argument needed
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -32,9 +32,10 @@ export default function PaperHistory() {
         
         if (data) {
           // Map the data to include subject_name from the subjects join
-          const mappedData = data.map(paper => ({
+          const mappedData = data.map((paper: any) => ({
             ...paper,
-            subject_name: paper.subjects?.name || "Unknown Subject"
+            subject_name: paper.subjects?.name || "Unknown Subject",
+            questions: paper.questions as Question[] | any // Cast to the union type
           }));
           
           setPapers(mappedData);
@@ -141,7 +142,9 @@ export default function PaperHistory() {
                     </TableCell>
                     <TableCell>{paper.subject_name}</TableCell>
                     <TableCell>{paper.topic}</TableCell>
-                    <TableCell>{paper.questions.length}</TableCell>
+                    <TableCell>
+                      {Array.isArray(paper.questions) ? paper.questions.length : 'N/A'}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button

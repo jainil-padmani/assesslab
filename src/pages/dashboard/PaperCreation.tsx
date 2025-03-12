@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -42,14 +41,12 @@ export default function PaperCreation() {
   const [isCreatingPaper, setIsCreatingPaper] = useState<boolean>(false);
   const [paperUrl, setPaperUrl] = useState<string>("");
   
-  // Validate if we have the required data
   useEffect(() => {
     if (!subjectId || !topicName) {
       toast.error("Missing required information");
       navigate("/dashboard/paper-generation");
     }
     
-    // Try to fetch Bloom's taxonomy from subject if available
     const fetchSubjectDetails = async () => {
       const { data, error } = await supabase
         .from("subjects")
@@ -62,7 +59,6 @@ export default function PaperCreation() {
         return;
       }
       
-      // If subject has a document, try to fetch Bloom's taxonomy
       const { data: documents, error: documentsError } = await supabase
         .from("subject_documents")
         .select("*")
@@ -75,7 +71,6 @@ export default function PaperCreation() {
       }
       
       if (documents && documents.length > 0) {
-        // Fetch the document content and parse Bloom's taxonomy if available
         try {
           const response = await fetch(documents[0].document_url);
           const bloomsData = await response.json();
@@ -118,10 +113,6 @@ export default function PaperCreation() {
         setFooterUrl(fileUrl);
       } else if (type === 'content') {
         setContentUrl(fileUrl);
-        
-        // Extract content from the file
-        const formData = new FormData();
-        formData.append('file', file);
         
         setIsGenerating(true);
         toast.info("Extracting content from file...");
@@ -226,17 +217,17 @@ export default function PaperCreation() {
       const paperUrl = response.data.paperUrl;
       setPaperUrl(paperUrl);
       
-      // Save to database
       const { data, error } = await supabase
         .from('generated_papers')
         .insert({
           subject_id: subjectId,
           topic: topicName,
           paper_url: paperUrl,
-          questions: selectedQuestions,
-          header_url: headerUrl,
-          footer_url: footerUrl,
-          content_url: contentUrl
+          questions: selectedQuestions as any,
+          header_url: headerUrl || null,
+          footer_url: footerUrl || null,
+          content_url: contentUrl || null,
+          user_id: (await supabase.auth.getUser()).data.user?.id || ''
         })
         .select();
       
@@ -271,7 +262,6 @@ export default function PaperCreation() {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column - Upload and Configuration */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader>
@@ -486,7 +476,6 @@ export default function PaperCreation() {
           </Card>
         </div>
         
-        {/* Right column - Generated Questions and Paper */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="questions">
             <TabsList className="grid w-full grid-cols-2">

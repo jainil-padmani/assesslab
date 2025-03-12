@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -141,7 +140,7 @@ export default function SubjectDetail() {
             fetchSubjectFiles={fetchAndSetSubjectFiles} 
           />
         ) : (
-          <GeneratedPapers subject={subject} />
+          <GeneratedPapers subjectId={subject.id} />
         )}
       </div>
     </div>
