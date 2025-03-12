@@ -1,3 +1,6 @@
 
 project_id = "aigunjkwusokdunyyfdt"
 [functions.generate-report]
+[functions.extract-text]
+[functions.generate-questions]
+[functions.generate-paper]

@@ -1,163 +1,157 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the request data
-    const { subject, topic, content, bloomsTaxonomy, difficulty } = await req.json();
-
-    // Validate inputs
-    if (!subject || !topic) {
+    const { topic, content, bloomsTaxonomy, difficulty } = await req.json();
+    
+    if (!topic || !content) {
       return new Response(
-        JSON.stringify({ error: "Subject and topic are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Topic and content are required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
-
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiApiKey) {
-      return new Response(
-        JSON.stringify({ error: "OpenAI API key is not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OpenAI API key not found");
     }
-
-    // Prepare bloomsTaxonomy for prompting
-    let bloomsString = "";
-    if (bloomsTaxonomy) {
-      bloomsString = Object.entries(bloomsTaxonomy)
-        .map(([level, percentage]) => `${level}: ${percentage}%`)
-        .join(", ");
-    }
-
-    // Create difficulty string
-    const difficultyString = difficulty === 1 ? "Easy" : difficulty === 2 ? "Medium" : "Hard";
-
-    // Truncate content if it's too large
-    const truncatedContent = content && content.length > 8000 
-      ? content.substring(0, 8000) + "..." 
-      : content;
-
+    
+    console.log("Generating questions for topic:", topic);
+    console.log("Bloom's Taxonomy weights:", JSON.stringify(bloomsTaxonomy));
+    console.log("Difficulty level:", difficulty);
+    
     // Create the prompt for OpenAI
-    const prompt = `
-      You are an expert teacher for the subject: ${subject}. 
-      Your task is to generate questions for a test paper on the topic: "${topic}".
-      
-      Difficulty level: ${difficultyString}
-      
-      The questions should follow this Bloom's Taxonomy distribution:
-      ${bloomsString}
-      
-      Here's the content on which to base the questions:
-      ${truncatedContent || "No specific content provided, generate questions based on the topic."}
-      
-      Generate 20 questions covering different question types (multiple choice, short answer, essay, etc.) 
-      and different cognitive levels according to the Bloom's taxonomy distribution.
-      
-      For each question, provide:
-      1. The question text
-      2. The question type (multiple choice, short answer, essay, etc.)
-      3. The Bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)
-      4. A brief answer or solution (for objective questions)
-      
-      Format your response as a JSON array where each object has these properties:
-      {
-        "text": "Question text",
-        "type": "question type",
-        "level": "bloom's taxonomy level",
-        "answer": "answer or solution"
-      }
-    `;
-
+    const systemPrompt = `You are an expert teacher who can create high-quality questions for exams based on provided content.
+    Your task is to generate questions at various difficulty levels and cognitive domains according to Bloom's taxonomy.
+    
+    The questions should be relevant to the topic and based on the provided content. Each question should include:
+    1. A unique ID
+    2. The question text
+    3. The question type (e.g., short answer, long answer, multiple choice)
+    4. The number of marks for the question (between 1 and 10)
+    5. The Bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)
+    
+    The difficulty level is ${difficulty}% (where 0% is very easy and 100% is very difficult).
+    
+    Use the following Bloom's taxonomy weights to distribute questions:
+    ${JSON.stringify(bloomsTaxonomy, null, 2)}
+    
+    Generate a total of 15-20 questions of various types.`;
+    
+    const userPrompt = `Topic: ${topic}
+    
+    Content: ${content.slice(0, 8000)}`;  // Limit content length to avoid token limits
+    
     // Call OpenAI API
-    console.log("Calling OpenAI API to generate questions");
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openaiApiKey}`,
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4",
         messages: [
-          {
-            role: "system",
-            content: "You are a helpful AI that generates educational content. Always respond with properly formatted JSON."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
         ],
         temperature: 0.7,
+        max_tokens: 2500,
       }),
     });
-
-    const data = await response.json();
-    console.log("OpenAI API response received");
-
-    if (!response.ok) {
-      console.error("Error from OpenAI:", data);
-      return new Response(
-        JSON.stringify({ error: "Failed to generate questions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Extract the questions JSON from the response
-    const generatedContent = data.choices[0].message.content;
     
-    // Parse the JSON response (handling potential JSON formatting issues)
-    let questions;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+    }
+    
+    const openaiData = await response.json();
+    
+    // Parse the response to extract questions
+    // The AI response should be in a structured JSON format
+    // We'll extract it and convert to our question format
+    
+    let questions = [];
     try {
-      // Try to extract JSON from the string if it's not already in JSON format
-      const jsonMatch = generatedContent.match(/\[\s*\{.*\}\s*\]/s);
-      if (jsonMatch) {
-        questions = JSON.parse(jsonMatch[0]);
-      } else {
-        questions = JSON.parse(generatedContent);
-      }
+      const content = openaiData.choices[0].message.content;
       
-      // Ensure it's an array
-      if (!Array.isArray(questions)) {
-        throw new Error("Generated content is not an array");
+      // Try to extract JSON from the response
+      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
+                       content.match(/```\n([\s\S]*?)\n```/) ||
+                       content.match(/\[\s*\{\s*"id"/);
+      
+      if (jsonMatch) {
+        // If JSON is found in code blocks, parse it
+        const jsonStr = jsonMatch[1] || jsonMatch[0];
+        questions = JSON.parse(jsonStr);
+      } else {
+        // If no JSON format is found, try to parse the entire content
+        questions = JSON.parse(content);
       }
     } catch (error) {
-      console.error("Error parsing questions:", error);
-      console.log("Raw content:", generatedContent);
+      console.error("Error parsing OpenAI response:", error);
+      console.log("Raw response:", openaiData.choices[0].message.content);
       
-      // Fallback: Return a formatted error with the raw content
-      return new Response(
-        JSON.stringify({ 
-          error: "Failed to parse generated questions", 
-          rawContent: generatedContent 
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // Fallback: generate some simple questions if parsing fails
+      questions = [
+        {
+          id: "q1",
+          text: `What are the key concepts of ${topic}?`,
+          type: "Long answer",
+          marks: 5,
+          level: "understand"
+        },
+        {
+          id: "q2",
+          text: `Define ${topic} in your own words.`,
+          type: "Short answer",
+          marks: 3,
+          level: "remember"
+        },
+        {
+          id: "q3",
+          text: `Apply the principles of ${topic} to solve a real-world problem.`,
+          type: "Long answer",
+          marks: 8,
+          level: "apply"
+        }
+      ];
     }
-
+    
+    // Make sure all questions have the required fields and add a selected flag
+    questions = questions.map((q, index) => ({
+      id: q.id || `q${index + 1}`,
+      text: q.text || q.question || `Question ${index + 1}`,
+      type: q.type || "Short answer",
+      marks: q.marks || q.mark || 5,
+      level: q.level || "understand",
+      selected: false
+    }));
+    
+    console.log(`Generated ${questions.length} questions successfully`);
+    
     return new Response(
       JSON.stringify({ questions }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
+    
   } catch (error) {
-    console.error("Error in generate-questions function:", error);
+    console.error("Error generating questions:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

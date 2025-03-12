@@ -1,237 +1,183 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileUp, Loader2, File, Download, Save } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { uploadStorageFile, getPublicUrl } from "@/utils/fileStorage/storageHelpers";
-import type { BloomsTaxonomy } from "@/types/dashboard";
-
-interface QuestionItem {
-  id: string;
-  text: string;
-  type: string;
-  level: string;
-  selected: boolean;
-}
+import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw } from "lucide-react";
+import { BloomsTaxonomy, Question } from "@/types/papers";
 
 export default function PaperCreation() {
   const location = useLocation();
   const navigate = useNavigate();
   const { subjectId, subjectName, subjectCode, topicName } = location.state || {};
   
-  const [activeTab, setActiveTab] = useState("upload");
+  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<BloomsTaxonomy>({
+    remember: { delivery: 20, evaluation: 20 },
+    understand: { delivery: 20, evaluation: 20 },
+    apply: { delivery: 15, evaluation: 15 },
+    analyze: { delivery: 15, evaluation: 15 },
+    evaluate: { delivery: 15, evaluation: 15 },
+    create: { delivery: 15, evaluation: 15 }
+  });
+  
+  const [difficulty, setDifficulty] = useState<number>(50);
   const [headerFile, setHeaderFile] = useState<File | null>(null);
   const [footerFile, setFooterFile] = useState<File | null>(null);
   const [contentFile, setContentFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [contentText, setContentText] = useState("");
-  const [headerUrl, setHeaderUrl] = useState("");
-  const [footerUrl, setFooterUrl] = useState("");
-  const [contentUrl, setContentUrl] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [questions, setQuestions] = useState<QuestionItem[]>([]);
-  const [difficultyLevel, setDifficultyLevel] = useState(2);
-  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<BloomsTaxonomy | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [paperContent, setPaperContent] = useState("");
-  const [paperUrl, setPaperUrl] = useState("");
+  const [headerUrl, setHeaderUrl] = useState<string>("");
+  const [footerUrl, setFooterUrl] = useState<string>("");
+  const [contentUrl, setContentUrl] = useState<string>("");
+  const [extractedContent, setExtractedContent] = useState<string>("");
+  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isCreatingPaper, setIsCreatingPaper] = useState<boolean>(false);
+  const [paperUrl, setPaperUrl] = useState<string>("");
   
-  const headerInputRef = useRef<HTMLInputElement>(null);
-  const footerInputRef = useRef<HTMLInputElement>(null);
-  const contentInputRef = useRef<HTMLInputElement>(null);
-
-  // Validate that we have all the required data
+  // Validate if we have the required data
   useEffect(() => {
     if (!subjectId || !topicName) {
       toast.error("Missing required information");
       navigate("/dashboard/paper-generation");
-      return;
     }
     
-    // Fetch the Bloom's taxonomy for the subject
-    fetchBloomsTaxonomy();
-  }, [subjectId]);
-
-  const fetchBloomsTaxonomy = async () => {
-    try {
+    // Try to fetch Bloom's taxonomy from subject if available
+    const fetchSubjectDetails = async () => {
       const { data, error } = await supabase
-        .from('answer_keys')
-        .select('blooms_taxonomy')
-        .eq('subject_id', subjectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+        .from("subjects")
+        .select("*")
+        .eq("id", subjectId)
         .single();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
-      if (data?.blooms_taxonomy) {
-        setBloomsTaxonomy(data.blooms_taxonomy);
-      } else {
-        // Default taxonomy if none exists
-        setBloomsTaxonomy({
-          remember: 20,
-          understand: 20,
-          apply: 20,
-          analyze: 15,
-          evaluate: 15,
-          create: 10
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching Bloom\'s taxonomy:', error);
-    }
-  };
-
-  const handleHeaderFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setHeaderFile(e.target.files[0]);
-    }
-  };
-
-  const handleFooterFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFooterFile(e.target.files[0]);
-    }
-  };
-
-  const handleContentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setContentFile(e.target.files[0]);
-    }
-  };
-
-  const handleUploadFiles = async () => {
-    if (!contentFile) {
-      toast.error("Please upload content material");
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const timestamp = Date.now();
-      const sanitizedTopic = topicName.replace(/\s+/g, '_').toLowerCase();
       
-      // Upload the files and get their URLs
-      let headerFileUrl = "";
-      let footerFileUrl = "";
-      let contentFileUrl = "";
-      
-      if (headerFile) {
-        const headerFileName = `${subjectId}_${sanitizedTopic}_header_${timestamp}.${headerFile.name.split('.').pop()}`;
-        await uploadStorageFile(headerFileName, headerFile);
-        headerFileUrl = getPublicUrl(headerFileName).data.publicUrl;
-        setHeaderUrl(headerFileUrl);
+      if (error) {
+        console.error("Error fetching subject:", error);
+        return;
       }
       
-      if (footerFile) {
-        const footerFileName = `${subjectId}_${sanitizedTopic}_footer_${timestamp}.${footerFile.name.split('.').pop()}`;
-        await uploadStorageFile(footerFileName, footerFile);
-        footerFileUrl = getPublicUrl(footerFileName).data.publicUrl;
-        setFooterUrl(footerFileUrl);
+      // If subject has a document, try to fetch Bloom's taxonomy
+      const { data: documents, error: documentsError } = await supabase
+        .from("subject_documents")
+        .select("*")
+        .eq("subject_id", subjectId)
+        .eq("document_type", "bloom_taxonomy");
+      
+      if (documentsError) {
+        console.error("Error fetching subject documents:", documentsError);
+        return;
       }
       
-      if (contentFile) {
-        const contentFileName = `${subjectId}_${sanitizedTopic}_content_${timestamp}.${contentFile.name.split('.').pop()}`;
-        await uploadStorageFile(contentFileName, contentFile);
-        contentFileUrl = getPublicUrl(contentFileName).data.publicUrl;
-        setContentUrl(contentFileUrl);
-        
-        // Extract text from the content file
-        await extractContentText(contentFile);
+      if (documents && documents.length > 0) {
+        // Fetch the document content and parse Bloom's taxonomy if available
+        try {
+          const response = await fetch(documents[0].document_url);
+          const bloomsData = await response.json();
+          setBloomsTaxonomy(bloomsData);
+        } catch (error) {
+          console.error("Error parsing Bloom's taxonomy:", error);
+        }
       }
-      
-      toast.success("Files uploaded successfully");
-      setActiveTab("generate");
-    } catch (error) {
-      console.error("Error uploading files:", error);
-      toast.error("Failed to upload files");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const extractContentText = async (file: File) => {
-    // For PDFs and DOCs, we'll need to extract text using the edge function
-    // For txt files, we can read directly
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    };
     
-    if (fileExt === 'txt') {
-      // Direct text extraction for .txt files
-      const text = await file.text();
-      setContentText(text);
-    } else if (fileExt === 'pdf' || fileExt === 'docx' || fileExt === 'doc') {
-      // For PDFs and DOCs, we'll call the extract-text edge function
-      try {
+    fetchSubjectDetails();
+  }, [subjectId, topicName, navigate]);
+  
+  const handleFileUpload = async (file: File, type: 'header' | 'footer' | 'content') => {
+    if (!file) return;
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${type}_${subjectId}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+    
+    try {
+      const { error: uploadError, data } = await supabase.storage
+        .from('files')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        toast.error(`Error uploading ${type} file: ${uploadError.message}`);
+        return;
+      }
+      
+      const { data: urlData } = await supabase.storage
+        .from('files')
+        .getPublicUrl(filePath);
+      
+      const fileUrl = urlData.publicUrl;
+      
+      if (type === 'header') {
+        setHeaderUrl(fileUrl);
+      } else if (type === 'footer') {
+        setFooterUrl(fileUrl);
+      } else if (type === 'content') {
+        setContentUrl(fileUrl);
+        
+        // Extract content from the file
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await fetch(`${window.location.origin}/api/extract-text`, {
-          method: 'POST',
-          body: formData
-        });
+        setIsGenerating(true);
+        toast.info("Extracting content from file...");
         
-        if (!response.ok) {
-          throw new Error(`Error extracting text: ${response.statusText}`);
+        try {
+          const extractResponse = await supabase.functions.invoke('extract-text', {
+            body: { fileUrl, fileName: file.name }
+          });
+          
+          if (extractResponse.error) {
+            toast.error(`Error extracting text: ${extractResponse.error.message}`);
+            return;
+          }
+          
+          setExtractedContent(extractResponse.data.text);
+          toast.success("Content extracted successfully");
+        } catch (error) {
+          console.error("Error extracting content:", error);
+          toast.error("Failed to extract content from file");
+        } finally {
+          setIsGenerating(false);
         }
-        
-        const data = await response.json();
-        setContentText(data.text);
-      } catch (error) {
-        console.error("Error extracting text:", error);
-        toast.error("Failed to extract text from file");
-        // Fallback: Use a placeholder text
-        setContentText("Unable to extract text automatically. Questions will be generated based on the topic.");
       }
-    } else {
-      // For other formats, use a placeholder
-      setContentText("File format not supported for text extraction. Questions will be generated based on the topic.");
+      
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} file uploaded successfully`);
+    } catch (error) {
+      console.error(`Error uploading ${type} file:`, error);
+      toast.error(`Failed to upload ${type} file`);
     }
   };
-
+  
   const generateQuestions = async () => {
-    if (!contentText && !topicName) {
-      toast.error("Missing content for question generation");
+    if (!extractedContent && !contentUrl) {
+      toast.error("Please upload content material first");
       return;
     }
     
     setIsGenerating(true);
+    toast.info("Generating questions, this may take a moment...");
     
     try {
-      // Prepare the request data
-      const requestData = {
-        subject: subjectName,
-        topic: topicName,
-        content: contentText,
-        bloomsTaxonomy: bloomsTaxonomy,
-        difficulty: difficultyLevel
-      };
-      
-      // Call the question generation edge function
-      const { data, error } = await supabase.functions.invoke('generate-questions', {
-        body: JSON.stringify(requestData)
+      const response = await supabase.functions.invoke('generate-questions', {
+        body: {
+          topic: topicName,
+          content: extractedContent,
+          bloomsTaxonomy,
+          difficulty
+        }
       });
       
-      if (error) throw error;
+      if (response.error) {
+        toast.error(`Error generating questions: ${response.error.message}`);
+        return;
+      }
       
-      // Add selected flag to each question and a unique ID
-      const questionsWithSelection = data.questions.map((q: any, index: number) => ({
-        ...q,
-        id: `q-${index}`,
-        selected: false
-      }));
-      
-      setQuestions(questionsWithSelection);
-      setActiveTab("select");
+      setGeneratedQuestions(response.data.questions);
       toast.success("Questions generated successfully");
     } catch (error) {
       console.error("Error generating questions:", error);
@@ -240,368 +186,423 @@ export default function PaperCreation() {
       setIsGenerating(false);
     }
   };
-
+  
   const toggleQuestionSelection = (id: string) => {
-    setQuestions(questions.map(q => 
-      q.id === id ? { ...q, selected: !q.selected } : q
-    ));
+    setGeneratedQuestions(prev => 
+      prev.map(q => 
+        q.id === id ? { ...q, selected: !q.selected } : q
+      )
+    );
   };
-
-  const selectAllQuestions = () => {
-    setQuestions(questions.map(q => ({ ...q, selected: true })));
-  };
-
-  const unselectAllQuestions = () => {
-    setQuestions(questions.map(q => ({ ...q, selected: false })));
-  };
-
+  
   const createPaper = async () => {
-    const selectedQuestions = questions.filter(q => q.selected);
+    const selectedQuestions = generatedQuestions.filter(q => q.selected);
     
     if (selectedQuestions.length === 0) {
       toast.error("Please select at least one question");
       return;
     }
     
-    setIsDownloading(true);
+    setIsCreatingPaper(true);
+    toast.info("Creating paper, please wait...");
     
     try {
-      // Prepare the paper generation request
-      const requestData = {
-        subject: subjectName,
-        subjectCode,
-        topic: topicName,
-        questions: selectedQuestions,
-        headerUrl,
-        footerUrl
-      };
-      
-      // Call the paper generation edge function
-      const { data, error } = await supabase.functions.invoke('generate-paper', {
-        body: JSON.stringify(requestData)
+      const response = await supabase.functions.invoke('generate-paper', {
+        body: {
+          subjectName,
+          subjectCode,
+          topicName,
+          headerUrl,
+          footerUrl,
+          questions: selectedQuestions
+        }
       });
       
-      if (error) throw error;
+      if (response.error) {
+        toast.error(`Error creating paper: ${response.error.message}`);
+        return;
+      }
       
-      // Set the paper content for preview
-      setPaperContent(data.paperContent);
-      setPaperUrl(data.paperUrl);
+      const paperUrl = response.data.paperUrl;
+      setPaperUrl(paperUrl);
       
-      // Save the paper to history
-      await savePaperToHistory(data.paperUrl, selectedQuestions);
+      // Save to database
+      const { data, error } = await supabase
+        .from('generated_papers')
+        .insert({
+          subject_id: subjectId,
+          topic: topicName,
+          paper_url: paperUrl,
+          questions: selectedQuestions,
+          header_url: headerUrl,
+          footer_url: footerUrl,
+          content_url: contentUrl
+        })
+        .select();
       
-      setActiveTab("download");
-      toast.success("Paper created successfully");
+      if (error) {
+        console.error("Error saving paper:", error);
+        toast.error("Paper created but failed to save to history");
+        return;
+      }
+      
+      toast.success("Paper created and saved successfully");
     } catch (error) {
       console.error("Error creating paper:", error);
       toast.error("Failed to create paper");
     } finally {
-      setIsDownloading(false);
+      setIsCreatingPaper(false);
     }
   };
-
-  const savePaperToHistory = async (paperUrl: string, selectedQuestions: QuestionItem[]) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.error("User not authenticated");
-        return;
-      }
-      
-      // Save the generated paper record
-      await supabase.from('generated_papers').insert({
-        user_id: user.id,
-        subject_id: subjectId,
-        topic: topicName,
-        paper_url: paperUrl,
-        questions: selectedQuestions,
-        header_url: headerUrl || null,
-        footer_url: footerUrl || null,
-        content_url: contentUrl || null
-      });
-    } catch (error) {
-      console.error("Error saving paper to history:", error);
+  
+  const downloadPaper = () => {
+    if (paperUrl) {
+      window.open(paperUrl, '_blank');
     }
   };
-
+  
   return (
-    <div className="container max-w-5xl mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Create Test Paper</h1>
+    <div className="container mx-auto py-6">
+      <div className="mb-6 flex items-center">
         <Button variant="outline" onClick={() => navigate("/dashboard/paper-generation")}>
-          Back
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
+        <h1 className="text-3xl font-bold ml-4">Create Paper: {topicName}</h1>
       </div>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {subjectName}: {topicName}
-          </CardTitle>
-          <CardDescription>
-            Follow the steps to create your test paper
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="upload">Upload Files</TabsTrigger>
-              <TabsTrigger value="generate" disabled={!contentText && !contentUrl}>Generate Questions</TabsTrigger>
-              <TabsTrigger value="select" disabled={questions.length === 0}>Select Questions</TabsTrigger>
-              <TabsTrigger value="download" disabled={!paperContent}>Download Paper</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="upload" className="p-4 space-y-6">
-              <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left column - Upload and Configuration */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Subject Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
                 <div>
-                  <Label htmlFor="header">Header Template (Optional)</Label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Input
-                      ref={headerInputRef}
-                      id="header"
-                      type="file"
-                      className="hidden"
-                      onChange={handleHeaderFileChange}
-                    />
-                    <Button 
-                      variant="outline" 
-                      onClick={() => headerInputRef.current?.click()}
-                    >
-                      <FileUp className="h-4 w-4 mr-2" />
-                      Choose Header File
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {headerFile ? headerFile.name : "No file chosen"}
-                    </span>
-                  </div>
+                  <Label>Subject</Label>
+                  <div className="font-medium">{subjectName} ({subjectCode})</div>
                 </div>
-                
                 <div>
-                  <Label htmlFor="footer">Footer Template (Optional)</Label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Input
-                      ref={footerInputRef}
-                      id="footer"
-                      type="file"
-                      className="hidden"
-                      onChange={handleFooterFileChange}
-                    />
-                    <Button 
-                      variant="outline" 
-                      onClick={() => footerInputRef.current?.click()}
-                    >
-                      <FileUp className="h-4 w-4 mr-2" />
-                      Choose Footer File
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {footerFile ? footerFile.name : "No file chosen"}
-                    </span>
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="content">Topic Material (Required)</Label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <Input
-                      ref={contentInputRef}
-                      id="content"
-                      type="file"
-                      className="hidden"
-                      onChange={handleContentFileChange}
-                    />
-                    <Button 
-                      variant="outline" 
-                      onClick={() => contentInputRef.current?.click()}
-                    >
-                      <FileUp className="h-4 w-4 mr-2" />
-                      Choose Content File
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      {contentFile ? contentFile.name : "No file chosen"}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="pt-4">
-                  <Button 
-                    onClick={handleUploadFiles} 
-                    disabled={!contentFile || isUploading}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      "Upload Files"
-                    )}
-                  </Button>
+                  <Label>Topic/Chapter</Label>
+                  <div className="font-medium">{topicName}</div>
                 </div>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="generate" className="p-4 space-y-6">
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Document Templates</CardTitle>
+              <CardDescription>Upload header and footer for your paper</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <h3 className="text-lg font-medium mb-4">Bloom's Taxonomy Levels</h3>
-                {bloomsTaxonomy && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {Object.entries(bloomsTaxonomy).map(([level, percentage]) => (
-                      <div key={level} className="space-y-1">
-                        <div className="flex justify-between">
-                          <Label htmlFor={`bloom-${level}`} className="capitalize">
-                            {level}
-                          </Label>
-                          <span className="text-sm text-muted-foreground">{percentage}%</span>
-                        </div>
-                        <Slider
-                          id={`bloom-${level}`}
-                          defaultValue={[percentage]}
-                          max={100}
-                          step={5}
-                          onValueChange={([value]) => {
-                            setBloomsTaxonomy({
-                              ...bloomsTaxonomy,
-                              [level]: value
-                            });
-                          }}
-                        />
-                      </div>
-                    ))}
+                <Label htmlFor="header-file">Header Template (optional)</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    id="header-file"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setHeaderFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => headerFile && handleFileUpload(headerFile, 'header')}
+                    disabled={!headerFile}
+                  >
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload
+                  </Button>
+                </div>
+                {headerUrl && (
+                  <div className="text-sm text-green-600 flex items-center mt-1">
+                    <Check className="h-4 w-4 mr-1" /> Header uploaded
                   </div>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="difficulty">Difficulty Level</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {difficultyLevel === 1 ? 'Easy' : difficultyLevel === 2 ? 'Medium' : 'Hard'}
-                  </span>
+              <div>
+                <Label htmlFor="footer-file">Footer Template (optional)</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    id="footer-file"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setFooterFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => footerFile && handleFileUpload(footerFile, 'footer')}
+                    disabled={!footerFile}
+                  >
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload
+                  </Button>
                 </div>
+                {footerUrl && (
+                  <div className="text-sm text-green-600 flex items-center mt-1">
+                    <Check className="h-4 w-4 mr-1" /> Footer uploaded
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Chapter Material</CardTitle>
+              <CardDescription>Upload content to generate questions from</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="content-file">Content Material (PDF/DOCX/TXT)</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    id="content-file"
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setContentFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => contentFile && handleFileUpload(contentFile, 'content')}
+                    disabled={!contentFile}
+                  >
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload
+                  </Button>
+                </div>
+                {contentUrl && (
+                  <div className="text-sm text-green-600 flex items-center mt-1">
+                    <Check className="h-4 w-4 mr-1" /> Content uploaded
+                  </div>
+                )}
+              </div>
+              
+              {extractedContent && (
+                <div>
+                  <Label htmlFor="extracted-content">Extracted Content</Label>
+                  <Textarea
+                    id="extracted-content"
+                    value={extractedContent}
+                    onChange={(e) => setExtractedContent(e.target.value)}
+                    className="h-48 mt-1"
+                    placeholder="Content extracted from file..."
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Question Parameters</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Difficulty Level: {difficulty}%</Label>
                 <Slider
-                  id="difficulty"
-                  defaultValue={[difficultyLevel]}
-                  min={1}
-                  max={3}
-                  step={1}
-                  onValueChange={([value]) => setDifficultyLevel(value)}
+                  value={[difficulty]}
+                  onValueChange={(value) => setDifficulty(value[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="my-2"
                 />
-              </div>
-              
-              <div className="pt-4">
-                <Button 
-                  onClick={generateQuestions} 
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating Questions...
-                    </>
-                  ) : (
-                    "Generate Questions"
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="select" className="p-4 space-y-6">
-              <div className="flex justify-between mb-4">
-                <h3 className="text-lg font-medium">Select Questions for Paper</h3>
-                <div className="space-x-2">
-                  <Button variant="outline" size="sm" onClick={selectAllQuestions}>
-                    Select All
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={unselectAllQuestions}>
-                    Unselect All
-                  </Button>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Easy</span>
+                  <span>Moderate</span>
+                  <span>Hard</span>
                 </div>
               </div>
               
-              <div className="space-y-4">
-                {questions.map((question) => (
-                  <div key={question.id} className="flex items-start space-x-3 p-3 border rounded-md">
-                    <Checkbox 
-                      id={question.id}
-                      checked={question.selected}
-                      onCheckedChange={() => toggleQuestionSelection(question.id)}
-                    />
-                    <div className="flex-1">
-                      <Label 
-                        htmlFor={question.id}
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        <span className="capitalize text-muted-foreground">
-                          [{question.level}] {question.type}:
-                        </span>
-                        <div className="mt-1">{question.text}</div>
-                      </Label>
+              <div className="space-y-2">
+                <Label>Bloom's Taxonomy Weights</Label>
+                {Object.entries(bloomsTaxonomy).map(([level, values]) => (
+                  <div key={level} className="grid grid-cols-3 gap-2 items-center">
+                    <div className="capitalize">{level}</div>
+                    <div>
+                      <Label className="text-xs">Delivery: {values.delivery}%</Label>
+                      <Slider
+                        value={[values.delivery]}
+                        onValueChange={(value) => 
+                          setBloomsTaxonomy(prev => ({
+                            ...prev,
+                            [level]: { ...prev[level as keyof BloomsTaxonomy], delivery: value[0] }
+                          }))
+                        }
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="my-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Evaluation: {values.evaluation}%</Label>
+                      <Slider
+                        value={[values.evaluation]}
+                        onValueChange={(value) => 
+                          setBloomsTaxonomy(prev => ({
+                            ...prev,
+                            [level]: { ...prev[level as keyof BloomsTaxonomy], evaluation: value[0] }
+                          }))
+                        }
+                        min={0}
+                        max={100}
+                        step={5}
+                        className="my-1"
+                      />
                     </div>
                   </div>
                 ))}
               </div>
               
-              <div className="pt-4">
-                <Button 
-                  onClick={createPaper}
-                  disabled={!questions.some(q => q.selected) || isDownloading}
-                >
-                  {isDownloading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating Paper...
-                    </>
+              <Button 
+                className="w-full" 
+                onClick={generateQuestions}
+                disabled={isGenerating || !extractedContent}
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Questions'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Right column - Generated Questions and Paper */}
+        <div className="lg:col-span-2 space-y-6">
+          <Tabs defaultValue="questions">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="questions">Generated Questions</TabsTrigger>
+              <TabsTrigger value="paper">Final Paper</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="questions">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Select Questions for Paper</CardTitle>
+                  <CardDescription>
+                    Choose the questions you want to include in your test paper
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {generatedQuestions.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FilePlus className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-4 text-lg font-medium">No questions generated yet</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Upload content material and generate questions to see them here
+                      </p>
+                    </div>
                   ) : (
-                    "Create Paper"
+                    <div className="space-y-4">
+                      {generatedQuestions.map((question, index) => (
+                        <div 
+                          key={question.id} 
+                          className={`p-4 border rounded-md ${question.selected ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 pt-0.5">
+                              <Checkbox 
+                                id={`question-${question.id}`}
+                                checked={question.selected}
+                                onCheckedChange={() => toggleQuestionSelection(question.id)}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <Label 
+                                htmlFor={`question-${question.id}`}
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                Q{index + 1}. {question.text}
+                              </Label>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {question.type}
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {question.level}
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {question.marks} marks
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </Button>
-              </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    className="ml-auto" 
+                    onClick={createPaper}
+                    disabled={isCreatingPaper || generatedQuestions.filter(q => q.selected).length === 0}
+                  >
+                    {isCreatingPaper ? 'Creating Paper...' : 'Create Paper'}
+                  </Button>
+                </CardFooter>
+              </Card>
             </TabsContent>
             
-            <TabsContent value="download" className="p-4 space-y-6">
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <h3 className="text-lg font-medium">Your paper is ready!</h3>
-                  {paperUrl && (
-                    <Button asChild>
-                      <a href={paperUrl} target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </a>
-                    </Button>
-                  )}
-                </div>
-                
-                <div className="border rounded-md p-4 bg-muted">
-                  <div className="text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
-                    {paperContent ? paperContent : (
-                      <div className="flex items-center justify-center h-60 text-muted-foreground">
-                        <span>Paper preview not available</span>
+            <TabsContent value="paper">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Final Paper</CardTitle>
+                  <CardDescription>
+                    Review and download your generated test paper
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!paperUrl ? (
+                    <div className="text-center py-12">
+                      <FileX className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-4 text-lg font-medium">No paper generated yet</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Select questions and create a paper to see it here
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="aspect-[3/4] border rounded-md overflow-hidden">
+                        <iframe 
+                          src={paperUrl} 
+                          className="w-full h-full"
+                          title="Generated Paper"
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="pt-4 flex justify-between">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate("/dashboard/paper-history")}
-                  >
-                    View History
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => navigate("/dashboard/paper-generation")}
-                  >
-                    Create Another Paper
-                  </Button>
-                </div>
-              </div>
+                      <div className="flex justify-center">
+                        <Button onClick={downloadPaper}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download Paper
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

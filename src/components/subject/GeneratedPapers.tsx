@@ -1,194 +1,114 @@
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Eye, FileQuestion } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+import { Download, Eye } from "lucide-react";
+import { GeneratedPaper } from "@/types/papers";
 import { toast } from "sonner";
-import type { Subject } from "@/types/dashboard";
 
 interface GeneratedPapersProps {
-  subject: Subject;
+  subjectId: string;
 }
 
-interface GeneratedPaper {
-  id: string;
-  created_at: string;
-  topic: string;
-  paper_url: string;
-  questions: any[];
-}
-
-export function GeneratedPapers({ subject }: GeneratedPapersProps) {
+export function GeneratedPapers({ subjectId }: GeneratedPapersProps) {
   const [papers, setPapers] = useState<GeneratedPaper[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
-  const [questionsDialogOpen, setQuestionsDialogOpen] = useState(false);
-  const [uniqueTopics, setUniqueTopics] = useState<string[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-
+  const [isLoading, setIsLoading] = useState(true);
+  
   useEffect(() => {
-    if (subject?.id) {
-      fetchGeneratedPapers();
-    }
-  }, [subject]);
-
-  useEffect(() => {
-    // Extract unique topics from papers
-    if (papers.length > 0) {
-      const topics = [...new Set(papers.map(paper => paper.topic))];
-      setUniqueTopics(topics);
-      setSelectedTopic(topics[0]); // Select the first topic by default
-    } else {
-      setUniqueTopics([]);
-      setSelectedTopic(null);
-    }
-  }, [papers]);
-
-  const fetchGeneratedPapers = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
+    const fetchPapers = async () => {
+      if (!subjectId) return;
       
-      if (!user) {
-        return;
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from("generated_papers")
+          .select("*")
+          .eq("subject_id", subjectId)
+          .order("created_at", { ascending: false });
+        
+        if (error) throw error;
+        
+        if (data) {
+          setPapers(data as GeneratedPaper[]);
+        }
+      } catch (error: any) {
+        console.error("Error fetching papers:", error);
+        toast.error("Failed to load generated papers");
+      } finally {
+        setIsLoading(false);
       }
-      
-      const { data, error } = await supabase
-        .from('generated_papers')
-        .select('*')
-        .eq('subject_id', subject.id)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setPapers(data || []);
-    } catch (error) {
-      console.error("Error fetching generated papers:", error);
-      toast.error("Failed to load generated papers");
-    } finally {
-      setLoading(false);
-    }
+    };
+    
+    fetchPapers();
+  }, [subjectId]);
+  
+  const handleView = (paperUrl: string) => {
+    window.open(paperUrl, '_blank');
   };
-
-  const handleViewQuestions = (paper: GeneratedPaper) => {
-    setSelectedPaper(paper);
-    setQuestionsDialogOpen(true);
+  
+  const handleDownload = (paperUrl: string) => {
+    window.open(paperUrl, '_blank');
   };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  // Filter papers by selected topic
-  const filteredPapers = selectedTopic 
-    ? papers.filter(paper => paper.topic === selectedTopic)
-    : papers;
-
+  
   return (
-    <Card>
+    <Card className="mb-6">
       <CardHeader>
         <CardTitle>Generated Papers</CardTitle>
+        <CardDescription>
+          View and download papers generated for this subject
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="text-center py-4">Loading papers...</div>
+        {isLoading ? (
+          <div className="text-center py-4">Loading...</div>
         ) : papers.length === 0 ? (
-          <div className="text-center py-10">
-            <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No papers generated for this subject yet</p>
+          <div className="text-center py-8">
+            <p className="text-gray-500">No papers generated for this subject yet</p>
           </div>
         ) : (
-          <>
-            <div className="flex gap-2 flex-wrap mb-4">
-              {uniqueTopics.map(topic => (
-                <Button
-                  key={topic}
-                  variant={selectedTopic === topic ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedTopic(topic)}
-                >
-                  {topic}
-                </Button>
-              ))}
-            </div>
-            
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Questions</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPapers.map((paper) => (
-                  <TableRow key={paper.id}>
-                    <TableCell>{formatDate(paper.created_at)}</TableCell>
-                    <TableCell>{paper.questions?.length || 0} questions</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button 
-                        variant="outline" 
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Topic</TableHead>
+                <TableHead>Questions</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {papers.map((paper) => (
+                <TableRow key={paper.id}>
+                  <TableCell>
+                    {format(new Date(paper.created_at), "dd MMM yyyy")}
+                  </TableCell>
+                  <TableCell>{paper.topic}</TableCell>
+                  <TableCell>{paper.questions.length}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
                         size="sm"
-                        onClick={() => handleViewQuestions(paper)}
+                        onClick={() => handleView(paper.paper_url)}
                       >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Questions
+                        <Eye className="h-4 w-4" />
                       </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <a 
-                          href={paper.paper_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Paper
-                        </a>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload(paper.paper_url)}
+                      >
+                        <Download className="h-4 w-4" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </>
-        )}
-        
-        <Dialog open={questionsDialogOpen} onOpenChange={setQuestionsDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Questions from {selectedPaper?.topic}</DialogTitle>
-              <DialogDescription>
-                Generated on {selectedPaper && formatDate(selectedPaper.created_at)}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              {selectedPaper?.questions.map((question, index) => (
-                <div key={index} className="border p-4 rounded-md">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground capitalize">
-                      {question.level} - {question.type}
-                    </span>
-                  </div>
-                  <p className="mt-2">{question.text}</p>
-                  {question.answer && (
-                    <div className="mt-2 pt-2 border-t">
-                      <p className="text-sm font-medium">Answer:</p>
-                      <p className="text-sm">{question.answer}</p>
                     </div>
-                  )}
-                </div>
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );

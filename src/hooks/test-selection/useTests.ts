@@ -42,9 +42,9 @@ export function useTests(selectedClass: string, selectedSubject: string) {
   }, [selectedClass, selectedSubject, fetchTests]);
 
   // Add a refresh function to manually trigger a refresh
-  const refreshTests = () => {
+  const refreshTests = useCallback(() => {
     fetchTests();
-  };
+  }, [fetchTests]);
 
   return { tests, isLoading, refreshTests };
 }

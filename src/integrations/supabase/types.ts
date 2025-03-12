@@ -161,6 +161,53 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_papers: {
+        Row: {
+          content_url: string | null
+          created_at: string
+          footer_url: string | null
+          header_url: string | null
+          id: string
+          paper_url: string
+          questions: Json
+          subject_id: string
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          content_url?: string | null
+          created_at?: string
+          footer_url?: string | null
+          header_url?: string | null
+          id?: string
+          paper_url: string
+          questions?: Json
+          subject_id: string
+          topic: string
+          user_id: string
+        }
+        Update: {
+          content_url?: string | null
+          created_at?: string
+          footer_url?: string | null
+          header_url?: string | null
+          id?: string
+          paper_url?: string
+          questions?: Json
+          subject_id?: string
+          topic?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_papers_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       paper_evaluations: {
         Row: {
           created_at: string

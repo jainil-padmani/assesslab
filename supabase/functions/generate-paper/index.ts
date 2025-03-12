@@ -1,181 +1,204 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get the request data
-    const {
-      subject,
-      subjectCode,
-      topic,
-      questions,
-      headerUrl,
-      footerUrl
-    } = await req.json();
-
-    // Validate inputs
-    if (!subject || !topic || !questions || questions.length === 0) {
+    const { subjectName, subjectCode, topicName, headerUrl, footerUrl, questions } = await req.json();
+    
+    if (!subjectName || !topicName || !questions || questions.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Subject, topic, and at least one question are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Subject, topic and questions are required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
-
-    // Get only selected questions
-    const selectedQuestions = questions.filter(q => q.selected);
-    if (selectedQuestions.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "At least one question must be selected" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Setup Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get header and footer content if URLs are provided
+    
+    console.log(`Generating paper for ${subjectName} (${subjectCode}): ${topicName}`);
+    console.log(`Selected ${questions.length} questions`);
+    
+    // Get header and footer content if provided
     let headerContent = "";
     let footerContent = "";
-
+    
     if (headerUrl) {
-      try {
-        const headerResponse = await fetch(headerUrl);
-        if (headerResponse.ok) {
-          headerContent = await headerResponse.text();
-        }
-      } catch (error) {
-        console.error("Error fetching header:", error);
+      const headerResponse = await fetch(headerUrl);
+      if (headerResponse.ok) {
+        headerContent = await headerResponse.text();
+      } else {
+        console.warn("Failed to fetch header content");
       }
     }
-
+    
     if (footerUrl) {
-      try {
-        const footerResponse = await fetch(footerUrl);
-        if (footerResponse.ok) {
-          footerContent = await footerResponse.text();
-        }
-      } catch (error) {
-        console.error("Error fetching footer:", error);
+      const footerResponse = await fetch(footerUrl);
+      if (footerResponse.ok) {
+        footerContent = await footerResponse.text();
+      } else {
+        console.warn("Failed to fetch footer content");
       }
     }
-
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    
+    // Create HTML for the paper
+    const date = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
     });
-
-    // Generate formatted questions by type
-    const questionsByType = selectedQuestions.reduce((acc, q) => {
-      if (!acc[q.type]) {
-        acc[q.type] = [];
-      }
-      acc[q.type].push(q);
-      return acc;
-    }, {});
-
-    // Create paper content
-    let paperContent = "";
-
-    // Add header if available
-    if (headerContent) {
-      paperContent += headerContent + "\n\n";
-    } else {
-      // Create a default header
-      paperContent += `
-===========================================
-${subject.toUpperCase()} (${subjectCode || 'N/A'})
-TOPIC: ${topic.toUpperCase()}
-DATE: ${currentDate}
-===========================================\n\n`;
-    }
-
-    // Add instructions
-    paperContent += "INSTRUCTIONS: Answer all questions. Write clearly and show all working where applicable.\n\n";
-
-    // Add questions by type
-    let questionNumber = 1;
-    for (const [type, questions] of Object.entries(questionsByType)) {
-      paperContent += `${type.toUpperCase()} QUESTIONS:\n\n`;
-      
-      for (const question of questions) {
-        paperContent += `${questionNumber}. ${question.text}\n`;
-        if (type.toLowerCase().includes("multiple choice")) {
-          // Add placeholder for options if it's a multiple choice question
-          paperContent += "   a) [Option A]\n";
-          paperContent += "   b) [Option B]\n";
-          paperContent += "   c) [Option C]\n";
-          paperContent += "   d) [Option D]\n";
+    
+    // Calculate total marks
+    const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+    
+    let paperHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>${subjectName} - ${topicName} Test Paper</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          margin: 0;
+          padding: 0;
+          color: #333;
         }
-        paperContent += "\n";
-        questionNumber++;
-      }
-      
-      paperContent += "\n";
+        .container {
+          width: 21cm;
+          margin: 0 auto;
+          padding: 2cm;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 2cm;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 2cm;
+          font-size: 0.8em;
+          color: #666;
+        }
+        h1, h2 {
+          text-align: center;
+        }
+        .question {
+          margin-bottom: 1.5em;
+        }
+        .question-header {
+          display: flex;
+          justify-content: space-between;
+          font-weight: bold;
+        }
+        .answer-space {
+          height: 5em;
+          border-bottom: 1px solid #ccc;
+        }
+        @media print {
+          .container {
+            width: 100%;
+            padding: 1cm;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          ${headerContent || `
+            <h1>${subjectName} ${subjectCode ? `(${subjectCode})` : ''}</h1>
+            <h2>${topicName} - Test Paper</h2>
+            <p>Date: ${date}</p>
+            <p>Total Marks: ${totalMarks}</p>
+            <p>Time: ${Math.ceil(totalMarks / 2)} minutes</p>
+          `}
+        </div>
+        
+        <div class="questions">
+    `;
+    
+    // Add questions
+    questions.forEach((q, index) => {
+      paperHtml += `
+        <div class="question">
+          <div class="question-header">
+            <span>Q${index + 1}. ${q.text}</span>
+            <span>(${q.marks} marks)</span>
+          </div>
+          <div class="answer-space"></div>
+        </div>
+      `;
+    });
+    
+    paperHtml += `
+        </div>
+        
+        <div class="footer">
+          ${footerContent || `
+            <p>End of Paper</p>
+            <p>${subjectName} - ${topicName} Test | Total Marks: ${totalMarks}</p>
+          `}
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+    
+    // Generate PDF from HTML
+    // For this example, we'll just return HTML that can be rendered in the browser
+    // In a production app, you'd convert this to PDF using a library
+    
+    // For demonstration, we'll just create a hosted HTML file in Supabase Storage
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase URL or anon key not found");
     }
-
-    // Add footer if available
-    if (footerContent) {
-      paperContent += "\n" + footerContent;
-    } else {
-      // Create a default footer
-      paperContent += "\n===========================================\n";
-      paperContent += "END OF PAPER\n";
-      paperContent += "===========================================\n";
-    }
-
-    // Generate a file name for the paper
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Create a unique file name
     const timestamp = Date.now();
-    const sanitizedTopic = topic.replace(/\s+/g, '_').toLowerCase();
-    const paperFileName = `${sanitizedTopic}_${subject.replace(/\s+/g, '_').toLowerCase()}_paper_${timestamp}.txt`;
-
-    // Save the paper to Supabase storage
-    const { data: storageData, error: storageError } = await supabase
-      .storage
+    const fileName = `paper_${timestamp}.html`;
+    
+    // Upload the HTML file to Supabase Storage
+    const { data, error } = await supabase.storage
       .from('files')
-      .upload(paperFileName, new Blob([paperContent], { type: 'text/plain' }), {
+      .upload(fileName, new Blob([paperHtml], { type: 'text/html' }), {
         cacheControl: '3600',
-        upsert: false
+        upsert: false,
       });
-
-    if (storageError) {
-      throw new Error(`Failed to save paper: ${storageError.message}`);
+    
+    if (error) {
+      throw new Error(`Error uploading paper: ${error.message}`);
     }
-
-    // Get the public URL for the saved paper
-    const { data: { publicUrl } } = supabase
-      .storage
+    
+    // Get the public URL
+    const { data: urlData } = await supabase.storage
       .from('files')
-      .getPublicUrl(paperFileName);
-
+      .getPublicUrl(fileName);
+    
+    console.log("Paper generated successfully");
+    
     return new Response(
-      JSON.stringify({
-        paperContent,
-        paperUrl: publicUrl,
-        fileName: paperFileName
-      }),
+      JSON.stringify({ paperUrl: urlData.publicUrl }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
+    
   } catch (error) {
-    console.error("Error in generate-paper function:", error);
+    console.error("Error generating paper:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
