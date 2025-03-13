@@ -28,6 +28,9 @@ export interface Question {
   selected?: boolean;
 }
 
+// Ensure Question type is properly handled in the JSON type
+export type QuestionData = Question | string;
+
 export interface GeneratedPaper {
   id: string;
   user_id: string;

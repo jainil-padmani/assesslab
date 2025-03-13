@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileX, ExternalLink, History, FileText, FilePdf } from "lucide-react";
+import { Download, Eye, FileX, ExternalLink, History, FileText, File } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -387,7 +387,7 @@ export default function PaperGeneration() {
                   <div className="flex flex-wrap gap-2 justify-center mt-4">
                     {selectedPaper && selectedPaper.pdf_url && (
                       <Button onClick={() => window.open(selectedPaper.pdf_url!, '_blank')}>
-                        <FilePdf className="mr-2 h-4 w-4" />
+                        <File className="mr-2 h-4 w-4" />
                         View PDF
                       </Button>
                     )}

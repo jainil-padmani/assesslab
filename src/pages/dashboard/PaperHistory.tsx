@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Download, Eye, ArrowLeft, FileText, FilePdf } from "lucide-react";
+import { Download, Eye, ArrowLeft, FileText, File } from "lucide-react";
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -128,7 +128,7 @@ export default function PaperHistory() {
     if (!selectedPaper || !Array.isArray(selectedPaper.questions)) return;
     
     const newSelection = {};
-    selectedPaper.questions.forEach(q => {
+    (selectedPaper.questions as Question[]).forEach(q => {
       newSelection[q.id] = selectAll;
     });
     setSelectedQuestions(newSelection);
@@ -139,7 +139,7 @@ export default function PaperHistory() {
     
     // Get the selected questions
     const questions = Array.isArray(selectedPaper.questions) 
-      ? selectedPaper.questions.filter(q => selectedQuestions[q.id])
+      ? (selectedPaper.questions as Question[]).filter(q => selectedQuestions[q.id])
       : [];
     
     if (questions.length === 0) {
@@ -339,7 +339,7 @@ export default function PaperHistory() {
                   
                   {Array.isArray(selectedPaper.questions) ? (
                     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-                      {selectedPaper.questions.map((question, idx) => (
+                      {(selectedPaper.questions as Question[]).map((question, idx) => (
                         <div 
                           key={idx} 
                           className={`p-3 border rounded-md ${selectedQuestions[question.id] ? 'border-primary bg-primary/5' : ''}`}
@@ -409,7 +409,7 @@ export default function PaperHistory() {
                         onClick={() => window.open(selectedPaper.pdf_url!, '_blank')}
                         className="flex items-center gap-1"
                       >
-                        <FilePdf className="h-4 w-4" />
+                        <File className="h-4 w-4" />
                         View PDF
                       </Button>
                     )}
@@ -429,7 +429,7 @@ export default function PaperHistory() {
               <DialogFooter className="flex justify-between items-center gap-2 mt-4">
                 <div className="text-sm text-muted-foreground">
                   {Array.isArray(selectedPaper.questions) && 
-                   Object.values(selectedQuestions).filter(Boolean).length} of {Array.isArray(selectedPaper.questions) ? selectedPaper.questions.length : 0} questions selected
+                   Object.values(selectedQuestions).filter(Boolean).length} of {Array.isArray(selectedPaper.questions) ? (selectedPaper.questions as Question[]).length : 0} questions selected
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setIsPaperDialogOpen(false)}>
