@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -45,101 +44,6 @@ export default function PaperCreation() {
       toast.error("Missing required information");
       navigate("/dashboard/paper-generation");
     }
-    
-    const fetchSubjectDetails = async () => {
-      try {
-        const { data: subjectData, error: subjectError } = await supabase
-          .from("subjects")
-          .select("*")
-          .eq("id", subjectId)
-          .single();
-        
-        if (subjectError) {
-          console.error("Error fetching subject:", subjectError);
-          return;
-        }
-        
-        const { data: documents, error: documentsError } = await supabase
-          .from("subject_documents")
-          .select("*")
-          .eq("subject_id", subjectId)
-          .eq("document_type", "bloom_taxonomy");
-        
-        if (documentsError) {
-          console.error("Error fetching subject documents:", documentsError);
-        }
-        
-        if (documents && documents.length > 0) {
-          try {
-            const response = await fetch(documents[0].document_url);
-            if (response.ok) {
-              const bloomsData = await response.json();
-              console.log("Loaded Bloom's taxonomy from subject document:", bloomsData);
-              setBloomsTaxonomy(bloomsData as BloomsTaxonomy);
-            }
-          } catch (error) {
-            console.error("Error parsing Bloom's taxonomy from document:", error);
-          }
-        } else {
-          const { data: answerKeyData, error: answerKeyError } = await supabase
-            .from("answer_keys")
-            .select("blooms_taxonomy")
-            .eq("subject_id", subjectId)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (answerKeyError && answerKeyError.code !== "PGRST116") {
-            console.error("Error fetching answer key:", answerKeyError);
-          }
-          
-          if (answerKeyData?.blooms_taxonomy) {
-            console.log("Loaded Bloom's taxonomy from answer key:", answerKeyData.blooms_taxonomy);
-            
-            // Convert to BloomsTaxonomy type
-            const bloomsData = answerKeyData.blooms_taxonomy;
-            
-            // Handle the case where blooms_taxonomy might be in different formats
-            if (typeof bloomsData === 'object') {
-              try {
-                // Try to parse to the correct format
-                const formattedData: BloomsTaxonomy = {
-                  remember: typeof bloomsData.remember === 'object' 
-                    ? bloomsData.remember 
-                    : { delivery: Number(bloomsData.remember || 0), evaluation: Number(bloomsData.remember || 0) },
-                  understand: typeof bloomsData.understand === 'object'
-                    ? bloomsData.understand
-                    : { delivery: Number(bloomsData.understand || 0), evaluation: Number(bloomsData.understand || 0) },
-                  apply: typeof bloomsData.apply === 'object'
-                    ? bloomsData.apply
-                    : { delivery: Number(bloomsData.apply || 0), evaluation: Number(bloomsData.apply || 0) },
-                  analyze: typeof bloomsData.analyze === 'object'
-                    ? bloomsData.analyze
-                    : { delivery: Number(bloomsData.analyze || 0), evaluation: Number(bloomsData.analyze || 0) },
-                  evaluate: typeof bloomsData.evaluate === 'object'
-                    ? bloomsData.evaluate
-                    : { delivery: Number(bloomsData.evaluate || 0), evaluation: Number(bloomsData.evaluate || 0) },
-                  create: typeof bloomsData.create === 'object'
-                    ? bloomsData.create
-                    : { delivery: Number(bloomsData.create || 0), evaluation: Number(bloomsData.create || 0) }
-                };
-                
-                setBloomsTaxonomy(formattedData);
-              } catch (e) {
-                console.error("Error formatting Bloom's taxonomy data:", e);
-              }
-            }
-          }
-        }
-        
-        toast.success("Subject and Bloom's taxonomy data loaded successfully");
-      } catch (error) {
-        console.error("Error in fetchSubjectDetails:", error);
-        toast.error("Failed to load subject details");
-      }
-    };
-    
-    fetchSubjectDetails();
   }, [subjectId, topicName, navigate]);
   
   const handleFileUpload = async (file: File, type: 'header' | 'content') => {
@@ -470,7 +374,7 @@ export default function PaperCreation() {
               <CardDescription>
                 {isEditingBloomsTaxonomy 
                   ? "Edit Bloom's taxonomy weights for this paper" 
-                  : "Bloom's taxonomy is loaded from subject settings"}
+                  : "Configure Bloom's taxonomy weights for question generation"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

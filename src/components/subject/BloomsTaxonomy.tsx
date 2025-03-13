@@ -20,17 +20,17 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
 
   const handleStartEditing = () => {
     setEditedBloomsData(bloomsData || {
-      remember: { delivery: 0, evaluation: 0 },
-      understand: { delivery: 0, evaluation: 0 },
-      apply: { delivery: 0, evaluation: 0 },
-      analyze: { delivery: 0, evaluation: 0 },
-      evaluate: { delivery: 0, evaluation: 0 },
-      create: { delivery: 0, evaluation: 0 }
+      remember: 20,
+      understand: 20,
+      apply: 15,
+      analyze: 15,
+      evaluate: 15,
+      create: 15
     });
     setIsEditing(true);
   };
 
-  const handleEditValue = (level: keyof BloomsTaxonomyType, field: 'delivery' | 'evaluation', value: string) => {
+  const handleEditValue = (level: keyof BloomsTaxonomyType, value: string) => {
     if (!editedBloomsData) return;
     
     const numValue = Number(value);
@@ -38,10 +38,7 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
 
     setEditedBloomsData({
       ...editedBloomsData,
-      [level]: {
-        ...editedBloomsData[level],
-        [field]: numValue
-      }
+      [level]: numValue
     });
   };
 
@@ -55,7 +52,7 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
           subject_id: subject.id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: editedBloomsData as any
+          blooms_taxonomy: editedBloomsData
         });
 
       if (error) throw error;
@@ -85,30 +82,18 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
         <div className="space-y-4">
           {isEditing ? (
             <>
-              {editedBloomsData && Object.entries(editedBloomsData).map(([level, values]) => (
+              {editedBloomsData && Object.entries(editedBloomsData).map(([level, value]) => (
                 <div key={level} className="space-y-2">
                   <div className="capitalize font-medium">{level}</div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Delivery %</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={values.delivery.toString()}
-                        onChange={(e) => handleEditValue(level as keyof BloomsTaxonomyType, 'delivery', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Evaluation %</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={values.evaluation.toString()}
-                        onChange={(e) => handleEditValue(level as keyof BloomsTaxonomyType, 'evaluation', e.target.value)}
-                      />
-                    </div>
+                  <div>
+                    <label className="text-sm font-medium">Weight %</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={value.toString()}
+                      onChange={(e) => handleEditValue(level as keyof BloomsTaxonomyType, e.target.value)}
+                    />
                   </div>
                 </div>
               ))}
@@ -119,11 +104,10 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
             </>
           ) : (
             <div className="space-y-2">
-              {bloomsData && Object.entries(bloomsData).map(([level, values]) => (
-                <div key={level} className="grid grid-cols-3 gap-4">
+              {bloomsData && Object.entries(bloomsData).map(([level, value]) => (
+                <div key={level} className="grid grid-cols-2 gap-4">
                   <p className="capitalize"><strong>{level}:</strong></p>
-                  <p>Delivery: {values.delivery}%</p>
-                  <p>Evaluation: {values.evaluation}%</p>
+                  <p>{value}%</p>
                 </div>
               ))}
             </div>

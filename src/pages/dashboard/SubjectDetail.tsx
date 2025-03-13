@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,27 +19,6 @@ export default function SubjectDetail() {
   const [bloomsData, setBloomsData] = useState<BloomsTaxonomy | null>(null);
   const [subjectFiles, setSubjectFiles] = useState<SubjectFile[]>([]);
   const [activeTab, setActiveTab] = useState("info");
-
-  const validateAndTransformBloomsTaxonomy = (data: any): BloomsTaxonomy | null => {
-    if (!data || typeof data !== 'object') return null;
-
-    const requiredLevels = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'];
-    
-    const hasAllLevels = requiredLevels.every(level => 
-      typeof data[level] === 'number'
-    );
-
-    if (!hasAllLevels) return null;
-
-    return {
-      remember: data.remember || 0,
-      understand: data.understand || 0,
-      apply: data.apply || 0,
-      analyze: data.analyze || 0,
-      evaluate: data.evaluate || 0,
-      create: data.create || 0
-    };
-  };
 
   useEffect(() => {
     if (id) {
@@ -79,10 +59,7 @@ export default function SubjectDetail() {
       }
 
       if (answerKeyData?.blooms_taxonomy) {
-        const validatedBloomsData = validateAndTransformBloomsTaxonomy(answerKeyData.blooms_taxonomy);
-        if (validatedBloomsData) {
-          setBloomsData(validatedBloomsData);
-        }
+        setBloomsData(answerKeyData.blooms_taxonomy as BloomsTaxonomy);
       }
     } catch (error: any) {
       toast.error('Failed to fetch subject data');
