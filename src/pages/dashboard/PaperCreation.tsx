@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw } from "lucide-react";
+import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw, Edit2 } from "lucide-react";
 import { BloomsTaxonomy, Question } from "@/types/papers";
 
 export default function PaperCreation() {
@@ -28,6 +28,7 @@ export default function PaperCreation() {
     create: { delivery: 15, evaluation: 15 }
   });
   
+  const [isEditingBloomsTaxonomy, setIsEditingBloomsTaxonomy] = useState(false);
   const [difficulty, setDifficulty] = useState<number>(50);
   const [headerFile, setHeaderFile] = useState<File | null>(null);
   const [contentFile, setContentFile] = useState<File | null>(null);
@@ -74,7 +75,7 @@ export default function PaperCreation() {
             if (response.ok) {
               const bloomsData = await response.json();
               console.log("Loaded Bloom's taxonomy from subject document:", bloomsData);
-              setBloomsTaxonomy(bloomsData);
+              setBloomsTaxonomy(bloomsData as BloomsTaxonomy);
             }
           } catch (error) {
             console.error("Error parsing Bloom's taxonomy from document:", error);
@@ -292,6 +293,40 @@ export default function PaperCreation() {
     }
   };
   
+  const handleEditBloomsTaxonomy = (level: keyof BloomsTaxonomy, field: 'delivery' | 'evaluation', value: string) => {
+    const numValue = Number(value);
+    if (isNaN(numValue)) return;
+
+    setBloomsTaxonomy({
+      ...bloomsTaxonomy,
+      [level]: {
+        ...bloomsTaxonomy[level],
+        [field]: numValue
+      }
+    });
+  };
+  
+  const saveBloomsTaxonomyToSubject = async () => {
+    try {
+      const { error } = await supabase
+        .from('answer_keys')
+        .insert({
+          subject_id: subjectId,
+          title: `${subjectName || 'Subject'} - Bloom's Taxonomy Update`,
+          content: {},
+          blooms_taxonomy: bloomsTaxonomy
+        });
+      
+      if (error) throw error;
+      
+      setIsEditingBloomsTaxonomy(false);
+      toast.success("Bloom's taxonomy saved to subject successfully");
+    } catch (error: any) {
+      console.error("Error saving Bloom's taxonomy:", error);
+      toast.error("Failed to save Bloom's taxonomy");
+    }
+  };
+  
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6 flex items-center">
@@ -409,8 +444,21 @@ export default function PaperCreation() {
           
           <Card>
             <CardHeader>
-              <CardTitle>Question Parameters</CardTitle>
-              <CardDescription>Bloom's taxonomy is automatically loaded from subject settings</CardDescription>
+              <div className="flex justify-between items-center">
+                <CardTitle>Question Parameters</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingBloomsTaxonomy(!isEditingBloomsTaxonomy)}
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <CardDescription>
+                {isEditingBloomsTaxonomy 
+                  ? "Edit Bloom's taxonomy weights for this paper" 
+                  : "Bloom's taxonomy is loaded from subject settings"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -431,30 +479,70 @@ export default function PaperCreation() {
               </div>
               
               <div className="space-y-2">
-                <Label>Bloom's Taxonomy Weights (Read-only)</Label>
+                <Label>{isEditingBloomsTaxonomy ? "Edit Bloom's Taxonomy Weights" : "Bloom's Taxonomy Weights"}</Label>
                 {Object.entries(bloomsTaxonomy).map(([level, values]) => (
                   <div key={level} className="grid grid-cols-3 gap-2 items-center">
-                    <div className="capitalize">{level}</div>
-                    <div>
-                      <Label className="text-xs">Delivery: {values.delivery}%</Label>
-                      <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
-                        <div 
-                          className="bg-primary h-2 rounded-full" 
-                          style={{ width: `${values.delivery}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Evaluation: {values.evaluation}%</Label>
-                      <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
-                        <div 
-                          className="bg-primary h-2 rounded-full" 
-                          style={{ width: `${values.evaluation}%` }}
-                        ></div>
-                      </div>
-                    </div>
+                    <div className="capitalize font-medium">{level}</div>
+                    {isEditingBloomsTaxonomy ? (
+                      <>
+                        <div>
+                          <Label className="text-xs">Delivery %</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={values.delivery}
+                            onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, 'delivery', e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Evaluation %</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={values.evaluation}
+                            onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, 'evaluation', e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <Label className="text-xs">Delivery: {values.delivery}%</Label>
+                          <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
+                            <div 
+                              className="bg-primary h-2 rounded-full" 
+                              style={{ width: `${values.delivery}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Evaluation: {values.evaluation}%</Label>
+                          <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
+                            <div 
+                              className="bg-primary h-2 rounded-full" 
+                              style={{ width: `${values.evaluation}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
+                
+                {isEditingBloomsTaxonomy && (
+                  <div className="flex justify-end space-x-2 mt-4">
+                    <Button variant="outline" onClick={() => setIsEditingBloomsTaxonomy(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={saveBloomsTaxonomyToSubject}>
+                      Save to Subject
+                    </Button>
+                  </div>
+                )}
               </div>
               
               <Button 
