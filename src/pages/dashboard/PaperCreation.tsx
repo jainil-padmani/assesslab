@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Label } from "@/components/ui/label";
@@ -31,12 +30,10 @@ export default function PaperCreation() {
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcomeConfig[]>([]);
   const [selectedCourseOutcomes, setSelectedCourseOutcomes] = useState<string[]>([]);
   
-  // Check if we have prefilled questions from the saved questions page
   useEffect(() => {
     if (location.state?.prefillQuestions) {
       setGeneratedQuestions(location.state.prefillQuestions);
       
-      // Try to find a subject ID from the first question if it has a courseOutcome
       if (location.state.prefillQuestions.length > 0) {
         const firstQuestion = location.state.prefillQuestions[0];
         if (firstQuestion.subject_id) {
@@ -46,7 +43,6 @@ export default function PaperCreation() {
     }
   }, [location]);
   
-  // Fetch subject data when selectedSubject changes
   useEffect(() => {
     if (selectedSubject) {
       fetchSubjectDetails(selectedSubject);
@@ -88,7 +84,7 @@ export default function PaperCreation() {
           id: co.id,
           co_number: co.co_number,
           description: co.description,
-          questionCount: 2, // Default number of questions per CO
+          questionCount: 2,
           selected: false
         }));
         
@@ -113,7 +109,6 @@ export default function PaperCreation() {
     setIsLoading(true);
     
     try {
-      // Prepare the selected course outcomes with their question count
       let selectedCOs = courseOutcomes
         .filter(co => selectedCourseOutcomes.includes(co.id))
         .map(co => ({
@@ -122,12 +117,10 @@ export default function PaperCreation() {
           questionCount: co.questionCount
         }));
       
-      // If no COs selected, generate general questions
       const totalQuestions = selectedCOs.length === 0 
         ? numQuestions 
         : selectedCOs.reduce((total, co) => total + co.questionCount, 0);
       
-      // Call Supabase Edge Function to generate questions
       const { data, error } = await supabase.functions.invoke('generate-questions', {
         body: {
           subject: subjectName,
@@ -141,7 +134,6 @@ export default function PaperCreation() {
       if (error) throw error;
       
       if (data && Array.isArray(data.questions)) {
-        // Map the generated questions to include selected status
         const questionsWithSelected: Question[] = data.questions.map(q => ({
           ...q,
           selected: true,
@@ -150,7 +142,6 @@ export default function PaperCreation() {
         
         setGeneratedQuestions(questionsWithSelected);
         
-        // Save the generated questions to the database
         await saveGeneratedQuestions(questionsWithSelected);
         
         toast.success(`Generated ${questionsWithSelected.length} questions`);
@@ -172,23 +163,23 @@ export default function PaperCreation() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
       
-      // Using raw SQL because 'generated_questions' is a new table
+      const questionsJson = JSON.stringify(questions);
+      
       const { error } = await supabase.rpc('insert_generated_questions', {
         p_user_id: user.id,
         p_subject_id: selectedSubject,
         p_topic: topic,
-        p_questions: JSON.stringify(questions)
-      }).single();
+        p_questions: questionsJson
+      });
       
       if (error) {
-        // Fallback to direct insert if the RPC is not available yet
         const { error: insertError } = await supabase
           .from('generated_questions')
           .insert({
             user_id: user.id,
             subject_id: selectedSubject,
             topic: topic,
-            questions: questions
+            questions: JSON.parse(questionsJson)
           });
           
         if (insertError) throw insertError;
@@ -197,7 +188,6 @@ export default function PaperCreation() {
       toast.success("Questions saved for future use");
     } catch (error) {
       console.error('Error saving generated questions:', error);
-      // Don't show an error toast as this is a background operation
     }
   };
   
@@ -228,7 +218,6 @@ export default function PaperCreation() {
     setPdfUrl("");
     
     try {
-      // Call the Supabase Edge Function to generate the paper
       const { data, error } = await supabase.functions.invoke('generate-paper', {
         body: {
           subjectName,
@@ -246,7 +235,6 @@ export default function PaperCreation() {
           setPdfUrl(data.pdfUrl);
         }
         
-        // Save the generated paper to the database
         await saveGeneratedPaper(data.paperUrl, data.pdfUrl, selectedQuestions);
         
         toast.success("Paper generated successfully");
@@ -266,6 +254,8 @@ export default function PaperCreation() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
       
+      const questionsJson = JSON.stringify(questions);
+      
       const { error } = await supabase
         .from('generated_papers')
         .insert({
@@ -274,7 +264,7 @@ export default function PaperCreation() {
           topic: topic,
           paper_url: paperUrl,
           pdf_url: pdfUrl,
-          questions: questions
+          questions: JSON.parse(questionsJson)
         });
         
       if (error) throw error;

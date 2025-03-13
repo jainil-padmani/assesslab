@@ -107,7 +107,12 @@ export default function SavedQuestions() {
       .filter(q => selectedItems[q.id])
       .flatMap(q => {
         // Map each question in the selected items and add selected: true
-        return (q.questions as Question[]).map(question => ({
+        // Use type assertion to handle the Json type
+        const questionsArray = Array.isArray(q.questions) 
+          ? q.questions as Question[]
+          : [];
+          
+        return questionsArray.map(question => ({
           ...question,
           selected: true
         }));
@@ -127,7 +132,11 @@ export default function SavedQuestions() {
   };
 
   const getQuestionCount = (item: GeneratedQuestions) => {
-    return Array.isArray(item.questions) ? item.questions.length : 0;
+    const questionsArray = Array.isArray(item.questions)
+      ? item.questions
+      : [];
+    
+    return questionsArray.length;
   };
 
   return (
