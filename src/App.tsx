@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,43 +30,45 @@ import PaperHistory from "./pages/dashboard/PaperHistory";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light">
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<DashboardLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="students" element={<Students />} />
-              <Route path="students/:id" element={<StudentDetail />} />
-              <Route path="subjects" element={<Subjects />} />
-              <Route path="subjects/:id" element={<SubjectDetail />} />
-              <Route path="classes" element={<Classes />} />
-              <Route path="classes/:id" element={<ClassDetail />} />
-              <Route path="tests" element={<Tests />} />
-              <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
-              <Route path="tests/detail/:testId" element={<TestDetail />} />
-              <Route path="analysis" element={<Analysis />} />
-              <Route path="analysis-result" element={<AnalysisResult />} />
-              <Route path="analysis-history" element={<AnalysisHistory />} />
-              <Route path="check" element={<Check />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="file-management" element={<FileManagement />} />
-              <Route path="paper-generation" element={<PaperGeneration />} />
-              <Route path="paper-generation/create" element={<PaperCreation />} />
-              <Route path="paper-generation/history" element={<PaperHistory />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light">
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<DashboardLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="students" element={<Students />} />
+                <Route path="students/:id" element={<StudentDetail />} />
+                <Route path="subjects" element={<Subjects />} />
+                <Route path="subjects/:id" element={<SubjectDetail />} />
+                <Route path="classes" element={<Classes />} />
+                <Route path="classes/:id" element={<ClassDetail />} />
+                <Route path="tests" element={<Tests />} />
+                <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
+                <Route path="tests/detail/:testId" element={<TestDetail />} />
+                <Route path="analysis" element={<Analysis />} />
+                <Route path="analysis-result" element={<AnalysisResult />} />
+                <Route path="analysis-history" element={<AnalysisHistory />} />
+                <Route path="check" element={<Check />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="file-management" element={<FileManagement />} />
+                <Route path="paper-generation" element={<PaperGeneration />} />
+                <Route path="paper-generation/create" element={<PaperCreation />} />
+                <Route path="paper-generation/history" element={<PaperHistory />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

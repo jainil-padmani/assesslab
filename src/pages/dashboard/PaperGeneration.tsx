@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileX, ExternalLink, History } from "lucide-react";
+import { Download, Eye, FileX, ExternalLink, History, FileText, FilePdf } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -48,7 +49,8 @@ export default function PaperGeneration() {
       const { data, error } = await supabase
         .from("generated_papers")
         .select("*, subjects(name)")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(5); // Only get the most recent 5 papers for the quick view
       
       if (error) {
         console.error("Error fetching papers:", error);
@@ -109,22 +111,26 @@ export default function PaperGeneration() {
     setSelectedPaper(paper);
   };
 
-  const handleDownload = (paperUrl: string) => {
-    window.open(paperUrl, '_blank');
+  const handleDownload = (paper: GeneratedPaper) => {
+    // Prefer PDF if available, otherwise use HTML
+    const downloadUrl = paper.pdf_url || paper.paper_url;
+    window.open(downloadUrl, '_blank');
   };
 
   const generateDocx = async () => {
     if (!selectedPaper) return;
     
     try {
-      toast.info("Generating DOCX file...");
+      toast.info("Downloading document...");
       
-      window.open(selectedPaper.paper_url, '_blank');
+      // Prefer PDF if available, otherwise use HTML
+      const downloadUrl = selectedPaper.pdf_url || selectedPaper.paper_url;
+      window.open(downloadUrl, '_blank');
       
-      toast.success("DOCX file generated successfully");
+      toast.success("Document ready for download");
     } catch (error) {
-      console.error("Error generating DOCX:", error);
-      toast.error("Failed to generate DOCX file");
+      console.error("Error downloading document:", error);
+      toast.error("Failed to download document");
     }
   };
 
@@ -284,7 +290,7 @@ export default function PaperGeneration() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDownload(paper.paper_url)}
+                              onClick={() => handleDownload(paper)}
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -337,6 +343,11 @@ export default function PaperGeneration() {
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {question.marks} marks
                                 </span>
+                                {question.courseOutcome && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    CO{question.courseOutcome}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -353,11 +364,19 @@ export default function PaperGeneration() {
                   
                   <div className="aspect-[3/4] border rounded-md overflow-hidden bg-white">
                     {selectedPaper ? (
-                      <iframe 
-                        src={selectedPaper.paper_url} 
-                        className="w-full h-full"
-                        title="Generated Paper"
-                      />
+                      selectedPaper.pdf_url ? (
+                        <iframe 
+                          src={selectedPaper.pdf_url} 
+                          className="w-full h-full"
+                          title="Generated Paper PDF"
+                        />
+                      ) : (
+                        <iframe 
+                          src={selectedPaper.paper_url} 
+                          className="w-full h-full"
+                          title="Generated Paper HTML"
+                        />
+                      )
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <p className="text-gray-500">No preview available</p>
@@ -366,13 +385,19 @@ export default function PaperGeneration() {
                   </div>
                   
                   <div className="flex flex-wrap gap-2 justify-center mt-4">
-                    <Button onClick={() => handleDownload(selectedPaper.paper_url)}>
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Full Paper
+                    {selectedPaper && selectedPaper.pdf_url && (
+                      <Button onClick={() => window.open(selectedPaper.pdf_url!, '_blank')}>
+                        <FilePdf className="mr-2 h-4 w-4" />
+                        View PDF
+                      </Button>
+                    )}
+                    <Button onClick={() => window.open(selectedPaper.paper_url, '_blank')}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      View {selectedPaper?.pdf_url ? 'HTML' : 'Paper'}
                     </Button>
                     <Button onClick={generateDocx}>
                       <Download className="mr-2 h-4 w-4" />
-                      Download as DOCX
+                      Download Document
                     </Button>
                     <Button variant="outline" onClick={() => setSelectedPaper(null)}>
                       Close

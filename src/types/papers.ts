@@ -40,4 +40,5 @@ export interface GeneratedPaper {
   content_url?: string | null;
   created_at: string;
   subject_name?: string;
+  pdf_url?: string | null; // New field for PDF URL
 }

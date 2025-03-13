@@ -40,6 +40,7 @@ export default function PaperCreation() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isCreatingPaper, setIsCreatingPaper] = useState<boolean>(false);
   const [paperUrl, setPaperUrl] = useState<string>("");
+  const [pdfUrl, setPdfUrl] = useState<string>("");
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcomeConfig[]>([]);
   const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
   
@@ -236,7 +237,10 @@ export default function PaperCreation() {
       }
       
       const paperUrl = response.data.paperUrl;
+      const pdfUrl = response.data.pdfUrl;
+      
       setPaperUrl(paperUrl);
+      setPdfUrl(pdfUrl || "");
       
       const { data, error } = await supabase
         .from('generated_papers')
@@ -244,6 +248,7 @@ export default function PaperCreation() {
           subject_id: subjectId,
           topic: topicName,
           paper_url: paperUrl,
+          pdf_url: pdfUrl || null,
           questions: selectedQuestions as any,
           header_url: headerUrl || null,
           content_url: contentUrl || null,
@@ -266,8 +271,10 @@ export default function PaperCreation() {
     }
   };
   
-  const downloadPaper = () => {
-    if (paperUrl) {
+  const downloadPaper = (isPdf = false) => {
+    if (isPdf && pdfUrl) {
+      window.open(pdfUrl, '_blank');
+    } else if (paperUrl) {
       window.open(paperUrl, '_blank');
     }
   };
@@ -699,26 +706,23 @@ export default function PaperCreation() {
                   ) : (
                     <div className="space-y-4">
                       <div className="aspect-[3/4] border rounded-md overflow-hidden">
-                        <iframe 
-                          src={paperUrl} 
-                          className="w-full h-full"
-                          title="Generated Paper"
-                        />
+                        {pdfUrl ? (
+                          <iframe 
+                            src={pdfUrl} 
+                            className="w-full h-full"
+                            title="Generated Paper PDF"
+                          />
+                        ) : (
+                          <iframe 
+                            src={paperUrl} 
+                            className="w-full h-full"
+                            title="Generated Paper HTML"
+                          />
+                        )}
                       </div>
-                      <div className="flex justify-center">
-                        <Button onClick={downloadPaper}>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download Paper
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </div>
-  );
-}
+                      <div className="flex justify-center gap-4">
+                        {pdfUrl && (
+                          <Button onClick={() => downloadPaper(true)}>
+                            <Download className="mr-2 h-4 w-4" />
+                           
+

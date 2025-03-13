@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
+import * as puppeteer from "https://deno.land/x/puppeteer@16.2.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -213,11 +214,7 @@ serve(async (req: Request) => {
     </html>
     `;
     
-    // Generate PDF from HTML
-    // For this example, we'll just return HTML that can be rendered in the browser
-    // In a production app, you'd convert this to PDF using a library
-    
-    // For demonstration, we'll just create a hosted HTML file in Supabase Storage
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     
@@ -229,29 +226,112 @@ serve(async (req: Request) => {
     
     // Create a unique file name
     const timestamp = Date.now();
-    const fileName = `paper_${timestamp}.html`;
+    const htmlFileName = `paper_${timestamp}.html`;
+    const pdfFileName = `paper_${timestamp}.pdf`;
     
     // Upload the HTML file to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { data: htmlData, error: htmlError } = await supabase.storage
       .from('files')
-      .upload(fileName, new Blob([paperHtml], { type: 'text/html' }), {
+      .upload(htmlFileName, new Blob([paperHtml], { type: 'text/html' }), {
         cacheControl: '3600',
         upsert: false,
       });
     
-    if (error) {
-      throw new Error(`Error uploading paper: ${error.message}`);
+    if (htmlError) {
+      throw new Error(`Error uploading HTML: ${htmlError.message}`);
     }
     
-    // Get the public URL
-    const { data: urlData } = await supabase.storage
+    // Get the public URL for HTML
+    const { data: htmlUrlData } = await supabase.storage
       .from('files')
-      .getPublicUrl(fileName);
+      .getPublicUrl(htmlFileName);
     
-    console.log("Paper generated successfully");
+    // Generate PDF from HTML using Puppeteer
+    console.log("Generating PDF...");
+    let pdfBuffer: Uint8Array;
+    
+    try {
+      const browser = await puppeteer.launch({ 
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: true
+      });
+      const page = await browser.newPage();
+      
+      // Set the content
+      await page.setContent(paperHtml, { waitUntil: 'networkidle0' });
+      
+      // Set page size to A4
+      await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '1cm',
+          right: '1cm',
+          bottom: '1cm',
+          left: '1cm'
+        }
+      });
+      
+      // Generate PDF buffer
+      pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '1cm',
+          right: '1cm',
+          bottom: '1cm',
+          left: '1cm'
+        }
+      });
+      
+      await browser.close();
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+      // If PDF generation fails, we'll continue with just the HTML
+      return new Response(
+        JSON.stringify({ 
+          paperUrl: htmlUrlData.publicUrl,
+          pdfUrl: null,
+          error: "PDF generation failed, but HTML is available"
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Upload PDF to Supabase Storage
+    const { data: pdfData, error: pdfError } = await supabase.storage
+      .from('files')
+      .upload(pdfFileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        cacheControl: '3600',
+        upsert: false,
+      });
+    
+    if (pdfError) {
+      console.error("Error uploading PDF:", pdfError);
+      // If PDF upload fails, we'll continue with just the HTML
+      return new Response(
+        JSON.stringify({ 
+          paperUrl: htmlUrlData.publicUrl,
+          pdfUrl: null,
+          error: "PDF upload failed, but HTML is available"
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Get the public URL for PDF
+    const { data: pdfUrlData } = await supabase.storage
+      .from('files')
+      .getPublicUrl(pdfFileName);
+    
+    console.log("Paper and PDF generated successfully");
     
     return new Response(
-      JSON.stringify({ paperUrl: urlData.publicUrl }),
+      JSON.stringify({ 
+        paperUrl: htmlUrlData.publicUrl,
+        pdfUrl: pdfUrlData.publicUrl
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
     
