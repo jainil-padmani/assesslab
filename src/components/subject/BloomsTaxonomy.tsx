@@ -7,6 +7,7 @@ import { Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { BloomsTaxonomy as BloomsTaxonomyType, Subject } from "@/types/dashboard";
+import { Json } from "@/integrations/supabase/types";
 
 interface BloomsTaxonomyProps {
   subject: Subject;
@@ -46,13 +47,18 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
     if (!editedBloomsData || !subject.id) return;
 
     try {
+      // Convert BloomsTaxonomyType to Json compatible object
+      const bloomsDataJson = {
+        ...editedBloomsData
+      } as unknown as Json;
+
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           subject_id: subject.id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: editedBloomsData
+          blooms_taxonomy: bloomsDataJson
         });
 
       if (error) throw error;

@@ -2,12 +2,12 @@
 import { Json } from "@/integrations/supabase/types";
 
 export interface BloomsTaxonomy {
-  remember: { delivery: number; evaluation: number };
-  understand: { delivery: number; evaluation: number };
-  apply: { delivery: number; evaluation: number };
-  analyze: { delivery: number; evaluation: number };
-  evaluate: { delivery: number; evaluation: number };
-  create: { delivery: number; evaluation: number };
+  remember: number;
+  understand: number;
+  apply: number;
+  analyze: number;
+  evaluate: number;
+  create: number;
 }
 
 export interface Question {

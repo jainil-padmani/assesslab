@@ -59,7 +59,29 @@ export default function SubjectDetail() {
       }
 
       if (answerKeyData?.blooms_taxonomy) {
-        setBloomsData(answerKeyData.blooms_taxonomy as BloomsTaxonomy);
+        // Safely convert from Json to BloomsTaxonomy
+        const rawData = answerKeyData.blooms_taxonomy;
+        if (typeof rawData === 'object' && rawData !== null && !Array.isArray(rawData)) {
+          const convertedData = {
+            remember: Number(rawData.remember) || 0,
+            understand: Number(rawData.understand) || 0,
+            apply: Number(rawData.apply) || 0,
+            analyze: Number(rawData.analyze) || 0,
+            evaluate: Number(rawData.evaluate) || 0,
+            create: Number(rawData.create) || 0
+          };
+          setBloomsData(convertedData);
+        } else {
+          // Set default values if conversion fails
+          setBloomsData({
+            remember: 20,
+            understand: 20,
+            apply: 15,
+            analyze: 15,
+            evaluate: 15,
+            create: 15
+          });
+        }
       }
     } catch (error: any) {
       toast.error('Failed to fetch subject data');

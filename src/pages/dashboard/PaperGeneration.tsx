@@ -25,7 +25,7 @@ export default function PaperGeneration() {
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
-  const { subjects, isLoading: isSubjectsLoading } = useSubjects();
+  const subjects = useSubjects();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function PaperGeneration() {
     setIsLoading(true);
     
     // Find the subject object from the selected ID
-    const subject = subjects.find(s => s.id === selectedSubject);
+    const subject = subjects.subjects.find(s => s.id === selectedSubject);
     
     // Navigate to question generation page with the necessary data
     navigate("/dashboard/paper-generation/create", { 
@@ -163,12 +163,12 @@ export default function PaperGeneration() {
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    {isSubjectsLoading ? (
+                    {subjects.isLoading ? (
                       <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
-                    ) : subjects.length === 0 ? (
+                    ) : subjects.subjects.length === 0 ? (
                       <SelectItem value="none" disabled>No subjects available</SelectItem>
                     ) : (
-                      subjects.map((subject) => (
+                      subjects.subjects.map((subject) => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.name} ({subject.subject_code})
                         </SelectItem>
@@ -191,7 +191,7 @@ export default function PaperGeneration() {
             <CardFooter className="flex justify-end">
               <Button 
                 onClick={handleContinue} 
-                disabled={isLoading || isSubjectsLoading}
+                disabled={isLoading || subjects.isLoading}
               >
                 {isLoading ? "Loading..." : "Continue"}
               </Button>
