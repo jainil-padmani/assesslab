@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,11 +58,10 @@ export default function PaperGeneration() {
       console.log("Papers data:", data);
       
       if (data) {
-        // Map the data to include subject_name from the subjects join
         const mappedData = data.map((paper: any) => ({
           ...paper,
           subject_name: paper.subjects?.name || "Unknown Subject",
-          questions: paper.questions as Question[] | any // Cast to the union type
+          questions: paper.questions as Question[] | any
         }));
         
         setPapers(mappedData as GeneratedPaper[]);
@@ -95,10 +93,8 @@ export default function PaperGeneration() {
 
     setIsLoading(true);
     
-    // Find the subject object from the selected ID
     const subject = subjects.find(s => s.id === selectedSubject);
     
-    // Navigate to question generation page with the necessary data
     navigate("/dashboard/paper-generation/create", { 
       state: { 
         subjectId: selectedSubject,
@@ -123,8 +119,6 @@ export default function PaperGeneration() {
     try {
       toast.info("Generating DOCX file...");
       
-      // Here we would call an edge function to generate a DOCX
-      // For this example, we'll just open the existing paper URL
       window.open(selectedPaper.paper_url, '_blank');
       
       toast.success("DOCX file generated successfully");
@@ -233,7 +227,7 @@ export default function PaperGeneration() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">All Subjects</SelectItem>
-                    {subjects.map((subject) => (
+                    {subjects && subjects.length > 0 && subjects.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name}
                       </SelectItem>
@@ -306,7 +300,6 @@ export default function PaperGeneration() {
         </TabsContent>
       </Tabs>
 
-      {/* Paper Details Dialog */}
       <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           {selectedPaper && (

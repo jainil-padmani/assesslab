@@ -17,7 +17,7 @@ export default function PaperHistory() {
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
-  const { subjects } = useSubjects(); // No argument needed
+  const { subjects } = useSubjects();
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function PaperHistory() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All Subjects</SelectItem>
-              {subjects.map((subject) => (
+              {subjects && subjects.length > 0 && subjects.map((subject) => (
                 <SelectItem key={subject.id} value={subject.id}>
                   {subject.name}
                 </SelectItem>
