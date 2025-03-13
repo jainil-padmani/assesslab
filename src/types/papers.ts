@@ -43,5 +43,15 @@ export interface GeneratedPaper {
   content_url?: string | null;
   created_at: string;
   subject_name?: string;
-  pdf_url?: string | null; // New field for PDF URL
+  pdf_url?: string | null; // Field for PDF URL
+}
+
+export interface GeneratedQuestions {
+  id: string;
+  user_id: string;
+  subject_id: string;
+  topic: string;
+  questions: Question[] | Json;
+  created_at: string;
+  subject_name?: string;
 }

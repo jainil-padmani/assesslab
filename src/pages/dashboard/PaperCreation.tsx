@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -192,7 +191,22 @@ export default function PaperCreation() {
         return;
       }
       
-      setGeneratedQuestions(response.data.questions);
+      const generatedQs = response.data.questions;
+      setGeneratedQuestions(generatedQs);
+      
+      const { error: saveError } = await supabase
+        .from('generated_questions')
+        .insert({
+          subject_id: subjectId,
+          topic: topicName,
+          questions: generatedQs,
+          user_id: (await supabase.auth.getUser()).data.user?.id || ''
+        });
+      
+      if (saveError) {
+        console.error("Error saving generated questions:", saveError);
+      }
+      
       toast.success("Questions generated successfully");
     } catch (error) {
       console.error("Error generating questions:", error);

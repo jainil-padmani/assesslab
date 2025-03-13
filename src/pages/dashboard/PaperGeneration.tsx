@@ -11,9 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileX, ExternalLink, History, FileText, File } from "lucide-react";
+import { Download, Eye, FileX, History, File } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import SavedQuestions from "@/components/paper/SavedQuestions";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
@@ -140,8 +141,9 @@ export default function PaperGeneration() {
       <h1 className="text-3xl font-bold mb-6">Test Paper Generation</h1>
       
       <Tabs defaultValue="generate" value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid grid-cols-2 w-[400px] mb-6">
+        <TabsList className="grid grid-cols-3 w-[600px] mb-6">
           <TabsTrigger value="generate">Generate New Paper</TabsTrigger>
+          <TabsTrigger value="saved">Saved Questions</TabsTrigger>
           <TabsTrigger value="history">Paper History</TabsTrigger>
         </TabsList>
         
@@ -198,6 +200,10 @@ export default function PaperGeneration() {
               </Button>
             </CardFooter>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="saved">
+          <SavedQuestions />
         </TabsContent>
         
         <TabsContent value="history">
