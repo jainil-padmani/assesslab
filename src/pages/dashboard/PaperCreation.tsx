@@ -19,12 +19,12 @@ export default function PaperCreation() {
   const { subjectId, subjectName, subjectCode, topicName } = location.state || {};
   
   const [bloomsTaxonomy, setBloomsTaxonomy] = useState<BloomsTaxonomy>({
-    remember: { delivery: 20, evaluation: 20 },
-    understand: { delivery: 20, evaluation: 20 },
-    apply: { delivery: 15, evaluation: 15 },
-    analyze: { delivery: 15, evaluation: 15 },
-    evaluate: { delivery: 15, evaluation: 15 },
-    create: { delivery: 15, evaluation: 15 }
+    remember: 20,
+    understand: 20,
+    apply: 15,
+    analyze: 15,
+    evaluate: 15,
+    create: 15
   });
   
   const [isEditingBloomsTaxonomy, setIsEditingBloomsTaxonomy] = useState(false);
@@ -210,16 +210,13 @@ export default function PaperCreation() {
     }
   };
   
-  const handleEditBloomsTaxonomy = (level: keyof BloomsTaxonomy, field: 'delivery' | 'evaluation', value: string) => {
+  const handleEditBloomsTaxonomy = (level: keyof BloomsTaxonomy, value: string) => {
     const numValue = Number(value);
     if (isNaN(numValue)) return;
 
     setBloomsTaxonomy({
       ...bloomsTaxonomy,
-      [level]: {
-        ...bloomsTaxonomy[level],
-        [field]: numValue
-      }
+      [level]: numValue
     });
   };
   
@@ -397,55 +394,30 @@ export default function PaperCreation() {
               
               <div className="space-y-2">
                 <Label>{isEditingBloomsTaxonomy ? "Edit Bloom's Taxonomy Weights" : "Bloom's Taxonomy Weights"}</Label>
-                {Object.entries(bloomsTaxonomy).map(([level, values]) => (
-                  <div key={level} className="grid grid-cols-3 gap-2 items-center">
+                {Object.entries(bloomsTaxonomy).map(([level, value]) => (
+                  <div key={level} className="grid grid-cols-2 gap-2 items-center">
                     <div className="capitalize font-medium">{level}</div>
                     {isEditingBloomsTaxonomy ? (
-                      <>
-                        <div>
-                          <Label className="text-xs">Delivery %</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={values.delivery}
-                            onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, 'delivery', e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Evaluation %</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={values.evaluation}
-                            onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, 'evaluation', e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                      </>
+                      <div>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={value}
+                          onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
                     ) : (
-                      <>
-                        <div>
-                          <Label className="text-xs">Delivery: {values.delivery}%</Label>
-                          <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
-                            <div 
-                              className="bg-primary h-2 rounded-full" 
-                              style={{ width: `${values.delivery}%` }}
-                            ></div>
-                          </div>
+                      <div>
+                        <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
+                          <div 
+                            className="bg-primary h-2 rounded-full" 
+                            style={{ width: `${value}%` }}
+                          ></div>
                         </div>
-                        <div>
-                          <Label className="text-xs">Evaluation: {values.evaluation}%</Label>
-                          <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
-                            <div 
-                              className="bg-primary h-2 rounded-full" 
-                              style={{ width: `${values.evaluation}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </>
+                        <span className="text-xs text-gray-500">{value}%</span>
+                      </div>
                     )}
                   </div>
                 ))}

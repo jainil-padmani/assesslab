@@ -6,6 +6,7 @@ import { Subject } from "@/types/dashboard";
 
 export function useSubjects(selectedClass?: string) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (selectedClass) {
@@ -18,6 +19,7 @@ export function useSubjects(selectedClass?: string) {
 
   const fetchAllSubjects = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('subjects')
         .select('*')
@@ -28,11 +30,14 @@ export function useSubjects(selectedClass?: string) {
     } catch (error: any) {
       toast.error('Failed to fetch subjects');
       console.error('Error fetching all subjects:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const fetchSubjects = async () => {
     try {
+      setIsLoading(true);
       if (!selectedClass) return;
       
       // Get subjects enrolled for this class via subject_enrollments
@@ -106,8 +111,10 @@ export function useSubjects(selectedClass?: string) {
     } catch (error: any) {
       toast.error('Failed to fetch subjects');
       console.error('Error fetching subjects:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return { subjects };
+  return { subjects, isLoading };
 }
