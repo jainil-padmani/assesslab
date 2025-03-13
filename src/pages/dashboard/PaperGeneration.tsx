@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +49,7 @@ export default function PaperGeneration() {
         .from("generated_papers")
         .select("*, subjects(name)")
         .order("created_at", { ascending: false })
-        .limit(5); // Only get the most recent 5 papers for the quick view
+        .limit(5);
       
       if (error) {
         console.error("Error fetching papers:", error);
@@ -112,7 +111,6 @@ export default function PaperGeneration() {
   };
 
   const handleDownload = (paper: GeneratedPaper) => {
-    // Prefer PDF if available, otherwise use HTML
     const downloadUrl = paper.pdf_url || paper.paper_url;
     window.open(downloadUrl, '_blank');
   };
@@ -123,7 +121,6 @@ export default function PaperGeneration() {
     try {
       toast.info("Downloading document...");
       
-      // Prefer PDF if available, otherwise use HTML
       const downloadUrl = selectedPaper.pdf_url || selectedPaper.paper_url;
       window.open(downloadUrl, '_blank');
       
@@ -232,7 +229,7 @@ export default function PaperGeneration() {
                     <SelectValue placeholder="All subjects" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Subjects</SelectItem>
+                    <SelectItem value="all">All Subjects</SelectItem>
                     {subjects && subjects.length > 0 && subjects.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name}

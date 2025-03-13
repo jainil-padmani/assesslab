@@ -69,7 +69,7 @@ export function GeneratedPapers({ subjectId }: GeneratedPapersProps) {
     // Initialize selected questions (all selected by default)
     if (Array.isArray(paper.questions)) {
       const initialSelected = {};
-      paper.questions.forEach(q => {
+      (paper.questions as Question[]).forEach(q => {
         initialSelected[q.id] = true;
       });
       setSelectedQuestions(initialSelected);

@@ -103,7 +103,7 @@ export default function PaperHistory() {
     // Initialize selected questions (all selected by default)
     if (Array.isArray(paper.questions)) {
       const initialSelected = {};
-      paper.questions.forEach(q => {
+      (paper.questions as Question[]).forEach(q => {
         initialSelected[q.id] = true;
       });
       setSelectedQuestions(initialSelected);
@@ -209,7 +209,7 @@ export default function PaperHistory() {
                 <SelectValue placeholder="Filter by subject" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Subjects</SelectItem>
+                <SelectItem value="all">All Subjects</SelectItem>
                 {subjects && subjects.length > 0 && subjects.map((subject) => (
                   <SelectItem key={subject.id} value={subject.id}>
                     {subject.name}
@@ -229,7 +229,7 @@ export default function PaperHistory() {
                 <SelectValue placeholder="Filter by topic" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Topics</SelectItem>
+                <SelectItem value="all">All Topics</SelectItem>
                 {topicOptions.map((topic) => (
                   <SelectItem key={topic} value={topic}>
                     {topic}
