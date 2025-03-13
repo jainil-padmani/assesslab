@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw } from "lucide-react";
@@ -95,18 +95,25 @@ export default function PaperCreation() {
           if (answerKeyData?.blooms_taxonomy) {
             console.log("Loaded Bloom's taxonomy from answer key:", answerKeyData.blooms_taxonomy);
             
-            if (typeof answerKeyData.blooms_taxonomy.remember === "number") {
-              const newFormat: BloomsTaxonomy = {
-                remember: { delivery: answerKeyData.blooms_taxonomy.remember, evaluation: answerKeyData.blooms_taxonomy.remember },
-                understand: { delivery: answerKeyData.blooms_taxonomy.understand, evaluation: answerKeyData.blooms_taxonomy.understand },
-                apply: { delivery: answerKeyData.blooms_taxonomy.apply, evaluation: answerKeyData.blooms_taxonomy.apply },
-                analyze: { delivery: answerKeyData.blooms_taxonomy.analyze, evaluation: answerKeyData.blooms_taxonomy.analyze },
-                evaluate: { delivery: answerKeyData.blooms_taxonomy.evaluate, evaluation: answerKeyData.blooms_taxonomy.evaluate },
-                create: { delivery: answerKeyData.blooms_taxonomy.create, evaluation: answerKeyData.blooms_taxonomy.create }
-              };
-              setBloomsTaxonomy(newFormat);
-            } else {
-              setBloomsTaxonomy(answerKeyData.blooms_taxonomy);
+            // Check if the blooms_taxonomy is in the old format or new format
+            const bloomsData = answerKeyData.blooms_taxonomy;
+            
+            if (typeof bloomsData === 'object') {
+              // Convert old format to new format if needed
+              if (bloomsData && typeof bloomsData.remember === "number") {
+                const newFormat: BloomsTaxonomy = {
+                  remember: { delivery: bloomsData.remember, evaluation: bloomsData.remember },
+                  understand: { delivery: bloomsData.understand, evaluation: bloomsData.understand },
+                  apply: { delivery: bloomsData.apply, evaluation: bloomsData.apply },
+                  analyze: { delivery: bloomsData.analyze, evaluation: bloomsData.analyze },
+                  evaluate: { delivery: bloomsData.evaluate, evaluation: bloomsData.evaluate },
+                  create: { delivery: bloomsData.create, evaluation: bloomsData.create }
+                };
+                setBloomsTaxonomy(newFormat);
+              } else {
+                // It's already in the new format
+                setBloomsTaxonomy(bloomsData as BloomsTaxonomy);
+              }
             }
           }
         }

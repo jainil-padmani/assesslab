@@ -12,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, Book, FileText, ExternalLink } from "lucide-react";
+import { Download, Eye, FileX, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
@@ -25,7 +25,7 @@ export default function PaperGeneration() {
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
-  const { subjects } = useSubjects();
+  const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,12 +45,18 @@ export default function PaperGeneration() {
   const fetchPapers = async () => {
     try {
       setIsHistoryLoading(true);
+      console.log("Fetching papers...");
       const { data, error } = await supabase
         .from("generated_papers")
         .select("*, subjects(name)")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching papers:", error);
+        throw error;
+      }
+      
+      console.log("Papers data:", data);
       
       if (data) {
         // Map the data to include subject_name from the subjects join
@@ -62,10 +68,15 @@ export default function PaperGeneration() {
         
         setPapers(mappedData as GeneratedPaper[]);
         setFilteredPapers(mappedData as GeneratedPaper[]);
+      } else {
+        setPapers([]);
+        setFilteredPapers([]);
       }
     } catch (error: any) {
       console.error("Error fetching papers:", error);
       toast.error("Failed to load paper history");
+      setPapers([]);
+      setFilteredPapers([]);
     } finally {
       setIsHistoryLoading(false);
     }
@@ -98,24 +109,12 @@ export default function PaperGeneration() {
     });
   };
 
-  const handleView = (paperUrl: string) => {
-    window.open(paperUrl, '_blank');
-  };
-  
-  const handleDownload = (paperUrl: string) => {
-    window.open(paperUrl, '_blank');
-  };
-
   const handleViewPaperDetails = (paper: GeneratedPaper) => {
     setSelectedPaper(paper);
   };
 
-  const handlePrintSelectedQuestions = () => {
-    if (!selectedPaper) return;
-    
-    // For now, we just open the existing paper URL
-    // In a full implementation, you would generate a new PDF with only selected questions
-    window.open(selectedPaper.paper_url, '_blank');
+  const handleDownload = (paperUrl: string) => {
+    window.open(paperUrl, '_blank');
   };
 
   const generateDocx = async () => {
@@ -164,11 +163,17 @@ export default function PaperGeneration() {
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    {subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name} ({subject.subject_code})
-                      </SelectItem>
-                    ))}
+                    {isSubjectsLoading ? (
+                      <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
+                    ) : subjects.length === 0 ? (
+                      <SelectItem value="none" disabled>No subjects available</SelectItem>
+                    ) : (
+                      subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name} ({subject.subject_code})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -186,7 +191,7 @@ export default function PaperGeneration() {
             <CardFooter className="flex justify-end">
               <Button 
                 onClick={handleContinue} 
-                disabled={isLoading}
+                disabled={isLoading || isSubjectsLoading}
               >
                 {isLoading ? "Loading..." : "Continue"}
               </Button>
@@ -226,8 +231,9 @@ export default function PaperGeneration() {
               {isHistoryLoading ? (
                 <div className="text-center py-8">Loading paper history...</div>
               ) : filteredPapers.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No papers found</p>
+                <div className="text-center py-8 flex flex-col items-center">
+                  <FileX className="h-16 w-16 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No papers found</p>
                   <Button
                     variant="outline"
                     className="mt-4"
@@ -265,13 +271,6 @@ export default function PaperGeneration() {
                               size="sm"
                               onClick={() => handleViewPaperDetails(paper)}
                             >
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleView(paper.paper_url)}
-                            >
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button
@@ -296,82 +295,86 @@ export default function PaperGeneration() {
       {/* Paper Details Dialog */}
       <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Paper Details: {selectedPaper?.topic}</DialogTitle>
-            <DialogDescription>
-              {selectedPaper?.subject_name} - Created on {selectedPaper && format(new Date(selectedPaper.created_at), "dd MMM yyyy")}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Questions</h3>
+          {selectedPaper && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Paper Details: {selectedPaper.topic}</DialogTitle>
+                <DialogDescription>
+                  {selectedPaper.subject_name} - Created on {selectedPaper && format(new Date(selectedPaper.created_at), "dd MMM yyyy")}
+                </DialogDescription>
+              </DialogHeader>
               
-              {selectedPaper && Array.isArray(selectedPaper.questions) ? (
-                <div className="space-y-3">
-                  {(selectedPaper.questions as Question[]).map((question, idx) => (
-                    <div 
-                      key={question.id} 
-                      className="p-3 border rounded-md"
-                    >
-                      <div className="flex items-start">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">
-                            Q{idx + 1}. {question.text}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-2">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {question.type}
-                            </span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              {question.level}
-                            </span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {question.marks} marks
-                            </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Questions</h3>
+                  
+                  {selectedPaper && Array.isArray(selectedPaper.questions) ? (
+                    <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+                      {(selectedPaper.questions as Question[]).map((question, idx) => (
+                        <div 
+                          key={idx} 
+                          className="p-3 border rounded-md"
+                        >
+                          <div className="flex items-start">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">
+                                Q{idx + 1}. {question.text}
+                              </p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {question.type}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {question.level}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {question.marks} marks
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-gray-500">No questions available</p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-gray-500">No questions available</p>
-              )}
-            </div>
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Paper Preview</h3>
-              
-              <div className="aspect-[3/4] border rounded-md overflow-hidden bg-white">
-                {selectedPaper ? (
-                  <iframe 
-                    src={selectedPaper.paper_url} 
-                    className="w-full h-full"
-                    title="Generated Paper"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-500">No preview available</p>
+                
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Paper Preview</h3>
+                  
+                  <div className="aspect-[3/4] border rounded-md overflow-hidden bg-white">
+                    {selectedPaper ? (
+                      <iframe 
+                        src={selectedPaper.paper_url} 
+                        className="w-full h-full"
+                        title="Generated Paper"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-gray-500">No preview available</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                  
+                  <div className="flex flex-wrap gap-2 justify-center mt-4">
+                    <Button onClick={() => handleDownload(selectedPaper.paper_url)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Full Paper
+                    </Button>
+                    <Button onClick={generateDocx}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download as DOCX
+                    </Button>
+                    <Button variant="outline" onClick={() => setSelectedPaper(null)}>
+                      Close
+                    </Button>
+                  </div>
+                </div>
               </div>
-              
-              <div className="flex flex-wrap gap-2 justify-center mt-4">
-                <Button onClick={handlePrintSelectedQuestions}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Full Paper
-                </Button>
-                <Button onClick={generateDocx}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download as DOCX
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedPaper(null)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -153,7 +153,7 @@ export function GeneratedPapers({ subjectId }: GeneratedPapersProps) {
                   <h3 className="text-lg font-medium mb-2">Questions ({Array.isArray(selectedPaper.questions) ? selectedPaper.questions.length : 0})</h3>
                   <div className="space-y-2">
                     {Array.isArray(selectedPaper.questions) ? (
-                      selectedPaper.questions.map((question: Question, index) => (
+                      (selectedPaper.questions as Question[]).map((question, index) => (
                         <div key={index} className="p-3 border rounded-md">
                           <div className="flex justify-between">
                             <div className="font-medium">Q{index + 1}: {question.text}</div>
