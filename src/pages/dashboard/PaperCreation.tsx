@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -724,5 +725,22 @@ export default function PaperCreation() {
                         {pdfUrl && (
                           <Button onClick={() => downloadPaper(true)}>
                             <Download className="mr-2 h-4 w-4" />
-                           
-
+                            Download PDF
+                          </Button>
+                        )}
+                        <Button onClick={() => downloadPaper(false)}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download HTML
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
