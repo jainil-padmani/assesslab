@@ -40,7 +40,7 @@ export function CourseOutcomes({ subject, fetchSubjectData }: CourseOutcomesProp
 
       if (error) throw error;
       
-      setCourseOutcomes(data || []);
+      setCourseOutcomes(data as CourseOutcome[] || []);
     } catch (error: any) {
       console.error("Error fetching course outcomes:", error);
       toast.error("Failed to load course outcomes");

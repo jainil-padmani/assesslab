@@ -131,6 +131,38 @@ export type Database = {
         }
         Relationships: []
       }
+      course_outcomes: {
+        Row: {
+          co_number: number
+          created_at: string
+          description: string
+          id: string
+          subject_id: string
+        }
+        Insert: {
+          co_number: number
+          created_at?: string
+          description: string
+          id?: string
+          subject_id: string
+        }
+        Update: {
+          co_number?: number
+          created_at?: string
+          description?: string
+          id?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_outcomes_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_uploads: {
         Row: {
           created_at: string
