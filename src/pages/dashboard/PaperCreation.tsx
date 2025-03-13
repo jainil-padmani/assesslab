@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw, Edit2 } from "lucide-react";
 import { BloomsTaxonomy, Question } from "@/types/papers";
+import { Json } from "@/integrations/supabase/types";
 
 export default function PaperCreation() {
   const location = useLocation();
@@ -229,13 +230,17 @@ export default function PaperCreation() {
   
   const saveBloomsTaxonomyToSubject = async () => {
     try {
+      const bloomsDataJson = {
+        ...bloomsTaxonomy
+      } as unknown as Json;
+      
       const { error } = await supabase
         .from('answer_keys')
         .insert({
           subject_id: subjectId,
           title: `${subjectName || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: bloomsTaxonomy
+          blooms_taxonomy: bloomsDataJson
         });
       
       if (error) throw error;
