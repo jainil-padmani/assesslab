@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -47,36 +46,75 @@ export default function PaperCreation() {
     }
     
     const fetchSubjectDetails = async () => {
-      const { data, error } = await supabase
-        .from("subjects")
-        .select("*")
-        .eq("id", subjectId)
-        .single();
-      
-      if (error) {
-        console.error("Error fetching subject:", error);
-        return;
-      }
-      
-      const { data: documents, error: documentsError } = await supabase
-        .from("subject_documents")
-        .select("*")
-        .eq("subject_id", subjectId)
-        .eq("document_type", "bloom_taxonomy");
-      
-      if (documentsError) {
-        console.error("Error fetching subject documents:", documentsError);
-        return;
-      }
-      
-      if (documents && documents.length > 0) {
-        try {
-          const response = await fetch(documents[0].document_url);
-          const bloomsData = await response.json();
-          setBloomsTaxonomy(bloomsData);
-        } catch (error) {
-          console.error("Error parsing Bloom's taxonomy:", error);
+      try {
+        const { data: subjectData, error: subjectError } = await supabase
+          .from("subjects")
+          .select("*")
+          .eq("id", subjectId)
+          .single();
+        
+        if (subjectError) {
+          console.error("Error fetching subject:", subjectError);
+          return;
         }
+        
+        const { data: documents, error: documentsError } = await supabase
+          .from("subject_documents")
+          .select("*")
+          .eq("subject_id", subjectId)
+          .eq("document_type", "bloom_taxonomy");
+        
+        if (documentsError) {
+          console.error("Error fetching subject documents:", documentsError);
+        }
+        
+        if (documents && documents.length > 0) {
+          try {
+            const response = await fetch(documents[0].document_url);
+            if (response.ok) {
+              const bloomsData = await response.json();
+              console.log("Loaded Bloom's taxonomy from subject document:", bloomsData);
+              setBloomsTaxonomy(bloomsData);
+            }
+          } catch (error) {
+            console.error("Error parsing Bloom's taxonomy from document:", error);
+          }
+        } else {
+          const { data: answerKeyData, error: answerKeyError } = await supabase
+            .from("answer_keys")
+            .select("blooms_taxonomy")
+            .eq("subject_id", subjectId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (answerKeyError && answerKeyError.code !== "PGRST116") {
+            console.error("Error fetching answer key:", answerKeyError);
+          }
+          
+          if (answerKeyData?.blooms_taxonomy) {
+            console.log("Loaded Bloom's taxonomy from answer key:", answerKeyData.blooms_taxonomy);
+            
+            if (typeof answerKeyData.blooms_taxonomy.remember === "number") {
+              const newFormat: BloomsTaxonomy = {
+                remember: { delivery: answerKeyData.blooms_taxonomy.remember, evaluation: answerKeyData.blooms_taxonomy.remember },
+                understand: { delivery: answerKeyData.blooms_taxonomy.understand, evaluation: answerKeyData.blooms_taxonomy.understand },
+                apply: { delivery: answerKeyData.blooms_taxonomy.apply, evaluation: answerKeyData.blooms_taxonomy.apply },
+                analyze: { delivery: answerKeyData.blooms_taxonomy.analyze, evaluation: answerKeyData.blooms_taxonomy.analyze },
+                evaluate: { delivery: answerKeyData.blooms_taxonomy.evaluate, evaluation: answerKeyData.blooms_taxonomy.evaluate },
+                create: { delivery: answerKeyData.blooms_taxonomy.create, evaluation: answerKeyData.blooms_taxonomy.create }
+              };
+              setBloomsTaxonomy(newFormat);
+            } else {
+              setBloomsTaxonomy(answerKeyData.blooms_taxonomy);
+            }
+          }
+        }
+        
+        toast.success("Subject and Bloom's taxonomy data loaded successfully");
+      } catch (error) {
+        console.error("Error in fetchSubjectDetails:", error);
+        toast.error("Failed to load subject details");
       }
     };
     
@@ -365,6 +403,7 @@ export default function PaperCreation() {
           <Card>
             <CardHeader>
               <CardTitle>Question Parameters</CardTitle>
+              <CardDescription>Bloom's taxonomy is automatically loaded from subject settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -385,41 +424,27 @@ export default function PaperCreation() {
               </div>
               
               <div className="space-y-2">
-                <Label>Bloom's Taxonomy Weights</Label>
+                <Label>Bloom's Taxonomy Weights (Read-only)</Label>
                 {Object.entries(bloomsTaxonomy).map(([level, values]) => (
                   <div key={level} className="grid grid-cols-3 gap-2 items-center">
                     <div className="capitalize">{level}</div>
                     <div>
                       <Label className="text-xs">Delivery: {values.delivery}%</Label>
-                      <Slider
-                        value={[values.delivery]}
-                        onValueChange={(value) => 
-                          setBloomsTaxonomy(prev => ({
-                            ...prev,
-                            [level]: { ...prev[level as keyof BloomsTaxonomy], delivery: value[0] }
-                          }))
-                        }
-                        min={0}
-                        max={100}
-                        step={5}
-                        className="my-1"
-                      />
+                      <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
+                        <div 
+                          className="bg-primary h-2 rounded-full" 
+                          style={{ width: `${values.delivery}%` }}
+                        ></div>
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs">Evaluation: {values.evaluation}%</Label>
-                      <Slider
-                        value={[values.evaluation]}
-                        onValueChange={(value) => 
-                          setBloomsTaxonomy(prev => ({
-                            ...prev,
-                            [level]: { ...prev[level as keyof BloomsTaxonomy], evaluation: value[0] }
-                          }))
-                        }
-                        min={0}
-                        max={100}
-                        step={5}
-                        className="my-1"
-                      />
+                      <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
+                        <div 
+                          className="bg-primary h-2 rounded-full" 
+                          style={{ width: `${values.evaluation}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
                 ))}

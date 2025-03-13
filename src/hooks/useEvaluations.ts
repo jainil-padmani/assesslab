@@ -3,8 +3,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Student, Subject } from "@/types/dashboard";
-import type { Class } from "@/hooks/useClassData";
+import type { Student } from "@/types/dashboard";
 
 export type EvaluationStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
@@ -86,20 +85,59 @@ export function useEvaluations(
     }) => {
       console.log("Starting evaluation for student:", studentInfo.name);
       
-      // Update status to in_progress
-      const { error: statusError } = await supabase
+      // Check if an evaluation already exists for this student and test
+      const { data: existingEvaluations, error: fetchError } = await supabase
         .from('paper_evaluations')
-        .upsert({
-          test_id: testId,
-          student_id: studentId,
-          subject_id: subjectId,
-          evaluation_data: {},
-          status: 'in_progress',
-          updated_at: new Date().toISOString()
-        });
+        .select('id, status')
+        .eq('test_id', testId)
+        .eq('student_id', studentId);
       
-      if (statusError) {
-        console.error("Error updating evaluation status:", statusError);
+      if (fetchError) {
+        console.error("Error checking existing evaluations:", fetchError);
+        throw new Error(`Error checking existing evaluations: ${fetchError.message}`);
+      }
+      
+      // If an evaluation exists, update its status
+      let evaluationId = '';
+      if (existingEvaluations && existingEvaluations.length > 0) {
+        evaluationId = existingEvaluations[0].id;
+        console.log(`Found existing evaluation (ID: ${evaluationId}) - will update`);
+        
+        // Update status to in_progress
+        const { error: updateError } = await supabase
+          .from('paper_evaluations')
+          .update({
+            evaluation_data: {},
+            status: 'in_progress',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', evaluationId);
+        
+        if (updateError) {
+          console.error("Error updating evaluation status:", updateError);
+        }
+      } else {
+        // Create a new evaluation record with in_progress status
+        const { data: newEval, error: insertError } = await supabase
+          .from('paper_evaluations')
+          .insert({
+            test_id: testId,
+            student_id: studentId,
+            subject_id: subjectId,
+            evaluation_data: {},
+            status: 'in_progress',
+            updated_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          console.error("Error creating evaluation:", insertError);
+          throw new Error(`Error creating evaluation: ${insertError.message}`);
+        }
+        
+        evaluationId = newEval.id;
+        console.log(`Created new evaluation with ID: ${evaluationId}`);
       }
       
       try {
@@ -144,14 +182,12 @@ export function useEvaluations(
           // Update status to failed
           await supabase
             .from('paper_evaluations')
-            .upsert({
-              test_id: testId,
-              student_id: studentId,
-              subject_id: subjectId,
+            .update({
               evaluation_data: {},
               status: 'failed',
               updated_at: new Date().toISOString()
-            });
+            })
+            .eq('id', evaluationId);
           
           throw new Error(`Edge function error: ${error.message}`);
         }
@@ -161,14 +197,12 @@ export function useEvaluations(
         // Store the evaluation results
         const { error: dbError } = await supabase
           .from('paper_evaluations')
-          .upsert({
-            test_id: testId,
-            student_id: studentId,
-            subject_id: subjectId,
+          .update({
             evaluation_data: data,
             status: 'completed',
             updated_at: new Date().toISOString()
-          });
+          })
+          .eq('id', evaluationId);
         
         if (dbError) {
           console.error("Database error updating evaluation:", dbError);
@@ -226,14 +260,12 @@ export function useEvaluations(
         // Update status to failed
         await supabase
           .from('paper_evaluations')
-          .upsert({
-            test_id: testId,
-            student_id: studentId,
-            subject_id: subjectId,
+          .update({
             evaluation_data: {},
             status: 'failed',
             updated_at: new Date().toISOString()
-          });
+          })
+          .eq('id', evaluationId);
           
         throw error;
       }
