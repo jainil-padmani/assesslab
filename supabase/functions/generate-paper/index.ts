@@ -48,6 +48,16 @@ serve(async (req: Request) => {
     // Calculate total marks
     const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
     
+    // Group questions by course outcomes
+    const questionsByCO = {};
+    questions.forEach(q => {
+      const coNumber = q.courseOutcome || 0;
+      if (!questionsByCO[coNumber]) {
+        questionsByCO[coNumber] = [];
+      }
+      questionsByCO[coNumber].push(q);
+    });
+    
     let paperHtml = `
     <!DOCTYPE html>
     <html>
@@ -80,6 +90,16 @@ serve(async (req: Request) => {
         h1, h2 {
           text-align: center;
         }
+        .co-section {
+          margin-bottom: 1.5em;
+        }
+        .co-header {
+          font-weight: bold;
+          margin-bottom: 0.5em;
+          padding: 0.5em;
+          background-color: #f0f0f0;
+          border-radius: 4px;
+        }
         .question {
           margin-bottom: 1.5em;
         }
@@ -87,6 +107,11 @@ serve(async (req: Request) => {
           display: flex;
           justify-content: space-between;
           font-weight: bold;
+        }
+        .question-info {
+          font-size: 0.8em;
+          color: #666;
+          margin-top: 0.3em;
         }
         .answer-space {
           height: 5em;
@@ -115,18 +140,66 @@ serve(async (req: Request) => {
         <div class="questions">
     `;
     
-    // Add questions
-    questions.forEach((q, index) => {
+    // Add questions by course outcome
+    let questionNumber = 1;
+    
+    // Handle general questions first (no CO)
+    if (questionsByCO[0] && questionsByCO[0].length > 0) {
       paperHtml += `
-        <div class="question">
-          <div class="question-header">
-            <span>Q${index + 1}. ${q.text}</span>
-            <span>(${q.marks} marks)</span>
-          </div>
-          <div class="answer-space"></div>
-        </div>
+        <div class="co-section">
+          <div class="co-header">General Questions</div>
       `;
-    });
+      
+      questionsByCO[0].forEach((q) => {
+        paperHtml += `
+          <div class="question">
+            <div class="question-header">
+              <span>Q${questionNumber++}. ${q.text}</span>
+              <span>(${q.marks} marks)</span>
+            </div>
+            <div class="question-info">
+              Type: ${q.type}, Level: ${q.level}
+            </div>
+            <div class="answer-space"></div>
+          </div>
+        `;
+      });
+      
+      paperHtml += `</div>`;
+    }
+    
+    // Then add questions by CO (skip 0 which was handled above)
+    Object.keys(questionsByCO)
+      .map(Number)
+      .filter(coNum => coNum > 0)
+      .sort((a, b) => a - b)
+      .forEach(coNum => {
+        const coQuestions = questionsByCO[coNum];
+        
+        if (coQuestions && coQuestions.length > 0) {
+          paperHtml += `
+            <div class="co-section">
+              <div class="co-header">Course Outcome ${coNum}</div>
+          `;
+          
+          coQuestions.forEach((q) => {
+            paperHtml += `
+              <div class="question">
+                <div class="question-header">
+                  <span>Q${questionNumber++}. ${q.text}</span>
+                  <span>(${q.marks} marks)</span>
+                </div>
+                <div class="question-info">
+                  Type: ${q.type}, Level: ${q.level}
+                </div>
+                <div class="answer-space"></div>
+              </div>
+            `;
+          });
+          
+          paperHtml += `</div>`;
+        }
+      });
     
     paperHtml += `
         </div>

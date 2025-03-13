@@ -10,12 +10,21 @@ export interface BloomsTaxonomy {
   create: number;
 }
 
+export interface CourseOutcomeConfig {
+  id: string;
+  co_number: number;
+  description: string;
+  questionCount: number;
+  selected: boolean;
+}
+
 export interface Question {
   id: string;
   text: string;
   type: string;
   marks: number;
   level: string; // blooms taxonomy level
+  courseOutcome?: number; // CO number this question belongs to
   selected?: boolean;
 }
 

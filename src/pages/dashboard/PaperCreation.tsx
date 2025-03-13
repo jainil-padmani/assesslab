@@ -10,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw, Edit2 } from "lucide-react";
-import { BloomsTaxonomy, Question } from "@/types/papers";
+import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw, Edit2, Plus, Minus } from "lucide-react";
+import { BloomsTaxonomy, Question, CourseOutcomeConfig } from "@/types/papers";
+import { CourseOutcome } from "@/types/dashboard";
 import { Json } from "@/integrations/supabase/types";
 
 export default function PaperCreation() {
@@ -39,13 +40,48 @@ export default function PaperCreation() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isCreatingPaper, setIsCreatingPaper] = useState<boolean>(false);
   const [paperUrl, setPaperUrl] = useState<string>("");
+  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcomeConfig[]>([]);
+  const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
   
   useEffect(() => {
     if (!subjectId || !topicName) {
       toast.error("Missing required information");
       navigate("/dashboard/paper-generation");
+    } else {
+      fetchCourseOutcomes();
     }
   }, [subjectId, topicName, navigate]);
+  
+  const fetchCourseOutcomes = async () => {
+    if (!subjectId) return;
+
+    setIsLoadingCourseOutcomes(true);
+    try {
+      const { data, error } = await supabase
+        .from('course_outcomes')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('co_number', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const configuredCOs = data.map((co: CourseOutcome) => ({
+          id: co.id,
+          co_number: co.co_number,
+          description: co.description,
+          questionCount: 2, // Default number of questions
+          selected: false
+        }));
+        setCourseOutcomes(configuredCOs);
+      }
+    } catch (error: any) {
+      console.error("Error fetching course outcomes:", error);
+      toast.error("Failed to load course outcomes");
+    } finally {
+      setIsLoadingCourseOutcomes(false);
+    }
+  };
   
   const handleFileUpload = async (file: File, type: 'header' | 'content') => {
     if (!file) return;
@@ -105,9 +141,33 @@ export default function PaperCreation() {
     }
   };
   
+  const toggleCourseOutcome = (id: string) => {
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === id ? { ...co, selected: !co.selected } : co
+      )
+    );
+  };
+
+  const updateQuestionCount = (id: string, count: number) => {
+    if (count < 1) return; // Don't allow less than 1 question
+    
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === id ? { ...co, questionCount: count } : co
+      )
+    );
+  };
+  
   const generateQuestions = async () => {
     if (!extractedContent && !contentUrl) {
       toast.error("Please upload content material first");
+      return;
+    }
+    
+    const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+    if (selectedCourseOutcomes.length === 0) {
+      toast.error("Please select at least one course outcome");
       return;
     }
     
@@ -120,7 +180,8 @@ export default function PaperCreation() {
           topic: topicName,
           content: extractedContent,
           bloomsTaxonomy,
-          difficulty
+          difficulty,
+          courseOutcomes: selectedCourseOutcomes
         }
       });
       
@@ -256,6 +317,10 @@ export default function PaperCreation() {
   const totalPercentage = Object.values(bloomsTaxonomy).reduce((sum, value) => sum + value, 0);
   const isValidDistribution = Math.abs(totalPercentage - 100) <= 5;
   
+  const totalQuestionsFromCOs = courseOutcomes
+    .filter(co => co.selected)
+    .reduce((sum, co) => sum + co.questionCount, 0);
+  
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6 flex items-center">
@@ -386,10 +451,10 @@ export default function PaperCreation() {
               <CardDescription>
                 {isEditingBloomsTaxonomy 
                   ? "Edit Bloom's taxonomy weights for this paper" 
-                  : "Configure Bloom's taxonomy weights for question generation"}
+                  : "Configure question generation parameters"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div>
                 <Label>Difficulty Level: {difficulty}%</Label>
                 <Slider
@@ -446,10 +511,79 @@ export default function PaperCreation() {
                 )}
               </div>
               
+              <div className="space-y-4 border rounded-md p-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-base font-medium">Course Outcomes</Label>
+                  {totalQuestionsFromCOs > 0 && (
+                    <span className="text-xs text-blue-600">
+                      Total questions: {totalQuestionsFromCOs}
+                    </span>
+                  )}
+                </div>
+                
+                {isLoadingCourseOutcomes ? (
+                  <div className="text-center py-2 text-sm text-gray-500">
+                    Loading course outcomes...
+                  </div>
+                ) : courseOutcomes.length === 0 ? (
+                  <div className="text-center py-2 text-sm text-gray-500">
+                    No course outcomes available. Add them in the subject details page.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {courseOutcomes.map((co) => (
+                      <div key={co.id} className="flex items-start space-x-2">
+                        <Checkbox 
+                          id={`co-${co.id}`}
+                          checked={co.selected}
+                          onCheckedChange={() => toggleCourseOutcome(co.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <Label 
+                            htmlFor={`co-${co.id}`}
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            CO{co.co_number}: {co.description}
+                          </Label>
+                          
+                          {co.selected && (
+                            <div className="flex items-center space-x-2 mt-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0"
+                                onClick={() => updateQuestionCount(co.id, co.questionCount - 1)}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="text-sm font-medium w-8 text-center">
+                                {co.questionCount}
+                              </span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0"
+                                onClick={() => updateQuestionCount(co.id, co.questionCount + 1)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                              <span className="text-xs text-gray-500">questions</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
               <Button 
                 className="w-full" 
                 onClick={generateQuestions}
-                disabled={isGenerating || !extractedContent}
+                disabled={isGenerating || !extractedContent || courseOutcomes.filter(co => co.selected).length === 0}
               >
                 {isGenerating ? (
                   <>
@@ -520,6 +654,11 @@ export default function PaperCreation() {
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                   {question.marks} marks
                                 </span>
+                                {question.courseOutcome && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    CO{question.courseOutcome}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
