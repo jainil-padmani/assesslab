@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -96,24 +96,37 @@ export default function PaperCreation() {
           if (answerKeyData?.blooms_taxonomy) {
             console.log("Loaded Bloom's taxonomy from answer key:", answerKeyData.blooms_taxonomy);
             
-            // Check if the blooms_taxonomy is in the old format or new format
+            // Convert to BloomsTaxonomy type
             const bloomsData = answerKeyData.blooms_taxonomy;
             
+            // Handle the case where blooms_taxonomy might be in different formats
             if (typeof bloomsData === 'object') {
-              // Convert old format to new format if needed
-              if (bloomsData && typeof bloomsData.remember === "number") {
-                const newFormat: BloomsTaxonomy = {
-                  remember: { delivery: bloomsData.remember, evaluation: bloomsData.remember },
-                  understand: { delivery: bloomsData.understand, evaluation: bloomsData.understand },
-                  apply: { delivery: bloomsData.apply, evaluation: bloomsData.apply },
-                  analyze: { delivery: bloomsData.analyze, evaluation: bloomsData.analyze },
-                  evaluate: { delivery: bloomsData.evaluate, evaluation: bloomsData.evaluate },
-                  create: { delivery: bloomsData.create, evaluation: bloomsData.create }
+              try {
+                // Try to parse to the correct format
+                const formattedData: BloomsTaxonomy = {
+                  remember: typeof bloomsData.remember === 'object' 
+                    ? bloomsData.remember 
+                    : { delivery: Number(bloomsData.remember || 0), evaluation: Number(bloomsData.remember || 0) },
+                  understand: typeof bloomsData.understand === 'object'
+                    ? bloomsData.understand
+                    : { delivery: Number(bloomsData.understand || 0), evaluation: Number(bloomsData.understand || 0) },
+                  apply: typeof bloomsData.apply === 'object'
+                    ? bloomsData.apply
+                    : { delivery: Number(bloomsData.apply || 0), evaluation: Number(bloomsData.apply || 0) },
+                  analyze: typeof bloomsData.analyze === 'object'
+                    ? bloomsData.analyze
+                    : { delivery: Number(bloomsData.analyze || 0), evaluation: Number(bloomsData.analyze || 0) },
+                  evaluate: typeof bloomsData.evaluate === 'object'
+                    ? bloomsData.evaluate
+                    : { delivery: Number(bloomsData.evaluate || 0), evaluation: Number(bloomsData.evaluate || 0) },
+                  create: typeof bloomsData.create === 'object'
+                    ? bloomsData.create
+                    : { delivery: Number(bloomsData.create || 0), evaluation: Number(bloomsData.create || 0) }
                 };
-                setBloomsTaxonomy(newFormat);
-              } else {
-                // It's already in the new format
-                setBloomsTaxonomy(bloomsData as BloomsTaxonomy);
+                
+                setBloomsTaxonomy(formattedData);
+              } catch (e) {
+                console.error("Error formatting Bloom's taxonomy data:", e);
               }
             }
           }
@@ -314,7 +327,7 @@ export default function PaperCreation() {
           subject_id: subjectId,
           title: `${subjectName || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: bloomsTaxonomy
+          blooms_taxonomy: bloomsTaxonomy as any
         });
       
       if (error) throw error;

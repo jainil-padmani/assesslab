@@ -16,7 +16,7 @@ interface BloomsTaxonomyProps {
 
 export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: BloomsTaxonomyProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomyType | null>(null);
+  const [editedBloomsData, setEditedBloomsData] = useState<BloomsTaxonomyType | null>(bloomsData);
 
   const handleStartEditing = () => {
     setEditedBloomsData(bloomsData || {
@@ -55,8 +55,8 @@ export function BloomsTaxonomy({ subject, bloomsData, fetchSubjectData }: Blooms
           subject_id: subject.id,
           title: `${subject?.name || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: editedBloomsData
-        } as any);
+          blooms_taxonomy: editedBloomsData as any
+        });
 
       if (error) throw error;
 
