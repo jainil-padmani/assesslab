@@ -26,7 +26,6 @@ export interface Question {
   level: string; // blooms taxonomy level
   courseOutcome?: number; // CO number this question belongs to
   selected?: boolean;
-  subject_id?: string; // Used for saved questions
 }
 
 // Ensure Question type is properly handled in the JSON type
@@ -44,15 +43,5 @@ export interface GeneratedPaper {
   content_url?: string | null;
   created_at: string;
   subject_name?: string;
-  pdf_url?: string | null; // Field for PDF URL
-}
-
-export interface GeneratedQuestions {
-  id: string;
-  user_id: string;
-  subject_id: string;
-  topic: string;
-  questions: Question[] | Json;
-  created_at: string;
-  subject_name?: string;
+  pdf_url?: string | null; // New field for PDF URL
 }

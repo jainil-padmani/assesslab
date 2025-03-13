@@ -27,7 +27,6 @@ import TestDetail from "./pages/dashboard/TestDetail";
 import PaperGeneration from "./pages/dashboard/PaperGeneration";
 import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
-import SavedQuestions from "@/components/paper/SavedQuestions";
 
 const queryClient = new QueryClient();
 
@@ -60,9 +59,8 @@ function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="file-management" element={<FileManagement />} />
                 <Route path="paper-generation" element={<PaperGeneration />} />
-                <Route path="/dashboard/paper-generation/create" element={<PaperCreation />} />
-                <Route path="/dashboard/paper-generation/history" element={<PaperHistory />} />
-                <Route path="/dashboard/paper-generation/saved" element={<SavedQuestions />} />
+                <Route path="paper-generation/create" element={<PaperCreation />} />
+                <Route path="paper-generation/history" element={<PaperHistory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

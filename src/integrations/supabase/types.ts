@@ -201,7 +201,6 @@ export type Database = {
           header_url: string | null
           id: string
           paper_url: string
-          pdf_url: string | null
           questions: Json
           subject_id: string
           topic: string
@@ -214,7 +213,6 @@ export type Database = {
           header_url?: string | null
           id?: string
           paper_url: string
-          pdf_url?: string | null
           questions?: Json
           subject_id: string
           topic: string
@@ -227,7 +225,6 @@ export type Database = {
           header_url?: string | null
           id?: string
           paper_url?: string
-          pdf_url?: string | null
           questions?: Json
           subject_id?: string
           topic?: string
@@ -236,41 +233,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "generated_papers_subject_id_fkey"
-            columns: ["subject_id"]
-            isOneToOne: false
-            referencedRelation: "subjects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      generated_questions: {
-        Row: {
-          created_at: string
-          id: string
-          questions: Json
-          subject_id: string
-          topic: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          questions: Json
-          subject_id: string
-          topic: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          questions?: Json
-          subject_id?: string
-          topic?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "generated_questions_subject_id_fkey"
             columns: ["subject_id"]
             isOneToOne: false
             referencedRelation: "subjects"

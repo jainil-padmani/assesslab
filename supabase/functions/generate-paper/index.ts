@@ -66,89 +66,62 @@ serve(async (req: Request) => {
       <meta charset="UTF-8">
       <title>${subjectName} - ${topicName} Test Paper</title>
       <style>
-        @page {
-          size: A4;
-          margin: 1cm;
-        }
         body {
           font-family: Arial, sans-serif;
           line-height: 1.6;
           margin: 0;
           padding: 0;
           color: #333;
-          font-size: 12pt;
         }
         .container {
-          max-width: 100%;
+          width: 21cm;
           margin: 0 auto;
-          padding: 1cm;
+          padding: 2cm;
         }
         .header {
           text-align: center;
-          margin-bottom: 1.5cm;
-          border-bottom: 1px solid #ddd;
-          padding-bottom: 0.5cm;
+          margin-bottom: 2cm;
         }
         .footer {
           text-align: center;
-          margin-top: 1cm;
-          font-size: 10pt;
+          margin-top: 2cm;
+          font-size: 0.8em;
           color: #666;
-          border-top: 1px solid #ddd;
-          padding-top: 0.5cm;
         }
-        h1 {
-          font-size: 18pt;
-          margin-bottom: 0.3cm;
-        }
-        h2 {
-          font-size: 16pt;
-          margin-bottom: 0.3cm;
-        }
-        .paper-info {
-          margin: 0.5cm 0;
-          display: flex;
-          justify-content: space-between;
+        h1, h2 {
+          text-align: center;
         }
         .co-section {
-          margin-bottom: 1cm;
+          margin-bottom: 1.5em;
         }
         .co-header {
           font-weight: bold;
-          margin-bottom: 0.5cm;
-          padding: 0.3cm;
-          background-color: #f5f5f5;
+          margin-bottom: 0.5em;
+          padding: 0.5em;
+          background-color: #f0f0f0;
           border-radius: 4px;
-          font-size: 14pt;
         }
         .question {
-          margin-bottom: 1cm;
-          page-break-inside: avoid;
+          margin-bottom: 1.5em;
         }
         .question-header {
           display: flex;
           justify-content: space-between;
           font-weight: bold;
-          margin-bottom: 0.2cm;
         }
         .question-info {
-          font-size: 10pt;
+          font-size: 0.8em;
           color: #666;
-          margin-top: 0.2cm;
-          margin-bottom: 0.3cm;
+          margin-top: 0.3em;
         }
         .answer-space {
-          height: 4cm;
-          border-bottom: 1px dashed #ccc;
-          margin-top: 0.3cm;
+          height: 5em;
+          border-bottom: 1px solid #ccc;
         }
         @media print {
-          body {
-            font-size: 12pt;
-          }
           .container {
             width: 100%;
-            padding: 0;
+            padding: 1cm;
           }
         }
       </style>
@@ -159,11 +132,9 @@ serve(async (req: Request) => {
           ${headerContent || `
             <h1>${subjectName} ${subjectCode ? `(${subjectCode})` : ''}</h1>
             <h2>${topicName} - Test Paper</h2>
-            <div class="paper-info">
-              <div>Date: ${date}</div>
-              <div>Total Marks: ${totalMarks}</div>
-              <div>Time: ${Math.ceil(totalMarks / 2)} minutes</div>
-            </div>
+            <p>Date: ${date}</p>
+            <p>Total Marks: ${totalMarks}</p>
+            <p>Time: ${Math.ceil(totalMarks / 2)} minutes</p>
           `}
         </div>
         
@@ -286,13 +257,22 @@ serve(async (req: Request) => {
       });
       const page = await browser.newPage();
       
-      // Set the content with better wait conditions
-      await page.setContent(paperHtml, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000
+      // Set the content
+      await page.setContent(paperHtml, { waitUntil: 'networkidle0' });
+      
+      // Set page size to A4
+      await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '1cm',
+          right: '1cm',
+          bottom: '1cm',
+          left: '1cm'
+        }
       });
       
-      // Generate PDF buffer with better settings
+      // Generate PDF buffer
       pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -301,9 +281,7 @@ serve(async (req: Request) => {
           right: '1cm',
           bottom: '1cm',
           left: '1cm'
-        },
-        displayHeaderFooter: false,
-        preferCSSPageSize: true
+        }
       });
       
       await browser.close();
