@@ -1,4 +1,3 @@
-
 export interface Student {
   id: string;
   name: string;
@@ -26,6 +25,15 @@ export interface Subject {
   created_at: string;
   user_id?: string;
   team_id?: string | null;
+  course_outcomes?: CourseOutcome[];
+}
+
+export interface CourseOutcome {
+  id: string;
+  subject_id: string;
+  co_number: number;
+  description: string;
+  created_at: string;
 }
 
 export interface StudentSubject {

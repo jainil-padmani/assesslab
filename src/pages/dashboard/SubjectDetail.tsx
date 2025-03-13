@@ -4,13 +4,14 @@ import { useParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { Subject, Student, BloomsTaxonomy, SubjectFile } from "@/types/dashboard";
+import type { Subject, Student, BloomsTaxonomy, SubjectFile, CourseOutcome } from "@/types/dashboard";
 import { SubjectInfo } from "@/components/subject/SubjectInfo";
 import { BloomsTaxonomy as BloomsTaxonomyComponent } from "@/components/subject/BloomsTaxonomy";
 import { PapersManagement } from "@/components/subject/PapersManagement";
 import { SubjectStudents } from "@/components/subject/SubjectStudents";
 import { fetchSubjectFiles } from "@/utils/subjectFilesUtils";
 import { GeneratedPapers } from "@/components/subject/GeneratedPapers";
+import { CourseOutcomes } from "@/components/subject/CourseOutcomes";
 
 export default function SubjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -116,16 +117,19 @@ export default function SubjectDetail() {
       
       <div className="mt-6">
         {activeTab === "info" ? (
-          <div className="grid gap-6 md:grid-cols-2">
-            <SubjectInfo 
-              subject={subject} 
-              fetchSubjectData={fetchSubjectData} 
-            />
-            <BloomsTaxonomyComponent 
-              subject={subject} 
-              bloomsData={bloomsData} 
-              fetchSubjectData={fetchSubjectData} 
-            />
+          <div className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <SubjectInfo 
+                subject={subject} 
+                fetchSubjectData={fetchSubjectData} 
+              />
+              <BloomsTaxonomyComponent 
+                subject={subject} 
+                bloomsData={bloomsData} 
+                fetchSubjectData={fetchSubjectData} 
+              />
+            </div>
+            <CourseOutcomes subject={subject} fetchSubjectData={fetchSubjectData} />
           </div>
         ) : activeTab === "students" ? (
           <SubjectStudents
