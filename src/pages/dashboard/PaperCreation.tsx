@@ -220,6 +220,13 @@ export default function PaperCreation() {
     });
   };
   
+  const handleBloomsTaxonomyChange = (level: keyof BloomsTaxonomy, value: number[]) => {
+    setBloomsTaxonomy(prev => ({
+      ...prev,
+      [level]: value[0]
+    }));
+  };
+  
   const saveBloomsTaxonomyToSubject = async () => {
     try {
       const { error } = await supabase
@@ -228,7 +235,7 @@ export default function PaperCreation() {
           subject_id: subjectId,
           title: `${subjectName || 'Subject'} - Bloom's Taxonomy Update`,
           content: {},
-          blooms_taxonomy: bloomsTaxonomy as any
+          blooms_taxonomy: bloomsTaxonomy
         });
       
       if (error) throw error;
@@ -240,6 +247,9 @@ export default function PaperCreation() {
       toast.error("Failed to save Bloom's taxonomy");
     }
   };
+  
+  const totalPercentage = Object.values(bloomsTaxonomy).reduce((sum, value) => sum + value, 0);
+  const isValidDistribution = Math.abs(totalPercentage - 100) <= 5;
   
   return (
     <div className="container mx-auto py-6">
@@ -392,33 +402,30 @@ export default function PaperCreation() {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label>{isEditingBloomsTaxonomy ? "Edit Bloom's Taxonomy Weights" : "Bloom's Taxonomy Weights"}</Label>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label>Bloom's Taxonomy Weights</Label>
+                  {!isValidDistribution && (
+                    <span className="text-xs text-orange-500">
+                      Total: {totalPercentage}% (Goal: 100%)
+                    </span>
+                  )}
+                </div>
+                
                 {Object.entries(bloomsTaxonomy).map(([level, value]) => (
-                  <div key={level} className="grid grid-cols-2 gap-2 items-center">
-                    <div className="capitalize font-medium">{level}</div>
-                    {isEditingBloomsTaxonomy ? (
-                      <div>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={value}
-                          onChange={(e) => handleEditBloomsTaxonomy(level as keyof BloomsTaxonomy, e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="bg-gray-100 dark:bg-gray-800 h-2 w-full rounded-full mt-1">
-                          <div 
-                            className="bg-primary h-2 rounded-full" 
-                            style={{ width: `${value}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-xs text-gray-500">{value}%</span>
-                      </div>
-                    )}
+                  <div key={level} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="capitalize font-medium">{level}</span>
+                      <span className="text-sm">{value}%</span>
+                    </div>
+                    <Slider
+                      value={[value]}
+                      onValueChange={(val) => handleBloomsTaxonomyChange(level as keyof BloomsTaxonomy, val)}
+                      min={0}
+                      max={50}
+                      step={5}
+                      className="my-1"
+                    />
                   </div>
                 ))}
                 
