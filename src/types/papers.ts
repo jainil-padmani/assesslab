@@ -26,6 +26,7 @@ export interface Question {
   level: string; // blooms taxonomy level
   courseOutcome?: number; // CO number this question belongs to
   selected?: boolean;
+  subject_id?: string; // Used for saved questions
 }
 
 // Ensure Question type is properly handled in the JSON type

@@ -1,230 +1,221 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Check, FilePlus, FileX, Upload, ArrowLeft, Download, RefreshCw, Edit2, Plus, Minus } from "lucide-react";
-import { BloomsTaxonomy, Question, CourseOutcomeConfig } from "@/types/papers";
-import { CourseOutcome } from "@/types/dashboard";
-import { Json } from "@/integrations/supabase/types";
+import { Loader2, Sparkles, Save, DownloadCloud, File } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Question, CourseOutcomeConfig } from "@/types/papers";
+import { useSubjects } from "@/hooks/test-selection/useSubjects";
 
 export default function PaperCreation() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { subjectId, subjectName, subjectCode, topicName } = location.state || {};
+  const location = useLocation();
+  const { subjects } = useSubjects();
   
-  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<BloomsTaxonomy>({
-    remember: 20,
-    understand: 20,
-    apply: 15,
-    analyze: 15,
-    evaluate: 15,
-    create: 15
-  });
-  
-  const [isEditingBloomsTaxonomy, setIsEditingBloomsTaxonomy] = useState(false);
-  const [difficulty, setDifficulty] = useState<number>(50);
-  const [headerFile, setHeaderFile] = useState<File | null>(null);
-  const [contentFile, setContentFile] = useState<File | null>(null);
-  const [headerUrl, setHeaderUrl] = useState<string>("");
-  const [contentUrl, setContentUrl] = useState<string>("");
-  const [extractedContent, setExtractedContent] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [subjectName, setSubjectName] = useState("");
+  const [subjectCode, setSubjectCode] = useState("");
+  const [topic, setTopic] = useState("");
+  const [numQuestions, setNumQuestions] = useState(10);
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [isCreatingPaper, setIsCreatingPaper] = useState<boolean>(false);
-  const [paperUrl, setPaperUrl] = useState<string>("");
-  const [pdfUrl, setPdfUrl] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPaper, setIsGeneratingPaper] = useState(false);
+  const [paperUrl, setPaperUrl] = useState("");
+  const [pdfUrl, setPdfUrl] = useState("");
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcomeConfig[]>([]);
-  const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
+  const [selectedCourseOutcomes, setSelectedCourseOutcomes] = useState<string[]>([]);
   
+  // Check if we have prefilled questions from the saved questions page
   useEffect(() => {
-    if (!subjectId || !topicName) {
-      toast.error("Missing required information");
-      navigate("/dashboard/paper-generation");
-    } else {
-      fetchCourseOutcomes();
+    if (location.state?.prefillQuestions) {
+      setGeneratedQuestions(location.state.prefillQuestions);
+      
+      // Try to find a subject ID from the first question if it has a courseOutcome
+      if (location.state.prefillQuestions.length > 0) {
+        const firstQuestion = location.state.prefillQuestions[0];
+        if (firstQuestion.subject_id) {
+          setSelectedSubject(firstQuestion.subject_id);
+        }
+      }
     }
-  }, [subjectId, topicName, navigate]);
+  }, [location]);
   
-  const fetchCourseOutcomes = async () => {
-    if (!subjectId) return;
-
-    setIsLoadingCourseOutcomes(true);
+  // Fetch subject data when selectedSubject changes
+  useEffect(() => {
+    if (selectedSubject) {
+      fetchSubjectDetails(selectedSubject);
+      fetchCourseOutcomes(selectedSubject);
+    }
+  }, [selectedSubject]);
+  
+  const fetchSubjectDetails = async (subjectId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('name, subject_code')
+        .eq('id', subjectId)
+        .single();
+        
+      if (error) throw error;
+      
+      if (data) {
+        setSubjectName(data.name);
+        setSubjectCode(data.subject_code);
+      }
+    } catch (error) {
+      console.error('Error fetching subject details:', error);
+    }
+  };
+  
+  const fetchCourseOutcomes = async (subjectId: string) => {
     try {
       const { data, error } = await supabase
         .from('course_outcomes')
-        .select('*')
+        .select('id, co_number, description')
         .eq('subject_id', subjectId)
-        .order('co_number', { ascending: true });
-
+        .order('co_number');
+        
       if (error) throw error;
-
-      if (data && data.length > 0) {
-        const configuredCOs = data.map((co: CourseOutcome) => ({
+      
+      if (data) {
+        const formattedCOs = data.map(co => ({
           id: co.id,
           co_number: co.co_number,
           description: co.description,
-          questionCount: 2, // Default number of questions
+          questionCount: 2, // Default number of questions per CO
           selected: false
         }));
-        setCourseOutcomes(configuredCOs);
-      }
-    } catch (error: any) {
-      console.error("Error fetching course outcomes:", error);
-      toast.error("Failed to load course outcomes");
-    } finally {
-      setIsLoadingCourseOutcomes(false);
-    }
-  };
-  
-  const handleFileUpload = async (file: File, type: 'header' | 'content') => {
-    if (!file) return;
-    
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${type}_${subjectId}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-    
-    try {
-      const { error: uploadError, data } = await supabase.storage
-        .from('files')
-        .upload(filePath, file);
-      
-      if (uploadError) {
-        toast.error(`Error uploading ${type} file: ${uploadError.message}`);
-        return;
-      }
-      
-      const { data: urlData } = await supabase.storage
-        .from('files')
-        .getPublicUrl(filePath);
-      
-      const fileUrl = urlData.publicUrl;
-      
-      if (type === 'header') {
-        setHeaderUrl(fileUrl);
-      } else if (type === 'content') {
-        setContentUrl(fileUrl);
         
-        setIsGenerating(true);
-        toast.info("Extracting content from file...");
-        
-        try {
-          const extractResponse = await supabase.functions.invoke('extract-text', {
-            body: { fileUrl, fileName: file.name }
-          });
-          
-          if (extractResponse.error) {
-            toast.error(`Error extracting text: ${extractResponse.error.message}`);
-            return;
-          }
-          
-          setExtractedContent(extractResponse.data.text);
-          toast.success("Content extracted successfully");
-        } catch (error) {
-          console.error("Error extracting content:", error);
-          toast.error("Failed to extract content from file");
-        } finally {
-          setIsGenerating(false);
-        }
+        setCourseOutcomes(formattedCOs);
       }
-      
-      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} file uploaded successfully`);
     } catch (error) {
-      console.error(`Error uploading ${type} file:`, error);
-      toast.error(`Failed to upload ${type} file`);
+      console.error('Error fetching course outcomes:', error);
     }
   };
   
-  const toggleCourseOutcome = (id: string) => {
-    setCourseOutcomes(prev => 
-      prev.map(co => 
-        co.id === id ? { ...co, selected: !co.selected } : co
-      )
-    );
-  };
-
-  const updateQuestionCount = (id: string, count: number) => {
-    if (count < 1) return; // Don't allow less than 1 question
-    
-    setCourseOutcomes(prev => 
-      prev.map(co => 
-        co.id === id ? { ...co, questionCount: count } : co
-      )
-    );
-  };
-  
-  const generateQuestions = async () => {
-    if (!extractedContent && !contentUrl) {
-      toast.error("Please upload content material first");
+  const handleGenerateQuestions = async () => {
+    if (!selectedSubject) {
+      toast.error("Please select a subject");
       return;
     }
     
-    const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-    if (selectedCourseOutcomes.length === 0) {
-      toast.error("Please select at least one course outcome");
+    if (!topic) {
+      toast.error("Please enter a topic");
       return;
     }
     
-    setIsGenerating(true);
-    toast.info("Generating questions, this may take a moment...");
+    setIsLoading(true);
     
     try {
-      const response = await supabase.functions.invoke('generate-questions', {
+      // Prepare the selected course outcomes with their question count
+      let selectedCOs = courseOutcomes
+        .filter(co => selectedCourseOutcomes.includes(co.id))
+        .map(co => ({
+          co_number: co.co_number,
+          description: co.description,
+          questionCount: co.questionCount
+        }));
+      
+      // If no COs selected, generate general questions
+      const totalQuestions = selectedCOs.length === 0 
+        ? numQuestions 
+        : selectedCOs.reduce((total, co) => total + co.questionCount, 0);
+      
+      // Call Supabase Edge Function to generate questions
+      const { data, error } = await supabase.functions.invoke('generate-questions', {
         body: {
-          topic: topicName,
-          content: extractedContent,
-          bloomsTaxonomy,
-          difficulty,
-          courseOutcomes: selectedCourseOutcomes
+          subject: subjectName,
+          topic,
+          numQuestions: totalQuestions,
+          courseOutcomes: selectedCOs,
+          subjectCode
         }
       });
       
-      if (response.error) {
-        toast.error(`Error generating questions: ${response.error.message}`);
-        return;
+      if (error) throw error;
+      
+      if (data && Array.isArray(data.questions)) {
+        // Map the generated questions to include selected status
+        const questionsWithSelected: Question[] = data.questions.map(q => ({
+          ...q,
+          selected: true,
+          courseOutcome: q.courseOutcome || 0
+        }));
+        
+        setGeneratedQuestions(questionsWithSelected);
+        
+        // Save the generated questions to the database
+        await saveGeneratedQuestions(questionsWithSelected);
+        
+        toast.success(`Generated ${questionsWithSelected.length} questions`);
+      } else {
+        toast.error("Failed to generate questions");
       }
-      
-      const generatedQs = response.data.questions;
-      setGeneratedQuestions(generatedQs);
-      
-      const { error: saveError } = await supabase
-        .from('generated_questions')
-        .insert({
-          subject_id: subjectId,
-          topic: topicName,
-          questions: generatedQs,
-          user_id: (await supabase.auth.getUser()).data.user?.id || ''
-        });
-      
-      if (saveError) {
-        console.error("Error saving generated questions:", saveError);
-      }
-      
-      toast.success("Questions generated successfully");
     } catch (error) {
-      console.error("Error generating questions:", error);
-      toast.error("Failed to generate questions");
+      console.error('Error generating questions:', error);
+      toast.error("An error occurred while generating questions");
     } finally {
-      setIsGenerating(false);
+      setIsLoading(false);
     }
   };
   
-  const toggleQuestionSelection = (id: string) => {
-    setGeneratedQuestions(prev => 
-      prev.map(q => 
-        q.id === id ? { ...q, selected: !q.selected } : q
+  const saveGeneratedQuestions = async (questions: Question[]) => {
+    try {
+      if (!questions || questions.length === 0) return;
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+      
+      // Using raw SQL because 'generated_questions' is a new table
+      const { error } = await supabase.rpc('insert_generated_questions', {
+        p_user_id: user.id,
+        p_subject_id: selectedSubject,
+        p_topic: topic,
+        p_questions: JSON.stringify(questions)
+      }).single();
+      
+      if (error) {
+        // Fallback to direct insert if the RPC is not available yet
+        const { error: insertError } = await supabase
+          .from('generated_questions')
+          .insert({
+            user_id: user.id,
+            subject_id: selectedSubject,
+            topic: topic,
+            questions: questions
+          });
+          
+        if (insertError) throw insertError;
+      }
+      
+      toast.success("Questions saved for future use");
+    } catch (error) {
+      console.error('Error saving generated questions:', error);
+      // Don't show an error toast as this is a background operation
+    }
+  };
+  
+  const handleToggleQuestionSelection = (index: number) => {
+    setGeneratedQuestions(prevQuestions => 
+      prevQuestions.map((q, i) => 
+        i === index ? { ...q, selected: !q.selected } : q
       )
     );
   };
   
-  const createPaper = async () => {
+  const handleSelectAllQuestions = (selected: boolean) => {
+    setGeneratedQuestions(prevQuestions => 
+      prevQuestions.map(q => ({ ...q, selected }))
+    );
+  };
+  
+  const handleGeneratePaper = async () => {
     const selectedQuestions = generatedQuestions.filter(q => q.selected);
     
     if (selectedQuestions.length === 0) {
@@ -232,528 +223,348 @@ export default function PaperCreation() {
       return;
     }
     
-    setIsCreatingPaper(true);
-    toast.info("Creating paper, please wait...");
+    setIsGeneratingPaper(true);
+    setPaperUrl("");
+    setPdfUrl("");
     
     try {
-      const response = await supabase.functions.invoke('generate-paper', {
+      // Call the Supabase Edge Function to generate the paper
+      const { data, error } = await supabase.functions.invoke('generate-paper', {
         body: {
           subjectName,
           subjectCode,
-          topicName,
-          headerUrl,
+          topicName: topic,
           questions: selectedQuestions
         }
       });
       
-      if (response.error) {
-        toast.error(`Error creating paper: ${response.error.message}`);
-        return;
+      if (error) throw error;
+      
+      if (data) {
+        setPaperUrl(data.paperUrl);
+        if (data.pdfUrl) {
+          setPdfUrl(data.pdfUrl);
+        }
+        
+        // Save the generated paper to the database
+        await saveGeneratedPaper(data.paperUrl, data.pdfUrl, selectedQuestions);
+        
+        toast.success("Paper generated successfully");
+      } else {
+        toast.error("Failed to generate paper");
       }
+    } catch (error) {
+      console.error('Error generating paper:', error);
+      toast.error("An error occurred while generating the paper");
+    } finally {
+      setIsGeneratingPaper(false);
+    }
+  };
+  
+  const saveGeneratedPaper = async (paperUrl: string, pdfUrl: string | null, questions: Question[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
       
-      const paperUrl = response.data.paperUrl;
-      const pdfUrl = response.data.pdfUrl;
-      
-      setPaperUrl(paperUrl);
-      setPdfUrl(pdfUrl || "");
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('generated_papers')
         .insert({
-          subject_id: subjectId,
-          topic: topicName,
+          user_id: user.id,
+          subject_id: selectedSubject,
+          topic: topic,
           paper_url: paperUrl,
-          pdf_url: pdfUrl || null,
-          questions: selectedQuestions as any,
-          header_url: headerUrl || null,
-          content_url: contentUrl || null,
-          user_id: (await supabase.auth.getUser()).data.user?.id || ''
-        })
-        .select();
-      
-      if (error) {
-        console.error("Error saving paper:", error);
-        toast.error("Paper created but failed to save to history");
-        return;
-      }
-      
-      toast.success("Paper created and saved successfully");
+          pdf_url: pdfUrl,
+          questions: questions
+        });
+        
+      if (error) throw error;
     } catch (error) {
-      console.error("Error creating paper:", error);
-      toast.error("Failed to create paper");
-    } finally {
-      setIsCreatingPaper(false);
+      console.error('Error saving generated paper:', error);
+      toast.error("Failed to save paper record");
     }
   };
   
-  const downloadPaper = (isPdf = false) => {
-    if (isPdf && pdfUrl) {
-      window.open(pdfUrl, '_blank');
-    } else if (paperUrl) {
-      window.open(paperUrl, '_blank');
-    }
-  };
-  
-  const handleEditBloomsTaxonomy = (level: keyof BloomsTaxonomy, value: string) => {
-    const numValue = Number(value);
-    if (isNaN(numValue)) return;
-
-    setBloomsTaxonomy({
-      ...bloomsTaxonomy,
-      [level]: numValue
+  const handleToggleCourseOutcome = (coId: string) => {
+    setSelectedCourseOutcomes(prev => {
+      if (prev.includes(coId)) {
+        return prev.filter(id => id !== coId);
+      } else {
+        return [...prev, coId];
+      }
     });
   };
   
-  const handleBloomsTaxonomyChange = (level: keyof BloomsTaxonomy, value: number[]) => {
-    setBloomsTaxonomy(prev => ({
-      ...prev,
-      [level]: value[0]
-    }));
+  const handleUpdateCOQuestionCount = (coId: string, count: number) => {
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === coId ? { ...co, questionCount: count } : co
+      )
+    );
   };
-  
-  const saveBloomsTaxonomyToSubject = async () => {
-    try {
-      const bloomsDataJson = {
-        ...bloomsTaxonomy
-      } as unknown as Json;
-      
-      const { error } = await supabase
-        .from('answer_keys')
-        .insert({
-          subject_id: subjectId,
-          title: `${subjectName || 'Subject'} - Bloom's Taxonomy Update`,
-          content: {},
-          blooms_taxonomy: bloomsDataJson
-        });
-      
-      if (error) throw error;
-      
-      setIsEditingBloomsTaxonomy(false);
-      toast.success("Bloom's taxonomy saved to subject successfully");
-    } catch (error: any) {
-      console.error("Error saving Bloom's taxonomy:", error);
-      toast.error("Failed to save Bloom's taxonomy");
-    }
-  };
-  
-  const totalPercentage = Object.values(bloomsTaxonomy).reduce((sum, value) => sum + value, 0);
-  const isValidDistribution = Math.abs(totalPercentage - 100) <= 5;
-  
-  const totalQuestionsFromCOs = courseOutcomes
-    .filter(co => co.selected)
-    .reduce((sum, co) => sum + co.questionCount, 0);
   
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-6 flex items-center">
-        <Button variant="outline" onClick={() => navigate("/dashboard/paper-generation")}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back
-        </Button>
-        <h1 className="text-3xl font-bold ml-4">Create Paper: {topicName}</h1>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Generate Question Paper</h1>
+          <p className="text-muted-foreground">Create custom question papers for your subject</p>
+        </div>
+        <div className="flex gap-2 mt-4 sm:mt-0">
+          <Button onClick={() => navigate("/dashboard/paper-generation/history")}>
+            View Paper History
+          </Button>
+          <Button onClick={() => navigate("/dashboard/paper-generation/saved")}>
+            Saved Questions
+          </Button>
+        </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Subject Information</CardTitle>
-            </CardHeader>
-            <CardContent>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Paper Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger id="subject">
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map(subject => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.name} ({subject.subject_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="topic">Topic</Label>
+              <Input
+                id="topic"
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                placeholder="Enter topic for the question paper"
+              />
+            </div>
+            
+            {courseOutcomes.length > 0 ? (
               <div className="space-y-2">
-                <div>
-                  <Label>Subject</Label>
-                  <div className="font-medium">{subjectName} ({subjectCode})</div>
-                </div>
-                <div>
-                  <Label>Topic/Chapter</Label>
-                  <div className="font-medium">{topicName}</div>
+                <Label>Course Outcomes</Label>
+                <div className="grid gap-2">
+                  {courseOutcomes.map(co => (
+                    <div key={co.id} className="flex items-center space-x-2 border p-2 rounded">
+                      <Checkbox
+                        id={`co-${co.id}`}
+                        checked={selectedCourseOutcomes.includes(co.id)}
+                        onCheckedChange={() => handleToggleCourseOutcome(co.id)}
+                      />
+                      <Label htmlFor={`co-${co.id}`} className="flex-1">
+                        CO{co.co_number}: {co.description}
+                      </Label>
+                      {selectedCourseOutcomes.includes(co.id) && (
+                        <div className="flex items-center">
+                          <Label className="mr-2">Questions:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={co.questionCount}
+                            onChange={e => handleUpdateCOQuestionCount(co.id, parseInt(e.target.value) || 1)}
+                            className="w-16"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Document Templates</CardTitle>
-              <CardDescription>Upload header for your paper</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="header-file">Header Template (optional)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    id="header-file"
-                    type="file"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setHeaderFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => headerFile && handleFileUpload(headerFile, 'header')}
-                    disabled={!headerFile}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Upload
-                  </Button>
-                </div>
-                {headerUrl && (
-                  <div className="text-sm text-green-600 flex items-center mt-1">
-                    <Check className="h-4 w-4 mr-1" /> Header uploaded
-                  </div>
-                )}
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="numQuestions">Number of Questions</Label>
+                <Input
+                  id="numQuestions"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={numQuestions}
+                  onChange={e => setNumQuestions(parseInt(e.target.value) || 10)}
+                />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Chapter Material</CardTitle>
-              <CardDescription>Upload content to generate questions from</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="content-file">Content Material (PDF/DOCX/TXT)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    id="content-file"
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setContentFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => contentFile && handleFileUpload(contentFile, 'content')}
-                    disabled={!contentFile}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Upload
-                  </Button>
-                </div>
-                {contentUrl && (
-                  <div className="text-sm text-green-600 flex items-center mt-1">
-                    <Check className="h-4 w-4 mr-1" /> Content uploaded
-                  </div>
-                )}
-              </div>
-              
-              {extractedContent && (
-                <div>
-                  <Label htmlFor="extracted-content">Extracted Content</Label>
-                  <Textarea
-                    id="extracted-content"
-                    value={extractedContent}
-                    onChange={(e) => setExtractedContent(e.target.value)}
-                    className="h-48 mt-1"
-                    placeholder="Content extracted from file..."
-                  />
-                </div>
+            )}
+            
+            <Button
+              onClick={handleGenerateQuestions}
+              disabled={isLoading || !selectedSubject || !topic}
+              className="w-full"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Questions
+                </>
               )}
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Question Parameters</CardTitle>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card className="md:row-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Generated Questions</CardTitle>
+            {generatedQuestions.length > 0 && (
+              <div className="flex items-center space-x-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={() => setIsEditingBloomsTaxonomy(!isEditingBloomsTaxonomy)}
+                  onClick={() => handleSelectAllQuestions(true)}
                 >
-                  <Edit2 className="h-4 w-4" />
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSelectAllQuestions(false)}
+                >
+                  Deselect All
                 </Button>
               </div>
-              <CardDescription>
-                {isEditingBloomsTaxonomy 
-                  ? "Edit Bloom's taxonomy weights for this paper" 
-                  : "Configure question generation parameters"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <Label>Difficulty Level: {difficulty}%</Label>
-                <Slider
-                  value={[difficulty]}
-                  onValueChange={(value) => setDifficulty(value[0])}
-                  min={0}
-                  max={100}
-                  step={5}
-                  className="my-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>Easy</span>
-                  <span>Moderate</span>
-                  <span>Hard</span>
-                </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {generatedQuestions.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No questions generated yet. Configure your paper and click Generate Questions.
+                </p>
               </div>
-              
+            ) : (
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <Label>Bloom's Taxonomy Weights</Label>
-                  {!isValidDistribution && (
-                    <span className="text-xs text-orange-500">
-                      Total: {totalPercentage}% (Goal: 100%)
-                    </span>
-                  )}
-                </div>
-                
-                {Object.entries(bloomsTaxonomy).map(([level, value]) => (
-                  <div key={level} className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="capitalize font-medium">{level}</span>
-                      <span className="text-sm">{value}%</span>
-                    </div>
-                    <Slider
-                      value={[value]}
-                      onValueChange={(val) => handleBloomsTaxonomyChange(level as keyof BloomsTaxonomy, val)}
-                      min={0}
-                      max={50}
-                      step={5}
-                      className="my-1"
-                    />
-                  </div>
-                ))}
-                
-                {isEditingBloomsTaxonomy && (
-                  <div className="flex justify-end space-x-2 mt-4">
-                    <Button variant="outline" onClick={() => setIsEditingBloomsTaxonomy(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={saveBloomsTaxonomyToSubject}>
-                      Save to Subject
-                    </Button>
-                  </div>
-                )}
-              </div>
-              
-              <div className="space-y-4 border rounded-md p-4">
-                <div className="flex justify-between items-center">
-                  <Label className="text-base font-medium">Course Outcomes</Label>
-                  {totalQuestionsFromCOs > 0 && (
-                    <span className="text-xs text-blue-600">
-                      Total questions: {totalQuestionsFromCOs}
-                    </span>
-                  )}
-                </div>
-                
-                {isLoadingCourseOutcomes ? (
-                  <div className="text-center py-2 text-sm text-gray-500">
-                    Loading course outcomes...
-                  </div>
-                ) : courseOutcomes.length === 0 ? (
-                  <div className="text-center py-2 text-sm text-gray-500">
-                    No course outcomes available. Add them in the subject details page.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {courseOutcomes.map((co) => (
-                      <div key={co.id} className="flex items-start space-x-2">
-                        <Checkbox 
-                          id={`co-${co.id}`}
-                          checked={co.selected}
-                          onCheckedChange={() => toggleCourseOutcome(co.id)}
-                          className="mt-1"
-                        />
-                        <div className="flex-1">
-                          <Label 
-                            htmlFor={`co-${co.id}`}
-                            className="text-sm font-medium cursor-pointer"
-                          >
-                            CO{co.co_number}: {co.description}
-                          </Label>
-                          
-                          {co.selected && (
-                            <div className="flex items-center space-x-2 mt-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0"
-                                onClick={() => updateQuestionCount(co.id, co.questionCount - 1)}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="text-sm font-medium w-8 text-center">
-                                {co.questionCount}
-                              </span>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0"
-                                onClick={() => updateQuestionCount(co.id, co.questionCount + 1)}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <span className="text-xs text-gray-500">questions</span>
+                {generatedQuestions.map((question, index) => (
+                  <div 
+                    key={index} 
+                    className={`border rounded-lg p-3 ${question.selected ? 'border-primary' : 'border-muted'}`}
+                  >
+                    <div className="flex items-start space-x-2">
+                      <Checkbox
+                        checked={question.selected}
+                        onCheckedChange={() => handleToggleQuestionSelection(index)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{question.text}</div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <div className="text-sm bg-muted px-2 py-1 rounded">
+                            {question.type}
+                          </div>
+                          <div className="text-sm bg-muted px-2 py-1 rounded">
+                            Level: {question.level}
+                          </div>
+                          <div className="text-sm bg-muted px-2 py-1 rounded">
+                            Marks: {question.marks}
+                          </div>
+                          {question.courseOutcome > 0 && (
+                            <div className="text-sm bg-primary/10 text-primary px-2 py-1 rounded">
+                              CO{question.courseOutcome}
                             </div>
                           )}
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  </div>
+                ))}
+                
+                <Button
+                  onClick={handleGeneratePaper}
+                  disabled={isGeneratingPaper || generatedQuestions.filter(q => q.selected).length === 0}
+                  className="w-full"
+                >
+                  {isGeneratingPaper ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Paper...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Generate Paper
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {(paperUrl || pdfUrl) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Generated Paper</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-4">
+                {pdfUrl && (
+                  <div className="border rounded p-4 flex flex-col items-center gap-2">
+                    <div className="text-center font-medium">PDF Version</div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(pdfUrl, '_blank')}
+                      >
+                        <File className="mr-2 h-4 w-4" />
+                        View PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                      >
+                        <a href={pdfUrl} download={`${subjectCode}_${topic}_paper.pdf`}>
+                          <DownloadCloud className="mr-2 h-4 w-4" />
+                          Download PDF
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {paperUrl && (
+                  <div className="border rounded p-4 flex flex-col items-center gap-2">
+                    <div className="text-center font-medium">HTML Version</div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(paperUrl, '_blank')}
+                      >
+                        <File className="mr-2 h-4 w-4" />
+                        View HTML
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                      >
+                        <a href={paperUrl} download={`${subjectCode}_${topic}_paper.html`}>
+                          <DownloadCloud className="mr-2 h-4 w-4" />
+                          Download HTML
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
-              
-              <Button 
-                className="w-full" 
-                onClick={generateQuestions}
-                disabled={isGenerating || !extractedContent || courseOutcomes.filter(co => co.selected).length === 0}
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Questions'
-                )}
-              </Button>
             </CardContent>
           </Card>
-        </div>
-        
-        <div className="lg:col-span-2 space-y-6">
-          <Tabs defaultValue="questions">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="questions">Generated Questions</TabsTrigger>
-              <TabsTrigger value="paper">Final Paper</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="questions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Select Questions for Paper</CardTitle>
-                  <CardDescription>
-                    Choose the questions you want to include in your test paper
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {generatedQuestions.length === 0 ? (
-                    <div className="text-center py-12">
-                      <FilePlus className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-4 text-lg font-medium">No questions generated yet</h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        Upload content material and generate questions to see them here
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {generatedQuestions.map((question, index) => (
-                        <div 
-                          key={question.id} 
-                          className={`p-4 border rounded-md ${question.selected ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
-                        >
-                          <div className="flex items-start space-x-3">
-                            <div className="flex-shrink-0 pt-0.5">
-                              <Checkbox 
-                                id={`question-${question.id}`}
-                                checked={question.selected}
-                                onCheckedChange={() => toggleQuestionSelection(question.id)}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <Label 
-                                htmlFor={`question-${question.id}`}
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                Q{index + 1}. {question.text}
-                              </Label>
-                              <div className="mt-1 flex flex-wrap gap-2">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {question.type}
-                                </span>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                  {question.level}
-                                </span>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  {question.marks} marks
-                                </span>
-                                {question.courseOutcome && (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    CO{question.courseOutcome}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    className="ml-auto" 
-                    onClick={createPaper}
-                    disabled={isCreatingPaper || generatedQuestions.filter(q => q.selected).length === 0}
-                  >
-                    {isCreatingPaper ? 'Creating Paper...' : 'Create Paper'}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="paper">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Final Paper</CardTitle>
-                  <CardDescription>
-                    Review and download your generated test paper
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {!paperUrl ? (
-                    <div className="text-center py-12">
-                      <FileX className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-4 text-lg font-medium">No paper generated yet</h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        Select questions and create a paper to see it here
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="aspect-[3/4] border rounded-md overflow-hidden">
-                        {pdfUrl ? (
-                          <iframe 
-                            src={pdfUrl} 
-                            className="w-full h-full"
-                            title="Generated Paper PDF"
-                          />
-                        ) : (
-                          <iframe 
-                            src={paperUrl} 
-                            className="w-full h-full"
-                            title="Generated Paper HTML"
-                          />
-                        )}
-                      </div>
-                      <div className="flex justify-center gap-4">
-                        {pdfUrl && (
-                          <Button onClick={() => downloadPaper(true)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download PDF
-                          </Button>
-                        )}
-                        <Button onClick={() => downloadPaper(false)}>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download HTML
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+        )}
       </div>
     </div>
   );
