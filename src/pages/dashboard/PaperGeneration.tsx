@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileX, ExternalLink } from "lucide-react";
+import { Download, Eye, FileX, ExternalLink, History } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -134,6 +134,10 @@ export default function PaperGeneration() {
     }
   };
 
+  const viewFullHistory = () => {
+    navigate("/dashboard/paper-generation/history");
+  };
+
   return (
     <div className="container max-w-4xl mx-auto py-6">
       <h1 className="text-3xl font-bold mb-6">Test Paper Generation</h1>
@@ -201,11 +205,21 @@ export default function PaperGeneration() {
         
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle>Generated Papers</CardTitle>
-              <CardDescription>
-                View and download your previously generated test papers
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Generated Papers</CardTitle>
+                <CardDescription>
+                  View and download your previously generated test papers
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={viewFullHistory}
+                className="flex items-center gap-1"
+              >
+                <History className="h-4 w-4" />
+                View Full History
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="mb-4">
