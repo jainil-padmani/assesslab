@@ -85,7 +85,7 @@ export default function CreatePaperFormat() {
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => navigate("/dashboard/question-paper-builder")}
+            onClick={() => navigate("/dashboard/question-paper-builder/formats")}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>

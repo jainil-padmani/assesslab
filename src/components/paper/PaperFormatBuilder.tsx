@@ -310,14 +310,14 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
                               <div>
                                 <label className="text-xs font-medium mb-1 block">Course Outcome</label>
                                 <Select 
-                                  value={question.courseOutcome?.toString() || ""}
-                                  onValueChange={(value) => updateQuestion(section.id, question.id, { courseOutcome: parseInt(value) || undefined })}
+                                  value={question.courseOutcome?.toString() || "none"}
+                                  onValueChange={(value) => updateQuestion(section.id, question.id, { courseOutcome: value === "none" ? undefined : parseInt(value) })}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select CO" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="">None</SelectItem>
+                                    <SelectItem value="none">None</SelectItem>
                                     <SelectItem value="1">CO1</SelectItem>
                                     <SelectItem value="2">CO2</SelectItem>
                                     <SelectItem value="3">CO3</SelectItem>
@@ -404,14 +404,14 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
                                       </div>
                                       <div>
                                         <Select 
-                                          value={subQ.courseOutcome?.toString() || ""}
-                                          onValueChange={(value) => updateQuestion(section.id, subQ.id, { courseOutcome: parseInt(value) || undefined })}
+                                          value={subQ.courseOutcome?.toString() || "none"}
+                                          onValueChange={(value) => updateQuestion(section.id, subQ.id, { courseOutcome: value === "none" ? undefined : parseInt(value) })}
                                         >
                                           <SelectTrigger className="text-xs">
                                             <SelectValue placeholder="CO" />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="">None</SelectItem>
+                                            <SelectItem value="none">None</SelectItem>
                                             <SelectItem value="1">CO1</SelectItem>
                                             <SelectItem value="2">CO2</SelectItem>
                                             <SelectItem value="3">CO3</SelectItem>
