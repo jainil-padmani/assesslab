@@ -107,7 +107,22 @@ export function QuestionFetcher({
       if (error) throw error;
       
       if (data && data.length > 0 && data[0].questions) {
-        const allQuestions = data[0].questions as Question[];
+        // Type assertion to Question[] after validation
+        const questionsData = data[0].questions;
+        let allQuestions: Question[] = [];
+        
+        // Validate if it's an array and has the structure we expect
+        if (Array.isArray(questionsData) && questionsData.length > 0) {
+          allQuestions = questionsData.filter(q => 
+            typeof q === 'object' && 
+            q !== null && 
+            'id' in q && 
+            'text' in q && 
+            'type' in q && 
+            'marks' in q && 
+            'level' in q
+          ) as Question[];
+        }
         
         // Filter by level and courseOutcome if provided
         let filteredByAttributes = allQuestions.filter(q => {

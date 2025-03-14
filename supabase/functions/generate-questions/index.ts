@@ -36,43 +36,133 @@ serve(async (req: Request) => {
     // Total number of questions required
     const totalQuestions = courseOutcomes.reduce((total, co) => total + co.questionCount, 0);
     
-    // Mock generated questions for demonstration
-    // In a real implementation, this would call OpenAI or another AI service
-    const generatedQuestions = [];
-    let questionId = 1;
+    // Get the OpenAI API key
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     
-    // Generate questions for each course outcome
-    for (const co of courseOutcomes) {
-      if (!co.selected) continue;
-      
-      for (let i = 0; i < co.questionCount; i++) {
-        // Determine Bloom's taxonomy level based on distribution
-        let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
-        
-        // Generate question based on difficulty
-        const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
-        const questionType = getRandomQuestionType(bloomsLevel);
-        const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
-        
-        generatedQuestions.push({
-          id: `q${questionId++}`,
-          text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
-          type: questionType,
-          marks: marks,
-          level: bloomsLevel,
-          courseOutcome: co.co_number,
-          selected: false
-        });
-      }
+    if (!openaiApiKey) {
+      return new Response(
+        JSON.stringify({ error: "OpenAI API key is not configured" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
     }
+
+    // Generate actual questions using OpenAI API
+    const promptContent = `
+Generate ${totalQuestions} exam questions for the topic: ${topic}.
+
+Course Content:
+${content.substring(0, 4000)}
+
+Requirements:
+- Questions should be appropriate for a college-level exam
+- Create a variety of question types (multiple choice, short answer, problem solving, etc.)
+- Questions should be aligned with the specified course outcomes and Bloom's taxonomy levels
+- Difficulty level should be approximately ${difficulty}% on a scale of 0-100
+
+Course Outcomes:
+${courseOutcomes.filter(co => co.selected).map(co => `CO${co.co_number}: ${co.description}`).join('\n')}
+
+Question Distribution:
+${courseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: ${co.questionCount} questions`).join('\n')}
+
+Bloom's Taxonomy distribution:
+${Object.entries(bloomsTaxonomy).map(([level, value]) => `- ${level}: ${value}%`).join('\n')}
+
+Format each question as:
+{
+  "text": "The question text here",
+  "type": "question type (Multiple Choice, Short Answer, etc.)",
+  "level": "bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)",
+  "courseOutcome": CO number (integer),
+  "marks": estimated marks based on difficulty and cognitive level
+}
+`;
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              "role": "system",
+              "content": "You are an expert in generating educational assessment questions. Provide detailed, appropriate questions that align with course outcomes and Bloom's taxonomy levels."
+            },
+            {
+              "role": "user",
+              "content": promptContent
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000
+        })
+      });
     
-    console.log(`Generated ${generatedQuestions.length} questions`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("OpenAI API error:", errorData);
+        throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+      }
     
-    return new Response(
-      JSON.stringify({ questions: generatedQuestions }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      const aiResponse = await response.json();
+      const aiContent = aiResponse.choices[0].message.content;
+      
+      // Extract JSON objects from the response
+      const jsonMatches = aiContent.match(/\{[\s\S]*?\}/g) || [];
+      let generatedQuestions = [];
+      
+      try {
+        for (const jsonStr of jsonMatches) {
+          try {
+            const question = JSON.parse(jsonStr);
+            
+            // Assign a unique ID to each question
+            generatedQuestions.push({
+              id: `q${generatedQuestions.length + 1}`,
+              text: question.text,
+              type: question.type,
+              marks: question.marks || getMarksForQuestion(question.level, question.difficulty || "moderate"),
+              level: question.level,
+              courseOutcome: question.courseOutcome,
+              selected: false
+            });
+          } catch (parseError) {
+            console.error("Error parsing question JSON:", parseError, jsonStr);
+          }
+        }
+      } catch (parseError) {
+        console.error("Error extracting questions:", parseError);
+      }
+      
+      // If we couldn't extract questions from the JSON format, fallback to generating them
+      if (generatedQuestions.length === 0) {
+        generatedQuestions = generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic);
+      }
+      
+      console.log(`Generated ${generatedQuestions.length} questions`);
     
+      return new Response(
+        JSON.stringify({ questions: generatedQuestions }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } catch (apiError) {
+      console.error("Error calling OpenAI API:", apiError);
+      
+      // Fallback to local question generation
+      const generatedQuestions = generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic);
+      
+      return new Response(
+        JSON.stringify({ 
+          questions: generatedQuestions,
+          warning: "Used fallback question generation due to API error."
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   } catch (error) {
     console.error("Error generating questions:", error);
     return new Response(
@@ -81,6 +171,38 @@ serve(async (req: Request) => {
     );
   }
 });
+
+function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic) {
+  const generatedQuestions = [];
+  let questionId = 1;
+  
+  // Generate questions for each course outcome
+  for (const co of courseOutcomes) {
+    if (!co.selected) continue;
+    
+    for (let i = 0; i < co.questionCount; i++) {
+      // Determine Bloom's taxonomy level based on distribution
+      let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
+      
+      // Generate question based on difficulty
+      const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
+      const questionType = getRandomQuestionType(bloomsLevel);
+      const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
+      
+      generatedQuestions.push({
+        id: `q${questionId++}`,
+        text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+        type: questionType,
+        marks: marks,
+        level: bloomsLevel,
+        courseOutcome: co.co_number,
+        selected: false
+      });
+    }
+  }
+  
+  return generatedQuestions;
+}
 
 function getRandomBloomsLevel(bloomsTaxonomy) {
   const levels = Object.keys(bloomsTaxonomy);

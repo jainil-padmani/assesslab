@@ -4,10 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Plus, Edit, Trash, Copy } from "lucide-react";
-import { PaperFormat } from "@/types/papers";
+import { PaperFormat, PaperSection } from "@/types/papers";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { Json } from "@/integrations/supabase/types";
 
 export default function PaperFormats() {
   const navigate = useNavigate();
@@ -29,18 +30,40 @@ export default function PaperFormats() {
       if (error) throw error;
       
       // Convert database fields to PaperFormat type
-      const formattedData: PaperFormat[] = (data || []).map(item => ({
-        id: item.id,
-        title: item.title,
-        subject_id: item.subject_id,
-        totalMarks: item.total_marks,
-        duration: item.duration,
-        headerText: item.header_text,
-        footerText: item.footer_text,
-        sections: item.sections,
-        created_at: item.created_at,
-        user_id: item.user_id
-      }));
+      const formattedData: PaperFormat[] = (data || []).map(item => {
+        // Handle sections conversion
+        let sections: PaperSection[] = [];
+        if (Array.isArray(item.sections)) {
+          sections = item.sections as PaperSection[];
+        } else {
+          // Try to parse if it's a string, or use default
+          try {
+            const parsedSections = typeof item.sections === 'string' 
+              ? JSON.parse(item.sections) 
+              : item.sections;
+            
+            if (Array.isArray(parsedSections)) {
+              sections = parsedSections;
+            }
+          } catch (e) {
+            console.error("Error parsing sections:", e);
+            sections = [];
+          }
+        }
+        
+        return {
+          id: item.id,
+          title: item.title,
+          subject_id: item.subject_id,
+          totalMarks: item.total_marks,
+          duration: item.duration,
+          headerText: item.header_text,
+          footerText: item.footer_text,
+          sections: sections,
+          created_at: item.created_at,
+          user_id: item.user_id
+        };
+      });
       
       setPaperFormats(formattedData);
     } catch (error) {
