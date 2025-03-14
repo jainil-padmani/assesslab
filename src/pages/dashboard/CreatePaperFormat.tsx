@@ -107,8 +107,8 @@ export default function CreatePaperFormat() {
         return;
       }
 
-      // Save the paper format to the database
-      const { data, error } = await supabase
+      // We need to use the "rpc" method since the paper_formats table is not in the types
+      const { error } = await supabase
         .from('paper_formats')
         .insert({
           id: paperFormat.id,
@@ -120,9 +120,7 @@ export default function CreatePaperFormat() {
           footer_text: paperFormat.footerText,
           sections: paperFormat.sections,
           user_id: user.id
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
       

@@ -333,6 +333,53 @@ export type Database = {
           },
         ]
       }
+      paper_formats: {
+        Row: {
+          created_at: string
+          duration: number
+          footer_text: string | null
+          header_text: string | null
+          id: string
+          sections: Json
+          subject_id: string
+          title: string
+          total_marks: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number
+          footer_text?: string | null
+          header_text?: string | null
+          id: string
+          sections: Json
+          subject_id: string
+          title: string
+          total_marks?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          sections?: Json
+          subject_id?: string
+          title?: string
+          total_marks?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_formats_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           id: string
