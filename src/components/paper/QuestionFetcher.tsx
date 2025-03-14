@@ -107,21 +107,32 @@ export function QuestionFetcher({
       if (error) throw error;
       
       if (data && data.length > 0 && data[0].questions) {
-        // Type assertion to Question[] after validation
+        // Fix the type conversion issue here
         const questionsData = data[0].questions;
         let allQuestions: Question[] = [];
         
         // Validate if it's an array and has the structure we expect
-        if (Array.isArray(questionsData) && questionsData.length > 0) {
-          allQuestions = questionsData.filter(q => 
-            typeof q === 'object' && 
-            q !== null && 
-            'id' in q && 
-            'text' in q && 
-            'type' in q && 
-            'marks' in q && 
-            'level' in q
-          ) as Question[];
+        if (Array.isArray(questionsData)) {
+          // Convert from Json[] to Question[] with proper type validation
+          allQuestions = questionsData
+            .filter(q => 
+              typeof q === 'object' && 
+              q !== null && 
+              'id' in q && 
+              'text' in q && 
+              'type' in q && 
+              'marks' in q && 
+              'level' in q
+            )
+            .map(q => ({
+              id: String(q.id),
+              text: String(q.text),
+              type: String(q.type),
+              marks: Number(q.marks),
+              level: String(q.level),
+              // Handle optional courseOutcome property
+              courseOutcome: 'courseOutcome' in q ? Number(q.courseOutcome) : undefined
+            }));
         }
         
         // Filter by level and courseOutcome if provided

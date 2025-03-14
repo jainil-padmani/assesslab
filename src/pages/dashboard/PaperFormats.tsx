@@ -31,23 +31,41 @@ export default function PaperFormats() {
       
       // Convert database fields to PaperFormat type
       const formattedData: PaperFormat[] = (data || []).map(item => {
-        // Handle sections conversion
+        // Handle sections conversion safely
         let sections: PaperSection[] = [];
-        if (Array.isArray(item.sections)) {
-          sections = item.sections as PaperSection[];
-        } else {
-          // Try to parse if it's a string, or use default
+        
+        if (item.sections) {
+          // Try to parse sections data
           try {
-            const parsedSections = typeof item.sections === 'string' 
-              ? JSON.parse(item.sections) 
-              : item.sections;
+            const sectionsData = Array.isArray(item.sections) ? item.sections : JSON.parse(typeof item.sections === 'string' ? item.sections : '[]');
             
-            if (Array.isArray(parsedSections)) {
-              sections = parsedSections;
+            if (Array.isArray(sectionsData)) {
+              // Validate and convert each section
+              sections = sectionsData.map(section => {
+                // Ensure questions array exists and is properly typed
+                const questions = Array.isArray(section.questions) 
+                  ? section.questions.map(q => ({
+                      id: String(q.id || ''),
+                      number: String(q.number || ''),
+                      text: String(q.text || ''),
+                      marks: Number(q.marks || 0),
+                      level: String(q.level || ''),
+                      courseOutcome: q.courseOutcome !== undefined ? Number(q.courseOutcome) : undefined,
+                      subQuestions: Array.isArray(q.subQuestions) ? q.subQuestions : [],
+                      selectedQuestion: q.selectedQuestion
+                    }))
+                  : [];
+                
+                return {
+                  id: String(section.id || ''),
+                  title: String(section.title || ''),
+                  instructions: section.instructions ? String(section.instructions) : undefined,
+                  questions: questions
+                };
+              });
             }
           } catch (e) {
             console.error("Error parsing sections:", e);
-            sections = [];
           }
         }
         
