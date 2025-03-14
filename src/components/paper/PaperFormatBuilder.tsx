@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PaperFormat, PaperSection, PaperQuestion } from "@/types/papers";
 import { Plus, Trash, AlignJustify, ChevronDown } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
+import { CourseOutcome } from "@/types/dashboard";
 
 interface PaperFormatBuilderProps {
   paperFormat: PaperFormat;
   setPaperFormat: React.Dispatch<React.SetStateAction<PaperFormat>>;
+  courseOutcomes?: CourseOutcome[];
 }
 
-export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatBuilderProps) {
+export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes = [] }: PaperFormatBuilderProps) {
   const addSection = () => {
     const newSection: PaperSection = {
       id: uuidv4(),
@@ -102,7 +103,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
     }));
   };
 
-  // Helper function to update a question or subquestion in a nested array
   const updateQuestionInArray = (
     questions: PaperQuestion[], 
     questionId: string, 
@@ -128,7 +128,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
     const section = paperFormat.sections.find(s => s.id === sectionId);
     if (!section) return;
     
-    // If it's a top-level question
     if (section.questions.some(q => q.id === questionId)) {
       updateSection(sectionId, {
         questions: section.questions.filter(q => q.id !== questionId)
@@ -136,7 +135,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
       return;
     }
     
-    // If it's a sub-question, we need to find its parent
     setPaperFormat(prev => ({
       ...prev,
       sections: prev.sections.map(section => {
@@ -150,7 +148,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
     }));
   };
 
-  // Helper function to remove a subquestion from a nested array
   const removeSubQuestionRecursive = (questions: PaperQuestion[], questionId: string): PaperQuestion[] => {
     return questions.map(question => {
       if (!question.subQuestions) return question;
@@ -169,7 +166,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
     });
   };
 
-  // Calculate total marks
   const calculateTotalMarks = (): number => {
     let total = 0;
     
@@ -188,7 +184,6 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
     return total;
   };
 
-  // Update the total marks when the component renders
   const totalMarks = calculateTotalMarks();
   if (totalMarks !== paperFormat.totalMarks) {
     setPaperFormat(prev => ({ ...prev, totalMarks }));
@@ -318,18 +313,17 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="none">None</SelectItem>
-                                    <SelectItem value="1">CO1</SelectItem>
-                                    <SelectItem value="2">CO2</SelectItem>
-                                    <SelectItem value="3">CO3</SelectItem>
-                                    <SelectItem value="4">CO4</SelectItem>
-                                    <SelectItem value="5">CO5</SelectItem>
+                                    {courseOutcomes.map(co => (
+                                      <SelectItem key={co.id} value={co.co_number.toString()}>
+                                        CO{co.co_number}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
                           </div>
                           
-                          {/* Sub-questions */}
                           <div className="space-y-2 pt-2">
                             <div className="flex items-center justify-between">
                               <h5 className="text-xs font-medium">Sub-questions</h5>
@@ -412,11 +406,11 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat }: PaperFormatB
                                           </SelectTrigger>
                                           <SelectContent>
                                             <SelectItem value="none">None</SelectItem>
-                                            <SelectItem value="1">CO1</SelectItem>
-                                            <SelectItem value="2">CO2</SelectItem>
-                                            <SelectItem value="3">CO3</SelectItem>
-                                            <SelectItem value="4">CO4</SelectItem>
-                                            <SelectItem value="5">CO5</SelectItem>
+                                            {courseOutcomes.map(co => (
+                                              <SelectItem key={co.id} value={co.co_number.toString()}>
+                                                CO{co.co_number}
+                                              </SelectItem>
+                                            ))}
                                           </SelectContent>
                                         </Select>
                                       </div>

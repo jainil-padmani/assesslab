@@ -1,4 +1,3 @@
-
 import { Json } from "@/integrations/supabase/types";
 
 export interface BloomsTaxonomy {
@@ -46,7 +45,6 @@ export interface GeneratedPaper {
   pdf_url?: string | null; // New field for PDF URL
 }
 
-// New types for the Set Question Paper feature
 export interface PaperSection {
   id: string;
   title: string;

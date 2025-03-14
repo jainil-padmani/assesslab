@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { 
@@ -21,9 +21,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { PaperFormat, PaperSection, PaperQuestion } from "@/types/papers";
 import { PaperFormatBuilder } from "@/components/paper/PaperFormatBuilder";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useTestFormData } from "@/hooks/useTestFormData";
+import { CourseOutcome } from "@/types/dashboard";
 
 export default function CreatePaperFormat() {
   const navigate = useNavigate();
+  const { subjects } = useTestFormData();
+  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
   const [paperFormat, setPaperFormat] = useState<PaperFormat>({
     id: uuidv4(),
     title: "",
@@ -39,6 +44,32 @@ export default function CreatePaperFormat() {
       }
     ]
   });
+
+  // Fetch course outcomes when subject changes
+  useEffect(() => {
+    if (paperFormat.subject_id) {
+      fetchCourseOutcomes(paperFormat.subject_id);
+    } else {
+      setCourseOutcomes([]);
+    }
+  }, [paperFormat.subject_id]);
+
+  const fetchCourseOutcomes = async (subjectId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('course_outcomes')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('co_number', { ascending: true });
+
+      if (error) throw error;
+      
+      setCourseOutcomes(data || []);
+    } catch (error) {
+      console.error("Error fetching course outcomes:", error);
+      toast.error("Failed to load course outcomes");
+    }
+  };
 
   // Handlers for paper format changes
   const updatePaperTitle = (title: string) => {
@@ -68,9 +99,34 @@ export default function CreatePaperFormat() {
     }
 
     try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("You must be logged in to save a paper format");
+        return;
+      }
+
+      // Save the paper format to the database
+      const { data, error } = await supabase
+        .from('paper_formats')
+        .insert({
+          id: paperFormat.id,
+          title: paperFormat.title,
+          subject_id: paperFormat.subject_id,
+          total_marks: paperFormat.totalMarks,
+          duration: paperFormat.duration,
+          header_text: paperFormat.headerText,
+          footer_text: paperFormat.footerText,
+          sections: paperFormat.sections,
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
       toast.success("Paper format saved successfully!");
-      // Here we would normally save the format to the database
-      // For now, we'll just navigate back
       navigate("/dashboard/question-paper-builder/formats");
     } catch (error) {
       toast.error("Failed to save paper format");
@@ -123,9 +179,11 @@ export default function CreatePaperFormat() {
                     <SelectValue placeholder="Select subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="subject-1">Mathematics</SelectItem>
-                    <SelectItem value="subject-2">Physics</SelectItem>
-                    <SelectItem value="subject-3">Chemistry</SelectItem>
+                    {subjects.map(subject => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -166,6 +224,7 @@ export default function CreatePaperFormat() {
           <PaperFormatBuilder 
             paperFormat={paperFormat} 
             setPaperFormat={setPaperFormat} 
+            courseOutcomes={courseOutcomes}
           />
         </div>
       </div>
