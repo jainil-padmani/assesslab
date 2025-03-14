@@ -107,20 +107,23 @@ export default function CreatePaperFormat() {
         return;
       }
 
-      // We need to use the "rpc" method since the paper_formats table is not in the types
+      // Convert paperFormat to the database schema format
+      const dbPaperFormat = {
+        id: paperFormat.id,
+        title: paperFormat.title,
+        subject_id: paperFormat.subject_id,
+        total_marks: paperFormat.totalMarks,
+        duration: paperFormat.duration,
+        header_text: paperFormat.headerText,
+        footer_text: paperFormat.footerText,
+        sections: paperFormat.sections,
+        user_id: user.id
+      };
+
+      // Insert into paper_formats table
       const { error } = await supabase
         .from('paper_formats')
-        .insert({
-          id: paperFormat.id,
-          title: paperFormat.title,
-          subject_id: paperFormat.subject_id,
-          total_marks: paperFormat.totalMarks,
-          duration: paperFormat.duration,
-          header_text: paperFormat.headerText,
-          footer_text: paperFormat.footerText,
-          sections: paperFormat.sections,
-          user_id: user.id
-        });
+        .insert(dbPaperFormat);
 
       if (error) throw error;
       

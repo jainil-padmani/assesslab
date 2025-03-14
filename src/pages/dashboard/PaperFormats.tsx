@@ -11,7 +11,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export default function PaperFormats() {
   const navigate = useNavigate();
-  const [paperFormats, setPaperFormats] = useState<(PaperFormat & { created_at?: string })[]>([]);
+  const [paperFormats, setPaperFormats] = useState<PaperFormat[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,21 +23,26 @@ export default function PaperFormats() {
       setLoading(true);
       
       const { data, error } = await supabase
-        .rpc('get_paper_formats'); // Using RPC to avoid type issues
+        .from('paper_formats')
+        .select('*');
 
       if (error) throw error;
-
-      // Fallback if RPC is not created yet, use direct query
-      if (!data) {
-        const { data: directData, error: directError } = await supabase
-          .from('paper_formats')
-          .select('*');
-        
-        if (directError) throw directError;
-        setPaperFormats(directData || []);
-      } else {
-        setPaperFormats(data);
-      }
+      
+      // Convert database fields to PaperFormat type
+      const formattedData: PaperFormat[] = (data || []).map(item => ({
+        id: item.id,
+        title: item.title,
+        subject_id: item.subject_id,
+        totalMarks: item.total_marks,
+        duration: item.duration,
+        headerText: item.header_text,
+        footerText: item.footer_text,
+        sections: item.sections,
+        created_at: item.created_at,
+        user_id: item.user_id
+      }));
+      
+      setPaperFormats(formattedData);
     } catch (error) {
       console.error("Error fetching paper formats:", error);
       toast.error("Failed to load paper formats");
@@ -51,7 +56,7 @@ export default function PaperFormats() {
     toast.info("Edit functionality coming soon");
   };
 
-  const handleDuplicate = (format: PaperFormat & { created_at?: string }) => {
+  const handleDuplicate = (format: PaperFormat) => {
     // Not implemented yet - will be added in future
     toast.info("Duplicate functionality coming soon");
   };

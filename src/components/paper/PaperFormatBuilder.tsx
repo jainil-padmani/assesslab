@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PaperFormat, PaperSection, PaperQuestion } from "@/types/papers";
-import { Plus, Trash, AlignJustify, ChevronDown } from "lucide-react";
+import { PaperFormat, PaperSection, PaperQuestion, Question } from "@/types/papers";
+import { Plus, Trash, AlignJustify, ChevronDown, BookOpen } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { CourseOutcome } from "@/types/dashboard";
+import { QuestionFetcher } from "./QuestionFetcher";
 
 interface PaperFormatBuilderProps {
   paperFormat: PaperFormat;
@@ -17,6 +19,21 @@ interface PaperFormatBuilderProps {
 }
 
 export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes = [] }: PaperFormatBuilderProps) {
+  const [activeQuestionFetcher, setActiveQuestionFetcher] = useState<{
+    open: boolean;
+    sectionId: string;
+    questionId: string;
+    level: string;
+    courseOutcome?: number;
+    marks: number;
+  }>({
+    open: false,
+    sectionId: "",
+    questionId: "",
+    level: "remember",
+    marks: 0
+  });
+
   const addSection = () => {
     const newSection: PaperSection = {
       id: uuidv4(),
@@ -166,6 +183,51 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes
     });
   };
 
+  const handleOpenQuestionFetcher = (sectionId: string, questionId: string) => {
+    // Find the question to get its parameters
+    let foundQuestion: PaperQuestion | undefined;
+    
+    for (const section of paperFormat.sections) {
+      if (section.id !== sectionId) continue;
+      
+      for (const question of section.questions) {
+        if (question.id === questionId) {
+          foundQuestion = question;
+          break;
+        }
+        
+        if (question.subQuestions) {
+          const subQuestion = question.subQuestions.find(sq => sq.id === questionId);
+          if (subQuestion) {
+            foundQuestion = subQuestion;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (foundQuestion) {
+      setActiveQuestionFetcher({
+        open: true,
+        sectionId,
+        questionId,
+        level: foundQuestion.level || "remember",
+        courseOutcome: foundQuestion.courseOutcome,
+        marks: foundQuestion.marks || 0
+      });
+    }
+  };
+
+  const handleQuestionSelect = (question: Question) => {
+    updateQuestion(activeQuestionFetcher.sectionId, activeQuestionFetcher.questionId, {
+      text: question.text,
+      marks: question.marks,
+      level: question.level,
+      courseOutcome: question.courseOutcome,
+      selectedQuestion: question
+    });
+  };
+
   const calculateTotalMarks = (): number => {
     let total = 0;
     
@@ -191,6 +253,16 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes
 
   return (
     <div className="space-y-6">
+      <QuestionFetcher
+        open={activeQuestionFetcher.open}
+        onOpenChange={(open) => setActiveQuestionFetcher(prev => ({ ...prev, open }))}
+        subjectId={paperFormat.subject_id}
+        level={activeQuestionFetcher.level}
+        courseOutcome={activeQuestionFetcher.courseOutcome}
+        marks={activeQuestionFetcher.marks}
+        onQuestionSelect={handleQuestionSelect}
+      />
+      
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle>Paper Structure</CardTitle>
@@ -264,14 +336,32 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes
                       <AccordionContent className="px-3 pt-2 pb-3">
                         <div className="space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
+                            <div className="space-y-2">
                               <label className="text-xs font-medium mb-1 block">Question Text</label>
-                              <Textarea 
-                                value={question.text}
-                                onChange={(e) => updateQuestion(section.id, question.id, { text: e.target.value })}
-                                placeholder="Enter question text"
-                                className="h-20"
-                              />
+                              <div className="relative">
+                                <Textarea 
+                                  value={question.text}
+                                  onChange={(e) => updateQuestion(section.id, question.id, { text: e.target.value })}
+                                  placeholder="Enter question text"
+                                  className="min-h-20 pr-10"
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="absolute right-2 top-2 h-6 w-6"
+                                  onClick={() => handleOpenQuestionFetcher(section.id, question.id)}
+                                  disabled={!paperFormat.subject_id}
+                                >
+                                  <BookOpen className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              
+                              {question.selectedQuestion && (
+                                <div className="text-xs text-muted-foreground bg-muted/40 p-2 rounded">
+                                  Using question from bank
+                                </div>
+                              )}
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                               <div>
@@ -360,13 +450,23 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes
                                     </div>
                                     
                                     <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-                                      <div className="sm:col-span-3">
+                                      <div className="sm:col-span-3 relative">
                                         <Input 
                                           value={subQ.text}
                                           onChange={(e) => updateQuestion(section.id, subQ.id, { text: e.target.value })}
                                           placeholder="Sub-question text"
-                                          className="text-xs"
+                                          className="text-xs pr-8"
                                         />
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="ghost"
+                                          className="absolute right-1 top-1 h-6 w-6"
+                                          onClick={() => handleOpenQuestionFetcher(section.id, subQ.id)}
+                                          disabled={!paperFormat.subject_id}
+                                        >
+                                          <BookOpen className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                       <div>
                                         <Input 
@@ -415,6 +515,12 @@ export function PaperFormatBuilder({ paperFormat, setPaperFormat, courseOutcomes
                                         </Select>
                                       </div>
                                     </div>
+                                    
+                                    {subQ.selectedQuestion && (
+                                      <div className="text-xs text-muted-foreground mt-1 bg-muted/40 p-1 rounded">
+                                        Using question from bank
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>

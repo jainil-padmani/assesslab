@@ -1,3 +1,4 @@
+
 import { Json } from "@/integrations/supabase/types";
 
 export interface BloomsTaxonomy {
@@ -50,6 +51,7 @@ export interface PaperSection {
   title: string;
   instructions?: string;
   questions: PaperQuestion[];
+  [key: string]: any; // Add index signature for JSON compatibility
 }
 
 export interface PaperQuestion {
@@ -61,6 +63,7 @@ export interface PaperQuestion {
   courseOutcome?: number; // CO number this question belongs to
   subQuestions?: PaperQuestion[];
   selectedQuestion?: Question; // Reference to a stored question
+  [key: string]: any; // Add index signature for JSON compatibility
 }
 
 export interface PaperFormat {
