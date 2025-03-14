@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,8 @@ import {
   Notebook,
   FileUp,
   School,
-  FileText
+  FileText,
+  LayoutTemplate
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -48,6 +50,11 @@ const links = [
     title: "Paper Generation",
     icon: FileText,
     href: "/dashboard/paper-generation",
+  },
+  {
+    title: "Set Question Paper",
+    icon: LayoutTemplate,
+    href: "/dashboard/question-paper-builder",
   },
   {
     title: "File Management",

@@ -45,3 +45,35 @@ export interface GeneratedPaper {
   subject_name?: string;
   pdf_url?: string | null; // New field for PDF URL
 }
+
+// New types for the Set Question Paper feature
+export interface PaperSection {
+  id: string;
+  title: string;
+  instructions?: string;
+  questions: PaperQuestion[];
+}
+
+export interface PaperQuestion {
+  id: string;
+  number: string; // e.g., "1", "2", "1.a", "1.b"
+  text: string;
+  marks: number;
+  level: string; // blooms taxonomy level
+  courseOutcome?: number; // CO number this question belongs to
+  subQuestions?: PaperQuestion[];
+  selectedQuestion?: Question; // Reference to a stored question
+}
+
+export interface PaperFormat {
+  id: string;
+  title: string;
+  subject_id: string;
+  totalMarks: number;
+  duration: number; // in minutes
+  headerText?: string;
+  footerText?: string;
+  sections: PaperSection[];
+  created_at?: string;
+  user_id?: string;
+}
