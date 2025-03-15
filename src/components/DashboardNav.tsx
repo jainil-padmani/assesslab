@@ -16,7 +16,8 @@ import {
   School,
   FileText,
   LayoutTemplate,
-  HelpCircle
+  HelpCircle,
+  History
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -51,6 +52,11 @@ const links = [
     title: "Questions Generation",
     icon: HelpCircle,
     href: "/dashboard/paper-generation",
+  },
+  {
+    title: "Questions History",
+    icon: History,
+    href: "/dashboard/paper-history",
   },
   {
     title: "Set Question Paper",

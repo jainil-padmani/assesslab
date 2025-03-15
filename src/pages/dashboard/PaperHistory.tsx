@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowLeft, Eye, FileText } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -27,6 +27,7 @@ export default function PaperHistory() {
   useEffect(() => {
     const fetchPapers = async () => {
       try {
+        setIsLoading(true);
         const { data, error } = await supabase
           .from("generated_questions")
           .select("*, subjects(name)")
@@ -212,7 +213,11 @@ export default function PaperHistory() {
               </TableHeader>
               <TableBody>
                 {filteredPapers.map((paper) => (
-                  <TableRow key={paper.id}>
+                  <TableRow 
+                    key={paper.id}
+                    className="cursor-pointer"
+                    onClick={() => viewPaperDetails(paper)}
+                  >
                     <TableCell>
                       {format(new Date(paper.created_at), "dd MMM yyyy")}
                     </TableCell>
@@ -222,18 +227,19 @@ export default function PaperHistory() {
                       {paper.questionCount}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => viewPaperDetails(paper)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                      <div 
+                        className="flex justify-end gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeleteTopic(paper.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTopic(paper.id);
+                          }}
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
