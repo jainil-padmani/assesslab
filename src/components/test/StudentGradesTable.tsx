@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, Edit, X, FileText, FileDigit } from "lucide-react";
+import { Save, Edit, X, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Test, TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
@@ -56,11 +56,6 @@ export function StudentGradesTable({
     } else {
       return `${url}?t=${Date.now()}`;
     }
-  };
-
-  // Check if evaluation has OCR data
-  const hasOcrData = (grade: TestGrade & { evaluation: PaperEvaluation | null }) => {
-    return grade.evaluation?.evaluation_data?.ocr_data !== undefined;
   };
 
   return (
@@ -160,20 +155,8 @@ export function StudentGradesTable({
                               variant="outline" 
                               size="sm"
                               onClick={() => navigate(`/dashboard/tests/detail/${test.id}?student=${grade.student_id}`)}
-                              className="flex items-center gap-1"
-                              title="View evaluation details"
                             >
-                              {hasOcrData(grade) ? (
-                                <>
-                                  <FileDigit className="h-4 w-4" />
-                                  <span className="sr-only">View with OCR</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="h-4 w-4" />
-                                  <span className="sr-only">View</span>
-                                </>
-                              )}
+                              <FileText className="h-4 w-4" />
                             </Button>
                           )}
                         </>

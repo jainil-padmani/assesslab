@@ -14,9 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    // Log the API Keys being used (masked)
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
-    console.log("Using OpenAI API Key: " + openaiApiKey.substring(0, 5) + '...' + openaiApiKey.substring(openaiApiKey.length - 4));
+    // Log the API Key being used (masked)
+    const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
+    console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
     
     const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
 
@@ -34,137 +34,115 @@ serve(async (req) => {
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     
-    // OCR Processing Results
-    let processedQuestionPaper = { ...questionPaper };
-    let processedAnswerKey = { ...answerKey };
-    let processedStudentAnswer = { ...studentAnswer };
+    // First, check if the student answer is an image/handwritten document
+    // If so, we need to run OCR on it
+    let processedStudentAnswer = studentAnswer;
     
-    // Function to extract text using GPT-4o's vision capabilities
-    const extractTextWithGPT4o = async (url: string, documentName: string) => {
-      console.log(`Processing ${documentName} with GPT-4o OCR: ${url}`);
+    if (studentAnswer?.url && (
+        studentAnswer.url.includes('.jpg') || 
+        studentAnswer.url.includes('.jpeg') || 
+        studentAnswer.url.includes('.png') ||
+        studentAnswer.url.includes('.pdf')
+    )) {
+      console.log("Detected handwritten/PDF answer sheet, performing OCR...");
+      console.log("URL:", studentAnswer.url);
       
+      // For PDFs, we need to tell OpenAI specifically that it's a document
+      const contentType = studentAnswer.url.toLowerCase().endsWith('.pdf') ? 
+        "application/pdf" : "image/jpeg";
+        
+      // Use OpenAI's vision capabilities to extract text from image/PDF
       try {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": `Bearer ${openaiApiKey}`
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: 'gpt-4o',
             messages: [
-              {
-                role: "user",
+              { 
+                role: 'system', 
+                content: 'You are an OCR expert. Extract all text from this document or image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
+              },
+              { 
+                role: 'user', 
                 content: [
-                  {
-                    type: "text",
-                    text: `Extract all the text content from this document. Format the content to preserve structure. This is a ${documentName}.`
-                  },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: url
-                    }
+                  { type: 'text', text: 'This is a student\'s handwritten answer sheet or PDF document. Extract all the text, preserving the structure of questions and answers:' },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: studentAnswer.url,
+                      detail: "high" 
+                    } 
                   }
-                ]
+                ] 
               }
             ],
-            temperature: 0.1,
-            max_tokens: 4096
-          })
+            temperature: 0.3,
+          }),
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`GPT-4o OCR error for ${documentName}:`, errorText);
-          return {
-            text: `Failed to extract text from ${documentName}. Error: ${errorText}`,
+        if (!ocrResponse.ok) {
+          const errorText = await ocrResponse.text();
+          console.error("OpenAI OCR error:", errorText);
+          
+          // Create a placeholder text if OCR fails
+          processedStudentAnswer = {
+            ...studentAnswer,
+            text: "Unable to extract text from document. Please try with a clearer image or document.",
             isOcrProcessed: false,
             ocrError: errorText
           };
+          
+          // Continue with evaluation despite OCR failure
+        } else {
+          const ocrResult = await ocrResponse.json();
+          const extractedText = ocrResult.choices[0]?.message?.content;
+          
+          console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
+          console.log("Sample extracted text:", extractedText?.substring(0, 100) + "...");
+          
+          // Update the student answer with OCR text
+          processedStudentAnswer = {
+            ...studentAnswer,
+            text: extractedText,
+            isOcrProcessed: true
+          };
         }
-
-        const result = await response.json();
-        const extractedText = result.choices[0]?.message?.content || "";
-        console.log(`OCR extraction successful for ${documentName}, extracted text length:`, extractedText.length);
-        console.log("Sample extracted text:", extractedText.substring(0, 100) + "...");
+      } catch (ocrError) {
+        console.error("Error during OCR processing:", ocrError);
         
-        return {
-          text: extractedText,
-          isOcrProcessed: true,
-          ocrSource: "gpt-4o"
-        };
-      } catch (error) {
-        console.error(`Error during GPT-4o OCR processing for ${documentName}:`, error);
-        return {
-          text: `Error processing document. Technical details: ${error.message}`,
+        // Create a placeholder text if OCR fails
+        processedStudentAnswer = {
+          ...studentAnswer,
+          text: "Error processing document. Technical details: " + ocrError.message,
           isOcrProcessed: false,
-          ocrError: error.message,
-          ocrSource: "gpt-4o-error"
+          ocrError: ocrError.message
         };
+        
+        // Continue with evaluation despite OCR failure
       }
-    };
-
-    // Process all documents with GPT-4o OCR
-    // Process question paper if URL is provided
-    if (questionPaper?.url) {
-      const extractionResult = await extractTextWithGPT4o(questionPaper.url, "question paper");
-      processedQuestionPaper = {
-        ...questionPaper,
-        ...extractionResult
-      };
-    }
-    
-    // Process answer key if URL is provided
-    if (answerKey?.url) {
-      const extractionResult = await extractTextWithGPT4o(answerKey.url, "answer key");
-      processedAnswerKey = {
-        ...answerKey,
-        ...extractionResult
-      };
-    }
-    
-    // Process student answer if URL is provided
-    if (studentAnswer?.url) {
-      const extractionResult = await extractTextWithGPT4o(studentAnswer.url, "student answer sheet");
-      processedStudentAnswer = {
-        ...studentAnswer,
-        ...extractionResult
-      };
     }
     
     // Prepare the prompt for OpenAI evaluation
     const systemPrompt = `
 You are an AI evaluator responsible for grading a student's answer sheet.
 The user will provide you with the question paper(s), answer key(s), and the student's answer sheet(s).
-Analyse the question paper to understand the questions, their marks, and question numbers.
-Analyse the answer key to understand the correct answers, their explanations, and valuation criteria.
-
-For handwritten papers:
-1. Carefully extract all question numbers and answers from the student's handwritten sheet.
-2. Match each answer to the corresponding question in the question paper.
-3. Compare the student's answers with the answer key.
-
-Your evaluation process:
-1. Identify each question number in the student's answer sheet
-2. Match it with the corresponding question in the question paper
-3. Grade according to the answer key criteria
-4. Award partial marks for partially correct answers
-
-Award 0 marks for completely incorrect or unattempted answers.
+Analyse the question paper to understand the questions and their marks.
+Analyse the answer key to understand the correct answers and valuation criteria.
+Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
 Your task is to grade the answer sheet and return it in a JSON format.
 If this is a revaluation it will be mentioned in the request and you should strictly follow the revaluation prompt.
-
-Include confidence scores for each answer to indicate your certainty in the OCR recognition and grading.
 `;
 
     const userPrompt = `
 Question Paper:
-${JSON.stringify(processedQuestionPaper)}
+${JSON.stringify(questionPaper)}
 
 Answer Key:
-${JSON.stringify(processedAnswerKey)}
+${JSON.stringify(answerKey)}
 
 Student Answer Sheet:
 ${JSON.stringify(processedStudentAnswer)}
@@ -186,7 +164,6 @@ answers: an array of objects containing the following fields:
 - score: an array containing [assigned_score, total_score]
 - remarks: any remarks or comments regarding the answer
 - confidence: a number between 0 and 1 indicating confidence in the grading
-- ocr_confidence: a number between 0 and 1 indicating confidence in the OCR extraction of this answer
 
 Return ONLY the JSON object without any additional text or markdown formatting.
 `;
@@ -197,7 +174,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -256,28 +233,6 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       evaluation.summary = {
         totalScore: [totalAssignedScore, totalPossibleScore],
         percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
-      };
-      
-      // Add the OCR data to the evaluation
-      evaluation.ocr_data = {
-        question_paper: {
-          url: questionPaper?.url,
-          extracted_text: processedQuestionPaper?.text,
-          is_processed: processedQuestionPaper?.isOcrProcessed,
-          source: processedQuestionPaper?.ocrSource
-        },
-        answer_key: {
-          url: answerKey?.url,
-          extracted_text: processedAnswerKey?.text,
-          is_processed: processedAnswerKey?.isOcrProcessed,
-          source: processedAnswerKey?.ocrSource
-        },
-        student_answer: {
-          url: studentAnswer?.url,
-          extracted_text: processedStudentAnswer?.text,
-          is_processed: processedStudentAnswer?.isOcrProcessed,
-          source: processedStudentAnswer?.ocrSource
-        }
       };
       
       // Add the answer sheet URL to the evaluation for reference

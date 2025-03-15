@@ -32,10 +32,7 @@ export function UploadAnswerSheet({
     }
   };
 
-  const handleUpload = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Prevent default form submission behavior
-    e.preventDefault();
-    
+  const handleUpload = async () => {
     if (!file) {
       toast.error('Please select a file to upload');
       return;
@@ -54,7 +51,6 @@ export function UploadAnswerSheet({
         throw fetchError;
       }
       
-      // Store previous URLs to delete later
       const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
       // Add timestamp to make the filename unique
@@ -130,14 +126,11 @@ export function UploadAnswerSheet({
             const oldFileName = pathParts[pathParts.length - 1];
             
             if (oldFileName) {
-              // Remove any query parameters from the filename
-              const cleanFileName = oldFileName.split('?')[0];
-              
               await supabase.storage
                 .from('documents')
-                .remove([`answer-sheets/${cleanFileName}`]);
+                .remove([`answer-sheets/${oldFileName}`]);
               
-              console.log('Successfully deleted previous file from storage:', cleanFileName);
+              console.log('Successfully deleted previous file from storage:', oldFileName);
             }
           }
         } catch (deleteError) {
@@ -148,17 +141,10 @@ export function UploadAnswerSheet({
       // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject);
       
-      // Clear the file input and state
       setFile(null);
       
-      // Clear the file input
-      const fileInput = document.getElementById(`file-${studentId}`) as HTMLInputElement;
-      if (fileInput) {
-        fileInput.value = '';
-      }
-      
-      // Refresh evaluations without full page reload
-      window.dispatchEvent(new CustomEvent('refreshEvaluations'));
+      // Force a full page reload to ensure all components refresh with new data
+      window.location.reload();
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);

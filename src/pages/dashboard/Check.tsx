@@ -1,5 +1,5 @@
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
 import { useEvaluations } from "@/hooks/useEvaluations";
@@ -35,21 +35,6 @@ export default function Check() {
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
-
-  // Add event listener for refreshing evaluations
-  useEffect(() => {
-    const handleRefreshEvaluations = () => {
-      if (selectedTest) {
-        refetchEvaluations();
-      }
-    };
-
-    window.addEventListener('refreshEvaluations', handleRefreshEvaluations);
-    
-    return () => {
-      window.removeEventListener('refreshEvaluations', handleRefreshEvaluations);
-    };
-  }, [selectedTest, refetchEvaluations]);
 
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
