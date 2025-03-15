@@ -1,6 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,6 +23,7 @@ serve(async (req) => {
 
     console.log("Received evaluation request for student:", studentInfo?.name);
     console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
+    console.log("ZIP URL available:", studentAnswer?.zip_url ? "Yes" : "No");
     console.log("Test ID for evaluation:", testId);
     
     // Add cache-busting parameter to URLs to prevent caching issues
@@ -34,12 +36,148 @@ serve(async (req) => {
     if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
+    if (studentAnswer?.zip_url) studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
     
     // Process the student answer if it's a PDF or image
     let processedStudentAnswer = studentAnswer;
     let extractedText = null;
     
-    if (studentAnswer?.url && (
+    if (studentAnswer?.zip_url) {
+      console.log("Found ZIP URL for enhanced OCR processing:", studentAnswer.zip_url);
+      
+      try {
+        // Fetch the ZIP file
+        const zipResponse = await fetch(studentAnswer.zip_url);
+        if (!zipResponse.ok) {
+          console.error("Failed to fetch ZIP file:", zipResponse.statusText);
+          throw new Error("Failed to fetch ZIP file: " + zipResponse.statusText);
+        }
+        
+        const zipData = await zipResponse.arrayBuffer();
+        
+        // Extract PNG files from ZIP
+        const zip = await JSZip.loadAsync(zipData);
+        const imagePromises = [];
+        const imageFiles = [];
+        
+        // Process each file in the ZIP
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir && (relativePath.endsWith('.png') || relativePath.endsWith('.jpg'))) {
+            const promise = zipEntry.async('base64').then(base64Data => {
+              const imgFormat = relativePath.endsWith('.png') ? 'png' : 'jpeg';
+              imageFiles.push({
+                name: relativePath,
+                dataUrl: `data:image/${imgFormat};base64,${base64Data}`
+              });
+            });
+            imagePromises.push(promise);
+          }
+        });
+        
+        await Promise.all(imagePromises);
+        
+        // Sort images by filename (ensures page order)
+        imageFiles.sort((a, b) => a.name.localeCompare(b.name));
+        
+        console.log(`Successfully extracted ${imageFiles.length} images from ZIP`);
+        
+        if (imageFiles.length > 0) {
+          // Use GPT-4o's vision capabilities for OCR on all pages
+          console.log("Performing OCR with GPT-4o on extracted images...");
+          
+          const messages = [
+            { 
+              role: 'system', 
+              content: `You are an OCR expert specialized in extracting text from handwritten answer sheets and documents.
+              
+              For each question in the document:
+              1. Identify the question number clearly.
+              2. Extract the complete answer text.
+              3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
+              4. If the handwriting is difficult to read, make your best effort and indicate uncertainty with [?].
+              5. Maintain the structure of mathematical equations, diagrams descriptions, and any special formatting.
+              6. If you identify multiple pages, process each and maintain continuity between questions.
+              
+              Your response should be structured, accurate, and preserve the original content's organization.`
+            }
+          ];
+          
+          // Create user message with text and images
+          const userContent = [
+            { 
+              type: 'text', 
+              text: `This is a student's answer sheet for test ID: ${testId}. Extract all the text from these ${imageFiles.length} pages, focusing on identifying question numbers and their corresponding answers:` 
+            }
+          ];
+          
+          // Add each image to the request (up to 20 images)
+          const maxImages = Math.min(imageFiles.length, 20);
+          for (let i = 0; i < maxImages; i++) {
+            userContent.push({ 
+              type: 'image_url', 
+              image_url: { 
+                url: imageFiles[i].dataUrl,
+                detail: "high" 
+              } 
+            });
+          }
+          
+          messages.push({ role: 'user', content: userContent });
+          
+          const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages: messages,
+              temperature: 0.2,
+              max_tokens: 4000,
+            }),
+          });
+
+          if (!ocrResponse.ok) {
+            const errorText = await ocrResponse.text();
+            console.error("OpenAI OCR error:", errorText);
+            
+            // Create a placeholder text if OCR fails
+            processedStudentAnswer = {
+              ...studentAnswer,
+              text: "Unable to extract text from document. Please try with a clearer image or document.",
+              isOcrProcessed: false,
+              ocrError: errorText
+            };
+            extractedText = "OCR extraction failed: " + errorText;
+          } else {
+            const ocrResult = await ocrResponse.json();
+            const extractedOcrText = ocrResult.choices[0]?.message?.content;
+            
+            console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
+            console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+            
+            // Store the extracted text for updating in the database
+            extractedText = extractedOcrText;
+            
+            // Update the student answer with OCR text
+            processedStudentAnswer = {
+              ...studentAnswer,
+              text: extractedOcrText,
+              isOcrProcessed: true,
+              testId: testId, // Include test ID to ensure answers are synced with the correct test
+              zipProcessed: true
+            };
+          }
+        } else {
+          console.error("No image files found in ZIP");
+          extractedText = "No image files found in ZIP for OCR processing";
+        }
+      } catch (zipError) {
+        console.error("Error processing ZIP file:", zipError);
+        extractedText = "Error processing ZIP file: " + zipError.message;
+      }
+    } else if (studentAnswer?.url && (
         studentAnswer.url.includes('.jpg') || 
         studentAnswer.url.includes('.jpeg') || 
         studentAnswer.url.includes('.png') ||
@@ -53,7 +191,7 @@ serve(async (req) => {
         const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -125,33 +263,6 @@ serve(async (req) => {
             testId: testId // Include test ID to ensure answers are synced with the correct test
           };
         }
-        
-        // Update the assessment record with the extracted text
-        if (extractedText && studentInfo?.id) {
-          try {
-            // Create Supabase client
-            const supabaseClient = createClient(
-              Deno.env.get('SUPABASE_URL') || '',
-              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-              { auth: { persistSession: false } }
-            );
-            
-            // Find and update the assessment with the extracted text
-            const { error } = await supabaseClient
-              .from('assessments')
-              .update({ text_content: extractedText })
-              .eq('student_id', studentInfo.id)
-              .eq('test_id', testId);
-              
-            if (error) {
-              console.error("Error updating assessment with extracted text:", error);
-            } else {
-              console.log("Successfully updated assessment with extracted text");
-            }
-          } catch (dbError) {
-            console.error("Error connecting to database:", dbError);
-          }
-        }
       } catch (ocrError) {
         console.error("Error during OCR processing:", ocrError);
         
@@ -162,6 +273,33 @@ serve(async (req) => {
           isOcrProcessed: false,
           ocrError: ocrError.message
         };
+      }
+    }
+    
+    // Update the assessment record with the extracted text
+    if (extractedText && studentInfo?.id) {
+      try {
+        // Create Supabase client
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') || '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+          { auth: { persistSession: false } }
+        );
+        
+        // Find and update the assessment with the extracted text
+        const { error } = await supabaseClient
+          .from('assessments')
+          .update({ text_content: extractedText })
+          .eq('student_id', studentInfo.id)
+          .eq('test_id', testId);
+          
+        if (error) {
+          console.error("Error updating assessment with extracted text:", error);
+        } else {
+          console.log("Successfully updated assessment with extracted text");
+        }
+      } catch (dbError) {
+        console.error("Error connecting to database:", dbError);
       }
     }
     
@@ -293,6 +431,10 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       if (extractedText) {
         evaluation.text = extractedText;
         evaluation.isOcrProcessed = true;
+        if (studentAnswer?.zip_url) {
+          evaluation.zipProcessed = true;
+          evaluation.zip_url = studentAnswer.zip_url;
+        }
       }
       
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);

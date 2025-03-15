@@ -10,6 +10,7 @@ interface AssessmentData {
   updated_at: string;
   test_id?: string;
   text_content?: string | null;
+  zip_url?: string; // Add ZIP URL support
 }
 
 /**
@@ -22,7 +23,7 @@ export const fetchExistingAssessments = async (
 ) => {
   let query = supabase
     .from('assessments')
-    .select('id, answer_sheet_url, text_content');
+    .select('id, answer_sheet_url, text_content, zip_url');
   
   query = query.eq('student_id', studentId).eq('subject_id', subjectId);
   
