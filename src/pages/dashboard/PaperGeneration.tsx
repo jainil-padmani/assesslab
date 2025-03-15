@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,7 +19,6 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function PaperGeneration() {
-  const [selectedTab, setSelectedTab] = useState<string>("generate");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [topicName, setTopicName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -46,12 +45,6 @@ export default function PaperGeneration() {
     evaluate: 15,
     create: 15
   });
-
-  useEffect(() => {
-    if (selectedTab === "history") {
-      fetchPapers();
-    }
-  }, [selectedTab]);
 
   useEffect(() => {
     if (selectedSubject && papers.length > 0) {
@@ -264,318 +257,212 @@ export default function PaperGeneration() {
         </Button>
       </div>
       
-      <Tabs defaultValue="generate" value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid grid-cols-2 w-[400px] mb-6">
-          <TabsTrigger value="generate">Generate Questions</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="generate">
-          {generatedQuestions.length === 0 ? (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Subject Information</CardTitle>
-                  <CardDescription>
-                    Select a subject and enter a topic or chapter name to generate a test paper
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="subject">Subject</Label>
-                    <Select 
-                      value={selectedSubject} 
-                      onValueChange={setSelectedSubject}
-                    >
-                      <SelectTrigger id="subject">
-                        <SelectValue placeholder="Select a subject" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isSubjectsLoading ? (
-                          <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
-                        ) : subjects.length === 0 ? (
-                          <SelectItem value="none" disabled>No subjects available</SelectItem>
-                        ) : (
-                          subjects.map((subject) => (
-                            <SelectItem key={subject.id} value={subject.id}>
-                              {subject.name} ({subject.subject_code})
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="topic">Topic or Chapter Name</Label>
-                    <Input
-                      id="topic"
-                      placeholder="Enter topic or chapter name"
-                      value={topicName}
-                      onChange={(e) => setTopicName(e.target.value)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Chapter Material</CardTitle>
-                  <CardDescription>Upload content to generate questions from</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="content-file">Content Material (PDF/DOCX/TXT)</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input
-                        id="content-file"
-                        type="file"
-                        accept=".pdf,.docx,.doc,.txt"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            setContentFile(e.target.files[0]);
-                          }
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={() => contentFile && handleFileUpload(contentFile)}
-                        disabled={!contentFile}
-                      >
-                        <Upload className="h-4 w-4 mr-1" />
-                        Upload
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {extractedContent && (
-                    <div>
-                      <Label htmlFor="extracted-content">Extracted Content</Label>
-                      <Textarea
-                        id="extracted-content"
-                        value={extractedContent}
-                        onChange={(e) => setExtractedContent(e.target.value)}
-                        className="h-48 mt-1"
-                        placeholder="Content extracted from file..."
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Question Parameters</CardTitle>
-                  <CardDescription>Configure question generation parameters</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <Label>Difficulty Level: {difficulty}%</Label>
-                    <Slider
-                      value={[difficulty]}
-                      onValueChange={(value) => setDifficulty(value[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="my-2"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Easy</span>
-                      <span>Moderate</span>
-                      <span>Hard</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <Label>Bloom's Taxonomy Weights</Label>
-                    
-                    {Object.entries(bloomsTaxonomy).map(([level, value]) => (
-                      <div key={level} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="capitalize font-medium">{level}</span>
-                          <span className="text-sm">{value as number}%</span>
-                        </div>
-                        <Slider
-                          value={[value as number]}
-                          onValueChange={(val) => handleBloomsTaxonomyChange(level, val)}
-                          min={0}
-                          max={50}
-                          step={5}
-                          className="my-1"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <Button 
-                    className="w-full" 
-                    onClick={generateQuestions}
-                    disabled={isGenerating || (!extractedContent && !contentUrl) || !selectedSubject || !topicName}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      'Generate Questions'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Generated Questions</CardTitle>
-                <CardDescription>
-                  Questions generated for {topicName}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {generatedQuestions.map((question, index) => (
-                    <div 
-                      key={question.id} 
-                      className="p-4 border rounded-md"
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">
-                            Q{index + 1}. {question.text}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {question.type}
-                            </span>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              {question.level}
-                            </span>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {question.marks} marks
-                            </span>
-                            {question.courseOutcome && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                CO{question.courseOutcome}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  onClick={() => setGeneratedQuestions([])}
-                  variant="outline"
-                  className="ml-auto"
-                >
-                  Generate New Questions
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="history">
+      {generatedQuestions.length === 0 ? (
+        <div className="space-y-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Generated Questions</CardTitle>
-                <CardDescription>
-                  View your previously generated questions
-                </CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={viewFullHistory}
-                className="flex items-center gap-1"
-              >
-                <History className="h-4 w-4" />
-                View Full History
-              </Button>
+            <CardHeader>
+              <CardTitle>Subject Information</CardTitle>
+              <CardDescription>
+                Select a subject and enter a topic or chapter name to generate a test paper
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Label htmlFor="filter-subject">Filter by subject</Label>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject</Label>
                 <Select 
                   value={selectedSubject} 
                   onValueChange={setSelectedSubject}
                 >
-                  <SelectTrigger id="filter-subject">
-                    <SelectValue placeholder="All subjects" />
+                  <SelectTrigger id="subject">
+                    <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Subjects</SelectItem>
-                    {subjects && subjects.length > 0 && subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </SelectItem>
-                    ))}
+                    {isSubjectsLoading ? (
+                      <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
+                    ) : subjects.length === 0 ? (
+                      <SelectItem value="none" disabled>No subjects available</SelectItem>
+                    ) : (
+                      subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name} ({subject.subject_code})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
               
-              {isHistoryLoading ? (
-                <div className="text-center py-8">Loading history...</div>
-              ) : filteredPapers.length === 0 ? (
-                <div className="text-center py-8 flex flex-col items-center">
-                  <FileX className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No questions found</p>
+              <div className="space-y-2">
+                <Label htmlFor="topic">Topic or Chapter Name</Label>
+                <Input
+                  id="topic"
+                  placeholder="Enter topic or chapter name"
+                  value={topicName}
+                  onChange={(e) => setTopicName(e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Chapter Material</CardTitle>
+              <CardDescription>Upload content to generate questions from</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="content-file">Content Material (PDF/DOCX/TXT)</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    id="content-file"
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setContentFile(e.target.files[0]);
+                      }
+                    }}
+                  />
                   <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setSelectedTab("generate")}
+                    size="sm"
+                    onClick={() => contentFile && handleFileUpload(contentFile)}
+                    disabled={!contentFile}
                   >
-                    Generate New Questions
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload
                   </Button>
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Topic</TableHead>
-                      <TableHead>Questions</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPapers.map((paper) => (
-                      <TableRow 
-                        key={paper.id} 
-                        className="cursor-pointer"
-                        onClick={() => handleViewPaperDetails(paper)}
-                      >
-                        <TableCell>
-                          {format(new Date(paper.created_at), "dd MMM yyyy")}
-                        </TableCell>
-                        <TableCell>{paper.subject_name}</TableCell>
-                        <TableCell>{paper.topic}</TableCell>
-                        <TableCell>
-                          {Array.isArray(paper.questions) ? paper.questions.length : 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => confirmDeletePaper(paper, e)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              </div>
+              
+              {extractedContent && (
+                <div>
+                  <Label htmlFor="extracted-content">Extracted Content</Label>
+                  <Textarea
+                    id="extracted-content"
+                    value={extractedContent}
+                    onChange={(e) => setExtractedContent(e.target.value)}
+                    className="h-48 mt-1"
+                    placeholder="Content extracted from file..."
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Question Parameters</CardTitle>
+              <CardDescription>Configure question generation parameters</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <Label>Difficulty Level: {difficulty}%</Label>
+                <Slider
+                  value={[difficulty]}
+                  onValueChange={(value) => setDifficulty(value[0])}
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="my-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Easy</span>
+                  <span>Moderate</span>
+                  <span>Hard</span>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <Label>Bloom's Taxonomy Weights</Label>
+                
+                {Object.entries(bloomsTaxonomy).map(([level, value]) => (
+                  <div key={level} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="capitalize font-medium">{level}</span>
+                      <span className="text-sm">{value as number}%</span>
+                    </div>
+                    <Slider
+                      value={[value as number]}
+                      onValueChange={(val) => handleBloomsTaxonomyChange(level, val)}
+                      min={0}
+                      max={50}
+                      step={5}
+                      className="my-1"
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              <Button 
+                className="w-full" 
+                onClick={generateQuestions}
+                disabled={isGenerating || (!extractedContent && !contentUrl) || !selectedSubject || !topicName}
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Questions'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Generated Questions</CardTitle>
+            <CardDescription>
+              Questions generated for {topicName}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {generatedQuestions.map((question, index) => (
+                <div 
+                  key={question.id} 
+                  className="p-4 border rounded-md"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        Q{index + 1}. {question.text}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {question.type}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {question.level}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {question.marks} marks
+                        </span>
+                        {question.courseOutcome && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            CO{question.courseOutcome}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              onClick={() => setGeneratedQuestions([])}
+              variant="outline"
+              className="ml-auto"
+            >
+              Generate New Questions
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
       <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
