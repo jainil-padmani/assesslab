@@ -1,9 +1,17 @@
+
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FilePlus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { validatePdfFile, uploadAnswerSheetFile, deletePreviousFiles } from "@/utils/assessment/fileUploadUtils";
+import { 
+  fetchExistingAssessments, 
+  updateAssessment, 
+  createAssessment,
+  removeDuplicateAssessments
+} from "@/utils/assessment/assessmentManager";
+import { resetEvaluations } from "@/utils/assessment/evaluationReset";
 
 interface UploadAnswerSheetProps {
   studentId: string;
@@ -25,7 +33,7 @@ export function UploadAnswerSheet({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type !== 'application/pdf') {
+      if (!validatePdfFile(selectedFile)) {
         toast.error('Please upload PDF files only');
         return;
       }
@@ -44,37 +52,16 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     try {
-      let query = supabase
-        .from('assessments')
-        .select('id, answer_sheet_url');
+      // Fetch existing assessments
+      const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
       
-      query = query.eq('student_id', studentId).eq('subject_id', selectedSubject);
-      
-      if (testId) {
-        query = query.eq('test_id', testId);
-      }
-      
-      const { data: existingAssessments, error: fetchError } = await query;
-      
-      if (fetchError) {
-        console.error('Error checking existing assessments:', fetchError);
-        throw fetchError;
-      }
-      
+      // Extract previous URLs for cleanup later
       const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
-      const fileName = `${crypto.randomUUID()}.pdf`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(`answer-sheets/${fileName}`, file);
+      // Upload the file to storage
+      const { publicUrl } = await uploadAnswerSheetFile(file);
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(`answer-sheets/${fileName}`);
-
+      // Prepare the assessment data
       const assessmentData = {
         student_id: studentId,
         subject_id: selectedSubject,
@@ -87,70 +74,36 @@ export function UploadAnswerSheet({
         Object.assign(assessmentData, { test_id: testId });
       }
 
+      // Update or create assessment
       if (existingAssessments && existingAssessments.length > 0) {
         const primaryAssessmentId = existingAssessments[0].id;
         
-        const { error: updateError } = await supabase
-          .from('assessments')
-          .update(assessmentData)
-          .eq('id', primaryAssessmentId);
-          
-        if (updateError) throw updateError;
+        // Update the primary assessment
+        await updateAssessment(primaryAssessmentId, assessmentData);
         
+        // Remove any duplicate assessments if they exist
         if (existingAssessments.length > 1) {
           const duplicateIds = existingAssessments.slice(1).map(a => a.id);
-          const { error: deleteError } = await supabase
-            .from('assessments')
-            .delete()
-            .in('id', duplicateIds);
-            
-          if (deleteError) {
-            console.error('Error removing duplicate assessments:', deleteError);
-          } else {
-            console.log(`Removed ${duplicateIds.length} duplicate assessment(s)`);
-          }
+          await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
         }
-        
-        toast.success('Answer sheet updated successfully');
       } else {
-        const { error: assessmentError } = await supabase
-          .from('assessments')
-          .insert({
-            ...assessmentData,
-            created_at: new Date().toISOString()
-          });
-
-        if (assessmentError) throw assessmentError;
-        toast.success('Answer sheet uploaded successfully');
+        // Create a new assessment
+        await createAssessment(assessmentData);
       }
       
-      for (const prevUrl of previousUrls) {
-        try {
-          if (prevUrl) {
-            const urlPath = new URL(prevUrl).pathname;
-            const pathParts = urlPath.split('/');
-            const oldFileName = pathParts[pathParts.length - 1];
-            
-            if (oldFileName) {
-              await supabase.storage
-                .from('documents')
-                .remove([`answer-sheets/${oldFileName}`]);
-              
-              console.log('Successfully deleted previous file from storage:', oldFileName);
-            }
-          }
-        } catch (deleteError) {
-          console.error('Error deleting previous file:', deleteError);
-        }
-      }
+      // Delete previous files
+      await deletePreviousFiles(previousUrls);
       
+      // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject, testId);
       
+      // Reset form
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       
+      // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
         detail: { studentId, subjectId: selectedSubject, testId }
       });
@@ -161,77 +114,6 @@ export function UploadAnswerSheet({
       console.error('Error uploading answer sheet:', error);
     } finally {
       setIsUploading(false);
-    }
-  };
-  
-  const resetEvaluations = async (studentId: string, subjectId: string, testId?: string) => {
-    try {
-      let query = supabase
-        .from('paper_evaluations')
-        .delete()
-        .eq('student_id', studentId);
-      
-      if (testId) {
-        query = query.eq('test_id', testId);
-        console.log(`Resetting evaluations for student ${studentId} for test ${testId}`);
-      } else {
-        const { data: tests, error: testsError } = await supabase
-          .from('tests')
-          .select('id')
-          .eq('subject_id', subjectId);
-          
-        if (testsError) {
-          console.error('Error fetching tests:', testsError);
-          return;
-        }
-        
-        if (!tests || tests.length === 0) return;
-        
-        console.log(`Resetting evaluations for student ${studentId} across ${tests.length} tests`);
-        
-        const testIds = tests.map(test => test.id);
-        query = query.in('test_id', testIds);
-      }
-      
-      const { error: evalDeleteError } = await query;
-          
-      if (evalDeleteError) {
-        console.error('Error deleting evaluations:', evalDeleteError);
-      } else {
-        console.log(`Reset evaluations for student ${studentId}`);
-      }
-      
-      let gradesQuery = supabase
-        .from('test_grades')
-        .update({
-          marks: 0,
-          remarks: 'Reset due to answer sheet reupload'
-        })
-        .eq('student_id', studentId);
-        
-      if (testId) {
-        gradesQuery = gradesQuery.eq('test_id', testId);
-      } else if (subjectId) {
-        const { data: tests } = await supabase
-          .from('tests')
-          .select('id')
-          .eq('subject_id', subjectId);
-          
-        if (tests && tests.length > 0) {
-          const testIds = tests.map(test => test.id);
-          gradesQuery = gradesQuery.in('test_id', testIds);
-        }
-      }
-      
-      const { error: gradesUpdateError } = await gradesQuery;
-          
-      if (gradesUpdateError) {
-        console.error('Error updating grades:', gradesUpdateError);
-      } else {
-        console.log(`Reset grades for student ${studentId}`);
-      }
-    } catch (error) {
-      console.error('Error resetting evaluations and grades:', error);
     }
   };
 
