@@ -9,28 +9,78 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { GeneratedPaper, Question } from "@/types/papers";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Trash2, Eye, FileX, History, HelpCircle } from "lucide-react";
+import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [topicName, setTopicName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [selectedTopic, setSelectedTopic] = useState<any | null>(null);
   const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // When the component mounts, check if we have selected subject data
-    if (subjects && subjects.length > 0 && selectedSubject === "") {
-      console.log("Setting initial subject selection");
+    if (selectedTab === "history") {
+      fetchGeneratedQuestions();
     }
-  }, [subjects]);
+  }, [selectedTab]);
 
   useEffect(() => {
-    if (selectedTab === "history") {
-      // Navigate to the history page when history tab is selected
-      navigate("/dashboard/paper-generation/history");
+    if (selectedSubject && questions.length > 0) {
+      setFilteredQuestions(questions.filter(item => item.subject_id === selectedSubject));
+    } else {
+      setFilteredQuestions(questions);
     }
-  }, [selectedTab, navigate]);
+  }, [selectedSubject, questions]);
+
+  const fetchGeneratedQuestions = async () => {
+    try {
+      setIsHistoryLoading(true);
+      console.log("Fetching generated questions...");
+      const { data, error } = await supabase
+        .from("generated_questions")
+        .select("*, subjects(name)")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      
+      if (error) {
+        console.error("Error fetching questions:", error);
+        throw error;
+      }
+      
+      console.log("Questions data:", data);
+      
+      if (data) {
+        const mappedData = data.map((item: any) => ({
+          ...item,
+          subject_name: item.subjects?.name || "Unknown Subject",
+          questionCount: Array.isArray(item.questions) ? item.questions.length : 0
+        }));
+        
+        setQuestions(mappedData);
+        setFilteredQuestions(mappedData);
+      } else {
+        setQuestions([]);
+        setFilteredQuestions([]);
+      }
+    } catch (error: any) {
+      console.error("Error fetching generated questions:", error);
+      toast.error("Failed to load questions history");
+      setQuestions([]);
+      setFilteredQuestions([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
 
   const handleContinue = () => {
     if (!selectedSubject) {
@@ -55,6 +105,34 @@ export default function PaperGeneration() {
         topicName: topicName.trim() 
       } 
     });
+  };
+
+  const handleViewTopicQuestions = (topic: any) => {
+    setSelectedTopic(topic);
+  };
+
+  const handleDeleteTopic = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("generated_questions")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      toast.success("Topic questions deleted successfully");
+      fetchGeneratedQuestions();
+      if (selectedTopic?.id === id) {
+        setSelectedTopic(null);
+      }
+    } catch (error: any) {
+      console.error("Error deleting topic:", error);
+      toast.error("Failed to delete topic questions");
+    }
+  };
+
+  const viewFullHistory = () => {
+    navigate("/dashboard/paper-generation/history");
   };
 
   return (
@@ -121,7 +199,158 @@ export default function PaperGeneration() {
             </CardFooter>
           </Card>
         </TabsContent>
+        
+        <TabsContent value="history">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Generated Questions</CardTitle>
+                <CardDescription>
+                  View your previously generated questions by topic
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={viewFullHistory}
+                className="flex items-center gap-1"
+              >
+                <History className="h-4 w-4" />
+                View Full History
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <Label htmlFor="filter-subject">Filter by subject</Label>
+                <Select 
+                  value={selectedSubject} 
+                  onValueChange={setSelectedSubject}
+                >
+                  <SelectTrigger id="filter-subject">
+                    <SelectValue placeholder="All subjects" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Subjects</SelectItem>
+                    {subjects && subjects.length > 0 && subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {isHistoryLoading ? (
+                <div className="text-center py-8">Loading question history...</div>
+              ) : filteredQuestions.length === 0 ? (
+                <div className="text-center py-8 flex flex-col items-center">
+                  <FileX className="h-16 w-16 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No questions found</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => setSelectedTab("generate")}
+                  >
+                    Generate New Questions
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Topic</TableHead>
+                      <TableHead>Questions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredQuestions.map((item) => (
+                      <TableRow key={item.id} className="cursor-pointer" onClick={() => handleViewTopicQuestions(item)}>
+                        <TableCell>
+                          {format(new Date(item.created_at), "dd MMM yyyy")}
+                        </TableCell>
+                        <TableCell>{item.subject_name}</TableCell>
+                        <TableCell>{item.topic}</TableCell>
+                        <TableCell>
+                          {item.questionCount}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteTopic(item.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={!!selectedTopic} onOpenChange={(open) => !open && setSelectedTopic(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          {selectedTopic && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Topic Questions: {selectedTopic.topic}</DialogTitle>
+                <DialogDescription>
+                  {selectedTopic.subject_name} - Created on {selectedTopic && format(new Date(selectedTopic.created_at), "dd MMM yyyy")}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="mt-4">
+                <h3 className="text-lg font-medium mb-4">Questions</h3>
+                
+                {selectedTopic && Array.isArray(selectedTopic.questions) ? (
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                    {selectedTopic.questions.map((question: any, idx: number) => (
+                      <div 
+                        key={question.id || idx} 
+                        className="p-3 border rounded-md"
+                      >
+                        <div className="flex items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">
+                              Q{idx + 1}. {question.text}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {question.type}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                {question.level}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {question.marks} marks
+                              </span>
+                              {question.courseOutcome && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  CO{question.courseOutcome}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No questions available</p>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
