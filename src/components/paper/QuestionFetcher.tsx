@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Question } from "@/types/papers";
-import { Search, Check, Filter } from "lucide-react";
+import { Search, Check, Filter, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,7 @@ export function QuestionFetcher({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showExactMatches, setShowExactMatches] = useState(false);
+  const [topicSelected, setTopicSelected] = useState(false);
 
   // Fetch available topics for the subject
   useEffect(() => {
@@ -63,10 +64,12 @@ export function QuestionFetcher({
       const uniqueTopics = [...new Set((data || []).map(item => item.topic))];
       setTopics(uniqueTopics);
       
-      // Select first topic if available
-      if (uniqueTopics.length > 0) {
-        setSelectedTopic(uniqueTopics[0]);
-      }
+      // Reset state when topics change
+      setSelectedTopic("");
+      setTopicSelected(false);
+      setQuestions([]);
+      setFilteredQuestions([]);
+      
     } catch (error) {
       console.error("Error fetching topics:", error);
       toast.error("Failed to load topics");
@@ -74,13 +77,6 @@ export function QuestionFetcher({
       setLoading(false);
     }
   };
-
-  // Fetch questions when topic is selected
-  useEffect(() => {
-    if (selectedTopic) {
-      fetchQuestions();
-    }
-  }, [selectedTopic]);
 
   // Filter questions based on search query and exact match setting
   useEffect(() => {
@@ -111,6 +107,15 @@ export function QuestionFetcher({
     
     setFilteredQuestions(filtered);
   }, [questions, searchQuery, showExactMatches, level, courseOutcome, marks]);
+
+  const handleFetchQuestions = () => {
+    if (selectedTopic) {
+      setTopicSelected(true);
+      fetchQuestions();
+    } else {
+      toast.error("Please select a topic first");
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -212,6 +217,15 @@ export function QuestionFetcher({
                 </SelectContent>
               </Select>
             </div>
+            <Button 
+              variant="outline" 
+              className="shrink-0"
+              onClick={handleFetchQuestions}
+              disabled={!selectedTopic || loading}
+            >
+              <ChevronDown className="h-4 w-4 mr-2" />
+              Fetch Questions
+            </Button>
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -246,6 +260,12 @@ export function QuestionFetcher({
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="animate-pulse text-muted-foreground">Loading questions...</div>
+            </div>
+          ) : !topicSelected ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-muted-foreground">
+                Select a topic and click "Fetch Questions" to view available questions
+              </p>
             </div>
           ) : filteredQuestions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
