@@ -71,6 +71,7 @@ export type Database = {
           status: string | null
           student_id: string | null
           subject_id: string | null
+          test_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -83,6 +84,7 @@ export type Database = {
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
+          test_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -95,6 +97,7 @@ export type Database = {
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
+          test_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -103,6 +106,13 @@ export type Database = {
             columns: ["answer_key_id"]
             isOneToOne: false
             referencedRelation: "answer_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
             referencedColumns: ["id"]
           },
         ]
