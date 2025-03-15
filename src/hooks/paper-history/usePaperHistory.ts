@@ -189,6 +189,7 @@ export function usePaperHistory() {
     isPaperDialogOpen,
     setIsPaperDialogOpen,
     isGeneratingCustomPaper,
+    subjects,  // Make sure we're returning the subjects property
     viewPaperDetails,
     handleDownload,
     toggleQuestionSelection,
