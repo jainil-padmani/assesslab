@@ -21,6 +21,7 @@ export function usePaperHistory() {
   useEffect(() => {
     const fetchPapers = async () => {
       try {
+        setIsLoading(true);
         const { data, error } = await supabase
           .from("generated_papers")
           .select("*, subjects(name)")
