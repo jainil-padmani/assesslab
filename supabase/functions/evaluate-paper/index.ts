@@ -16,9 +16,7 @@ serve(async (req) => {
   try {
     // Log the API Keys being used (masked)
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
-    const pixtralApiKey = Deno.env.get('PIXTRAL_API_KEY') || '';
     console.log("Using OpenAI API Key: " + openaiApiKey.substring(0, 5) + '...' + openaiApiKey.substring(openaiApiKey.length - 4));
-    console.log("Using Pixtral API Key: " + pixtralApiKey.substring(0, 5) + '...' + pixtralApiKey.substring(pixtralApiKey.length - 4));
     
     const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
 
@@ -41,20 +39,20 @@ serve(async (req) => {
     let processedAnswerKey = { ...answerKey };
     let processedStudentAnswer = { ...studentAnswer };
     
-    // Function to extract text using Pixtral's OCR capabilities
-    const extractTextWithPixtral = async (url: string, documentName: string) => {
-      console.log(`Processing ${documentName} with Pixtral OCR: ${url}`);
+    // Function to extract text using GPT-4o's vision capabilities
+    const extractTextWithGPT4o = async (url: string, documentName: string) => {
+      console.log(`Processing ${documentName} with GPT-4o OCR: ${url}`);
       
       try {
-        const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": `Bearer ${pixtralApiKey}`
+            "Authorization": `Bearer ${openaiApiKey}`
           },
           body: JSON.stringify({
-            model: "mistral-large-latest",
+            model: "gpt-4o",
             messages: [
               {
                 role: "user",
@@ -79,7 +77,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Pixtral OCR error for ${documentName}:`, errorText);
+          console.error(`GPT-4o OCR error for ${documentName}:`, errorText);
           return {
             text: `Failed to extract text from ${documentName}. Error: ${errorText}`,
             isOcrProcessed: false,
@@ -95,23 +93,23 @@ serve(async (req) => {
         return {
           text: extractedText,
           isOcrProcessed: true,
-          ocrSource: "pixtral"
+          ocrSource: "gpt-4o"
         };
       } catch (error) {
-        console.error(`Error during Pixtral OCR processing for ${documentName}:`, error);
+        console.error(`Error during GPT-4o OCR processing for ${documentName}:`, error);
         return {
           text: `Error processing document. Technical details: ${error.message}`,
           isOcrProcessed: false,
           ocrError: error.message,
-          ocrSource: "pixtral-error"
+          ocrSource: "gpt-4o-error"
         };
       }
     };
 
-    // Process all documents with Pixtral OCR
+    // Process all documents with GPT-4o OCR
     // Process question paper if URL is provided
     if (questionPaper?.url) {
-      const extractionResult = await extractTextWithPixtral(questionPaper.url, "question paper");
+      const extractionResult = await extractTextWithGPT4o(questionPaper.url, "question paper");
       processedQuestionPaper = {
         ...questionPaper,
         ...extractionResult
@@ -120,7 +118,7 @@ serve(async (req) => {
     
     // Process answer key if URL is provided
     if (answerKey?.url) {
-      const extractionResult = await extractTextWithPixtral(answerKey.url, "answer key");
+      const extractionResult = await extractTextWithGPT4o(answerKey.url, "answer key");
       processedAnswerKey = {
         ...answerKey,
         ...extractionResult
@@ -129,7 +127,7 @@ serve(async (req) => {
     
     // Process student answer if URL is provided
     if (studentAnswer?.url) {
-      const extractionResult = await extractTextWithPixtral(studentAnswer.url, "student answer sheet");
+      const extractionResult = await extractTextWithGPT4o(studentAnswer.url, "student answer sheet");
       processedStudentAnswer = {
         ...studentAnswer,
         ...extractionResult
@@ -140,11 +138,25 @@ serve(async (req) => {
     const systemPrompt = `
 You are an AI evaluator responsible for grading a student's answer sheet.
 The user will provide you with the question paper(s), answer key(s), and the student's answer sheet(s).
-Analyse the question paper to understand the questions and their marks.
-Analyse the answer key to understand the correct answers and valuation criteria.
-Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
+Analyse the question paper to understand the questions, their marks, and question numbers.
+Analyse the answer key to understand the correct answers, their explanations, and valuation criteria.
+
+For handwritten papers:
+1. Carefully extract all question numbers and answers from the student's handwritten sheet.
+2. Match each answer to the corresponding question in the question paper.
+3. Compare the student's answers with the answer key.
+
+Your evaluation process:
+1. Identify each question number in the student's answer sheet
+2. Match it with the corresponding question in the question paper
+3. Grade according to the answer key criteria
+4. Award partial marks for partially correct answers
+
+Award 0 marks for completely incorrect or unattempted answers.
 Your task is to grade the answer sheet and return it in a JSON format.
 If this is a revaluation it will be mentioned in the request and you should strictly follow the revaluation prompt.
+
+Include confidence scores for each answer to indicate your certainty in the OCR recognition and grading.
 `;
 
     const userPrompt = `
@@ -174,6 +186,7 @@ answers: an array of objects containing the following fields:
 - score: an array containing [assigned_score, total_score]
 - remarks: any remarks or comments regarding the answer
 - confidence: a number between 0 and 1 indicating confidence in the grading
+- ocr_confidence: a number between 0 and 1 indicating confidence in the OCR extraction of this answer
 
 Return ONLY the JSON object without any additional text or markdown formatting.
 `;

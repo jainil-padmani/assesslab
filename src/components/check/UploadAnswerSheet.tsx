@@ -54,6 +54,7 @@ export function UploadAnswerSheet({
         throw fetchError;
       }
       
+      // Store previous URLs to delete later
       const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
       // Add timestamp to make the filename unique
@@ -147,6 +148,7 @@ export function UploadAnswerSheet({
       // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject);
       
+      // Clear the file input and state
       setFile(null);
       
       // Clear the file input
