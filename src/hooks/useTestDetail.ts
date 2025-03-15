@@ -73,7 +73,8 @@ export function useTestDetail(testId: string | undefined) {
       const { data: assessments, error: assessmentsError } = await supabase
         .from("assessments")
         .select("*")
-        .eq("subject_id", test.subject_id);
+        .eq("subject_id", test.subject_id)
+        .eq("test_id", testId); // This ensures we get test-specific answer sheets
         
       if (assessmentsError) {
         toast.error("Failed to load assessments");

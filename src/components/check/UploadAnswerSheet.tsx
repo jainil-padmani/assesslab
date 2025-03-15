@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,18 +44,18 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     try {
-      // Fixed: Correctly build the query with type safety
       let query = supabase
         .from('assessments')
-        .select('id, answer_sheet_url')
-        .eq('student_id', studentId)
-        .eq('subject_id', selectedSubject);
-        
-      // Only add the test_id condition if testId is provided
-      const { data: existingAssessments, error: fetchError } = testId 
-        ? await query.eq('test_id', testId)
-        : await query;
-        
+        .select('id, answer_sheet_url');
+      
+      query = query.eq('student_id', studentId).eq('subject_id', selectedSubject);
+      
+      if (testId) {
+        query = query.eq('test_id', testId);
+      }
+      
+      const { data: existingAssessments, error: fetchError } = await query;
+      
       if (fetchError) {
         console.error('Error checking existing assessments:', fetchError);
         throw fetchError;
@@ -76,22 +75,24 @@ export function UploadAnswerSheet({
         .from('documents')
         .getPublicUrl(`answer-sheets/${fileName}`);
 
+      const assessmentData = {
+        student_id: studentId,
+        subject_id: selectedSubject,
+        answer_sheet_url: publicUrl,
+        status: 'pending',
+        updated_at: new Date().toISOString()
+      };
+      
+      if (testId) {
+        Object.assign(assessmentData, { test_id: testId });
+      }
+
       if (existingAssessments && existingAssessments.length > 0) {
         const primaryAssessmentId = existingAssessments[0].id;
         
-        const updateData: Record<string, any> = {
-          answer_sheet_url: publicUrl,
-          status: 'pending',
-          updated_at: new Date().toISOString()
-        };
-        
-        if (testId) {
-          updateData.test_id = testId;
-        }
-        
         const { error: updateError } = await supabase
           .from('assessments')
-          .update(updateData)
+          .update(assessmentData)
           .eq('id', primaryAssessmentId);
           
         if (updateError) throw updateError;
@@ -112,22 +113,12 @@ export function UploadAnswerSheet({
         
         toast.success('Answer sheet updated successfully');
       } else {
-        const newAssessment: Record<string, any> = {
-          student_id: studentId,
-          subject_id: selectedSubject,
-          answer_sheet_url: publicUrl,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        if (testId) {
-          newAssessment.test_id = testId;
-        }
-        
         const { error: assessmentError } = await supabase
           .from('assessments')
-          .insert(newAssessment);
+          .insert({
+            ...assessmentData,
+            created_at: new Date().toISOString()
+          });
 
         if (assessmentError) throw assessmentError;
         toast.success('Answer sheet uploaded successfully');
