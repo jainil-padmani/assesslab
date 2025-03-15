@@ -10,9 +10,8 @@ import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Eye, FileX, History, HelpCircle } from "lucide-react";
+import { Trash2, FileX } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -49,8 +48,7 @@ export default function PaperGeneration() {
       const { data, error } = await supabase
         .from("generated_questions")
         .select("*, subjects(name)")
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false });
       
       if (error) {
         console.error("Error fetching questions:", error);
@@ -131,10 +129,6 @@ export default function PaperGeneration() {
     }
   };
 
-  const viewFullHistory = () => {
-    navigate("/dashboard/paper-generation/history");
-  };
-
   return (
     <div className="container max-w-4xl mx-auto py-6">
       <h1 className="text-3xl font-bold mb-6">Questions Generation</h1>
@@ -202,21 +196,11 @@ export default function PaperGeneration() {
         
         <TabsContent value="history">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Generated Questions</CardTitle>
-                <CardDescription>
-                  View your previously generated questions by topic
-                </CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={viewFullHistory}
-                className="flex items-center gap-1"
-              >
-                <History className="h-4 w-4" />
-                View Full History
-              </Button>
+            <CardHeader>
+              <CardTitle>Generated Questions</CardTitle>
+              <CardDescription>
+                View your previously generated questions by topic
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="mb-4">
@@ -266,7 +250,11 @@ export default function PaperGeneration() {
                   </TableHeader>
                   <TableBody>
                     {filteredQuestions.map((item) => (
-                      <TableRow key={item.id} className="cursor-pointer" onClick={() => handleViewTopicQuestions(item)}>
+                      <TableRow 
+                        key={item.id} 
+                        className="cursor-pointer" 
+                        onClick={() => handleViewTopicQuestions(item)}
+                      >
                         <TableCell>
                           {format(new Date(item.created_at), "dd MMM yyyy")}
                         </TableCell>
@@ -303,12 +291,12 @@ export default function PaperGeneration() {
               <DialogHeader>
                 <DialogTitle>Topic Questions: {selectedTopic.topic}</DialogTitle>
                 <DialogDescription>
-                  {selectedTopic.subject_name} - Created on {selectedTopic && format(new Date(selectedTopic.created_at), "dd MMM yyyy")}
+                  {selectedTopic.subject_name} - Created on {format(new Date(selectedTopic.created_at), "dd MMM yyyy")}
                 </DialogDescription>
               </DialogHeader>
               
               <div className="mt-4">
-                <h3 className="text-lg font-medium mb-4">Questions</h3>
+                <h3 className="text-lg font-medium mb-4">Questions ({Array.isArray(selectedTopic.questions) ? selectedTopic.questions.length : 0})</h3>
                 
                 {selectedTopic && Array.isArray(selectedTopic.questions) ? (
                   <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -317,12 +305,12 @@ export default function PaperGeneration() {
                         key={question.id || idx} 
                         className="p-3 border rounded-md"
                       >
-                        <div className="flex items-start">
+                        <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">
+                            <p className="text-sm font-medium mb-2">
                               Q{idx + 1}. {question.text}
                             </p>
-                            <div className="mt-1 flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2">
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 {question.type}
                               </span>
