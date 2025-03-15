@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -128,7 +127,6 @@ Format each question as:
               marks: question.marks || getMarksForQuestion(question.level, question.difficulty || "moderate"),
               level: question.level,
               courseOutcome: question.courseOutcome,
-              // No more selected property since we store all questions
             });
           } catch (parseError) {
             console.error("Error parsing question JSON:", parseError, jsonStr);
@@ -196,7 +194,6 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         marks: marks,
         level: bloomsLevel,
         courseOutcome: co.co_number,
-        // Removed selected property
       });
     }
   }

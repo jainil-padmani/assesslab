@@ -15,7 +15,8 @@ import {
   FileUp,
   School,
   FileText,
-  LayoutTemplate
+  LayoutTemplate,
+  HelpCircle
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -47,8 +48,8 @@ const links = [
     href: "/dashboard/tests",
   },
   {
-    title: "Paper Generation",
-    icon: FileText,
+    title: "Questions Generation",
+    icon: HelpCircle,
     href: "/dashboard/paper-generation",
   },
   {
