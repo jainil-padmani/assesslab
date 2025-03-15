@@ -54,7 +54,7 @@ export default function PaperHistory() {
       
       // Fetch the unique topics with their generated questions
       const { data, error } = await supabase
-        .from("generated_questions")
+        .from("generated_papers")
         .select("*, subjects(name)")
         .order("created_at", { ascending: false });
       
@@ -98,7 +98,7 @@ export default function PaperHistory() {
     
     try {
       const { error } = await supabase
-        .from("generated_questions")
+        .from("generated_papers")
         .delete()
         .eq("id", topicToDelete.id);
       
@@ -245,7 +245,7 @@ export default function PaperHistory() {
                       >
                         <div className="font-medium">Q{idx + 1}. {question.text}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2 5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {question.type}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">

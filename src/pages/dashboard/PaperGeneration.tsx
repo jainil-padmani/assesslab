@@ -107,7 +107,7 @@ export default function PaperGeneration() {
     if (!file) return;
     
     const fileExt = file.name.split('.').pop();
-    const fileName = `content_${subjectId}_${Date.now()}.${fileExt}`;
+    const fileName = `content_${selectedSubject}_${Date.now()}.${fileExt}`;
     const filePath = `${fileName}`;
     
     try {
