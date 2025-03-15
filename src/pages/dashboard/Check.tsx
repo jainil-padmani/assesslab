@@ -1,5 +1,5 @@
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
 import { useEvaluations } from "@/hooks/useEvaluations";
@@ -35,6 +35,20 @@ export default function Check() {
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
+
+  // Set up event listener for answer sheet uploads
+  useEffect(() => {
+    const handleAnswerSheetUploaded = () => {
+      console.log('Answer sheet uploaded event received - refreshing evaluations');
+      refetchEvaluations();
+    };
+
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+    
+    return () => {
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+    };
+  }, [refetchEvaluations]);
 
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {

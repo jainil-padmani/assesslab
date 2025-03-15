@@ -71,6 +71,7 @@ export type Database = {
           status: string | null
           student_id: string | null
           subject_id: string | null
+          updated_at: string | null
         }
         Insert: {
           answer_key_id?: string | null
@@ -82,6 +83,7 @@ export type Database = {
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
+          updated_at?: string | null
         }
         Update: {
           answer_key_id?: string | null
@@ -93,6 +95,7 @@ export type Database = {
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {

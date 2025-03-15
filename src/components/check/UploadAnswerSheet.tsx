@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FilePlus } from "lucide-react";
@@ -18,6 +19,7 @@ export function UploadAnswerSheet({
 }: UploadAnswerSheetProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -31,7 +33,10 @@ export function UploadAnswerSheet({
     }
   };
 
-  const handleUpload = async () => {
+  const handleUpload = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent any default browser behavior
+    e.preventDefault();
+    
     if (!file) {
       toast.error('Please select a file to upload');
       return;
@@ -133,9 +138,18 @@ export function UploadAnswerSheet({
       
       await resetEvaluations(studentId, selectedSubject);
       
+      // Reset file state and clear the file input
       setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       
-      window.location.reload();
+      // Dispatch a custom event to notify Check component that evaluations need to be refreshed
+      const customEvent = new CustomEvent('answerSheetUploaded', {
+        detail: { studentId, subjectId: selectedSubject }
+      });
+      document.dispatchEvent(customEvent);
+      
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);
@@ -217,11 +231,13 @@ export function UploadAnswerSheet({
         onChange={handleFileChange}
         className="max-w-sm"
         disabled={isEvaluating}
+        ref={fileInputRef}
       />
       <Button 
         size="sm" 
         onClick={handleUpload}
         disabled={!file || isUploading || isEvaluating}
+        type="button" // Explicitly set type to "button" to prevent form submission
       >
         {isUploading ? (
           "Uploading..."
