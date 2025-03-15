@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +32,6 @@ export default function PaperGeneration() {
   const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
   
-  // New states for question generation
   const [contentFile, setContentFile] = useState<File | null>(null);
   const [contentUrl, setContentUrl] = useState<string>("");
   const [extractedContent, setExtractedContent] = useState<string>("");
@@ -183,7 +181,6 @@ export default function PaperGeneration() {
       
       setGeneratedQuestions(response.data.questions);
       
-      // Save generated questions to database
       try {
         await supabase.from('generated_papers').insert({
           subject_id: selectedSubject,
@@ -219,7 +216,7 @@ export default function PaperGeneration() {
   };
 
   const confirmDeletePaper = (paper: GeneratedPaper, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent row click from triggering
+    e.stopPropagation();
     setPaperToDelete(paper);
     setIsDeleteDialogOpen(true);
   }
@@ -240,7 +237,6 @@ export default function PaperGeneration() {
       setIsDeleteDialogOpen(false);
       setPaperToDelete(null);
       
-      // If the deleted paper is the one being viewed, close the dialog
       if (selectedPaper && selectedPaper.id === paperToDelete.id) {
         setSelectedPaper(null);
       }
@@ -267,7 +263,6 @@ export default function PaperGeneration() {
         <TabsContent value="generate">
           {generatedQuestions.length === 0 ? (
             <div className="space-y-6">
-              {/* Row 1: Subject Information */}
               <Card>
                 <CardHeader>
                   <CardTitle>Subject Information</CardTitle>
@@ -313,7 +308,6 @@ export default function PaperGeneration() {
                 </CardContent>
               </Card>
               
-              {/* Row 2: Chapter Material */}
               <Card>
                 <CardHeader>
                   <CardTitle>Chapter Material</CardTitle>
@@ -359,7 +353,6 @@ export default function PaperGeneration() {
                 </CardContent>
               </Card>
               
-              {/* Row 3: Question Parameters */}
               <Card>
                 <CardHeader>
                   <CardTitle>Question Parameters</CardTitle>
@@ -390,7 +383,7 @@ export default function PaperGeneration() {
                       <div key={level} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="capitalize font-medium">{level}</span>
-                          <span className="text-sm">{value}%</span>
+                          <span className="text-sm">{value as number}%</span>
                         </div>
                         <Slider
                           value={[value as number]}
@@ -422,7 +415,6 @@ export default function PaperGeneration() {
               </Card>
             </div>
           ) : (
-            /* Display Generated Questions */
             <Card>
               <CardHeader>
                 <CardTitle>Generated Questions</CardTitle>
@@ -575,7 +567,6 @@ export default function PaperGeneration() {
         </TabsContent>
       </Tabs>
 
-      {/* Paper Questions Dialog */}
       <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           {selectedPaper && (
@@ -601,17 +592,17 @@ export default function PaperGeneration() {
                               Q{idx + 1}. {question.text}
                             </p>
                             <div className="mt-1 flex flex-wrap gap-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 {question.type}
                               </span>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                 {question.level}
                               </span>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 {question.marks} marks
                               </span>
                               {question.courseOutcome && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                                   CO{question.courseOutcome}
                                 </span>
                               )}
@@ -647,7 +638,6 @@ export default function PaperGeneration() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
