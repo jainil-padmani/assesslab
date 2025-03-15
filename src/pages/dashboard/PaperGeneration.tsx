@@ -12,9 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, History, FileX, File } from "lucide-react";
+import { Trash2, History, FileX, Upload, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
@@ -29,6 +32,22 @@ export default function PaperGeneration() {
   const [paperToDelete, setPaperToDelete] = useState<GeneratedPaper | null>(null);
   const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
+  
+  // New states for question generation
+  const [contentFile, setContentFile] = useState<File | null>(null);
+  const [contentUrl, setContentUrl] = useState<string>("");
+  const [extractedContent, setExtractedContent] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
+  const [difficulty, setDifficulty] = useState<number>(50);
+  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<any>({
+    remember: 20,
+    understand: 20,
+    apply: 15,
+    analyze: 15,
+    evaluate: 15,
+    create: 15
+  });
 
   useEffect(() => {
     if (selectedTab === "history") {
@@ -84,29 +103,115 @@ export default function PaperGeneration() {
     }
   };
 
-  const handleContinue = () => {
-    if (!selectedSubject) {
-      toast.error("Please select a subject");
-      return;
-    }
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
     
-    if (!topicName.trim()) {
-      toast.error("Please enter a topic or chapter name");
-      return;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `content_${subjectId}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+    
+    try {
+      const { error: uploadError, data } = await supabase.storage
+        .from('files')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        toast.error(`Error uploading file: ${uploadError.message}`);
+        return;
+      }
+      
+      const { data: urlData } = await supabase.storage
+        .from('files')
+        .getPublicUrl(filePath);
+      
+      const fileUrl = urlData.publicUrl;
+      setContentUrl(fileUrl);
+      
+      setIsGenerating(true);
+      toast.info("Extracting content from file...");
+      
+      try {
+        const extractResponse = await supabase.functions.invoke('extract-text', {
+          body: { fileUrl, fileName: file.name }
+        });
+        
+        if (extractResponse.error) {
+          toast.error(`Error extracting text: ${extractResponse.error.message}`);
+          return;
+        }
+        
+        setExtractedContent(extractResponse.data.text);
+        toast.success("Content extracted successfully");
+      } catch (error) {
+        console.error("Error extracting content:", error);
+        toast.error("Failed to extract content from file");
+      } finally {
+        setIsGenerating(false);
+      }
+      
+      toast.success(`File uploaded successfully`);
+    } catch (error) {
+      console.error(`Error uploading file:`, error);
+      toast.error(`Failed to upload file`);
     }
+  };
 
-    setIsLoading(true);
+  const generateQuestions = async () => {
+    if (!extractedContent && !contentUrl) {
+      toast.error("Please upload content material first");
+      return;
+    }
     
-    const subject = subjects.find(s => s.id === selectedSubject);
+    setIsGenerating(true);
+    toast.info("Generating questions, this may take a moment...");
     
-    navigate("/dashboard/paper-generation/create", { 
-      state: { 
-        subjectId: selectedSubject,
-        subjectName: subject?.name || "",
-        subjectCode: subject?.subject_code || "",
-        topicName: topicName.trim() 
-      } 
-    });
+    try {
+      const response = await supabase.functions.invoke('generate-questions', {
+        body: {
+          topic: topicName,
+          content: extractedContent,
+          bloomsTaxonomy,
+          difficulty,
+          courseOutcomes: []
+        }
+      });
+      
+      if (response.error) {
+        toast.error(`Error generating questions: ${response.error.message}`);
+        return;
+      }
+      
+      setGeneratedQuestions(response.data.questions);
+      
+      // Save generated questions to database
+      try {
+        await supabase.from('generated_papers').insert({
+          subject_id: selectedSubject,
+          topic: topicName,
+          paper_url: "",
+          questions: response.data.questions,
+          content_url: contentUrl || null,
+          user_id: (await supabase.auth.getUser()).data.user?.id || ''
+        });
+        
+        toast.success("Questions generated and saved successfully");
+      } catch (saveError) {
+        console.error("Error saving questions:", saveError);
+        toast.error("Questions generated but failed to save to history");
+      }
+    } catch (error) {
+      console.error("Error generating questions:", error);
+      toast.error("Failed to generate questions");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleBloomsTaxonomyChange = (level: string, value: number[]) => {
+    setBloomsTaxonomy(prev => ({
+      ...prev,
+      [level]: value[0]
+    }));
   };
 
   const handleViewPaperDetails = (paper: GeneratedPaper) => {
@@ -151,76 +256,234 @@ export default function PaperGeneration() {
 
   return (
     <div className="container max-w-4xl mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Test Paper Generation</h1>
+      <h1 className="text-3xl font-bold mb-6">Questions Generation</h1>
       
       <Tabs defaultValue="generate" value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList className="grid grid-cols-2 w-[400px] mb-6">
-          <TabsTrigger value="generate">Generate New Paper</TabsTrigger>
-          <TabsTrigger value="history">Paper History</TabsTrigger>
+          <TabsTrigger value="generate">Generate Questions</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         
         <TabsContent value="generate">
-          <Card>
-            <CardHeader>
-              <CardTitle>Topic Details</CardTitle>
-              <CardDescription>
-                Select a subject and enter a topic or chapter name to generate a test paper
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
-                <Select 
-                  value={selectedSubject} 
-                  onValueChange={setSelectedSubject}
-                >
-                  <SelectTrigger id="subject">
-                    <SelectValue placeholder="Select a subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isSubjectsLoading ? (
-                      <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
-                    ) : subjects.length === 0 ? (
-                      <SelectItem value="none" disabled>No subjects available</SelectItem>
-                    ) : (
-                      subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.subject_code})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+          {generatedQuestions.length === 0 ? (
+            <div className="space-y-6">
+              {/* Row 1: Subject Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Subject Information</CardTitle>
+                  <CardDescription>
+                    Select a subject and enter a topic or chapter name to generate a test paper
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="subject">Subject</Label>
+                    <Select 
+                      value={selectedSubject} 
+                      onValueChange={setSelectedSubject}
+                    >
+                      <SelectTrigger id="subject">
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isSubjectsLoading ? (
+                          <SelectItem value="loading" disabled>Loading subjects...</SelectItem>
+                        ) : subjects.length === 0 ? (
+                          <SelectItem value="none" disabled>No subjects available</SelectItem>
+                        ) : (
+                          subjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>
+                              {subject.name} ({subject.subject_code})
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="topic">Topic or Chapter Name</Label>
+                    <Input
+                      id="topic"
+                      placeholder="Enter topic or chapter name"
+                      value={topicName}
+                      onChange={(e) => setTopicName(e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
               
-              <div className="space-y-2">
-                <Label htmlFor="topic">Topic or Chapter Name</Label>
-                <Input
-                  id="topic"
-                  placeholder="Enter topic or chapter name"
-                  value={topicName}
-                  onChange={(e) => setTopicName(e.target.value)}
-                />
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button 
-                onClick={handleContinue} 
-                disabled={isLoading || isSubjectsLoading}
-              >
-                {isLoading ? "Loading..." : "Continue"}
-              </Button>
-            </CardFooter>
-          </Card>
+              {/* Row 2: Chapter Material */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Chapter Material</CardTitle>
+                  <CardDescription>Upload content to generate questions from</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="content-file">Content Material (PDF/DOCX/TXT)</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="content-file"
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setContentFile(e.target.files[0]);
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => contentFile && handleFileUpload(contentFile)}
+                        disabled={!contentFile}
+                      >
+                        <Upload className="h-4 w-4 mr-1" />
+                        Upload
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {extractedContent && (
+                    <div>
+                      <Label htmlFor="extracted-content">Extracted Content</Label>
+                      <Textarea
+                        id="extracted-content"
+                        value={extractedContent}
+                        onChange={(e) => setExtractedContent(e.target.value)}
+                        className="h-48 mt-1"
+                        placeholder="Content extracted from file..."
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Row 3: Question Parameters */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Question Parameters</CardTitle>
+                  <CardDescription>Configure question generation parameters</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label>Difficulty Level: {difficulty}%</Label>
+                    <Slider
+                      value={[difficulty]}
+                      onValueChange={(value) => setDifficulty(value[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="my-2"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Easy</span>
+                      <span>Moderate</span>
+                      <span>Hard</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <Label>Bloom's Taxonomy Weights</Label>
+                    
+                    {Object.entries(bloomsTaxonomy).map(([level, value]) => (
+                      <div key={level} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="capitalize font-medium">{level}</span>
+                          <span className="text-sm">{value}%</span>
+                        </div>
+                        <Slider
+                          value={[value as number]}
+                          onValueChange={(val) => handleBloomsTaxonomyChange(level, val)}
+                          min={0}
+                          max={50}
+                          step={5}
+                          className="my-1"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <Button 
+                    className="w-full" 
+                    onClick={generateQuestions}
+                    disabled={isGenerating || (!extractedContent && !contentUrl) || !selectedSubject || !topicName}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      'Generate Questions'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            /* Display Generated Questions */
+            <Card>
+              <CardHeader>
+                <CardTitle>Generated Questions</CardTitle>
+                <CardDescription>
+                  Questions generated for {topicName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {generatedQuestions.map((question, index) => (
+                    <div 
+                      key={question.id} 
+                      className="p-4 border rounded-md"
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            Q{index + 1}. {question.text}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {question.type}
+                            </span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              {question.level}
+                            </span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              {question.marks} marks
+                            </span>
+                            {question.courseOutcome && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                CO{question.courseOutcome}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  onClick={() => setGeneratedQuestions([])}
+                  variant="outline"
+                  className="ml-auto"
+                >
+                  Generate New Questions
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
         </TabsContent>
         
         <TabsContent value="history">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Generated Papers</CardTitle>
+                <CardTitle>Generated Questions</CardTitle>
                 <CardDescription>
-                  View and download your previously generated test papers
+                  View your previously generated questions
                 </CardDescription>
               </div>
               <Button 
@@ -254,17 +517,17 @@ export default function PaperGeneration() {
               </div>
               
               {isHistoryLoading ? (
-                <div className="text-center py-8">Loading paper history...</div>
+                <div className="text-center py-8">Loading history...</div>
               ) : filteredPapers.length === 0 ? (
                 <div className="text-center py-8 flex flex-col items-center">
                   <FileX className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No papers found</p>
+                  <p className="text-muted-foreground">No questions found</p>
                   <Button
                     variant="outline"
                     className="mt-4"
                     onClick={() => setSelectedTab("generate")}
                   >
-                    Generate New Paper
+                    Generate New Questions
                   </Button>
                 </div>
               ) : (
@@ -294,15 +557,13 @@ export default function PaperGeneration() {
                           {Array.isArray(paper.questions) ? paper.questions.length : 'N/A'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => confirmDeletePaper(paper, e)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => confirmDeletePaper(paper, e)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -320,15 +581,13 @@ export default function PaperGeneration() {
           {selectedPaper && (
             <>
               <DialogHeader>
-                <DialogTitle>Paper Details: {selectedPaper.topic}</DialogTitle>
+                <DialogTitle>Questions: {selectedPaper.topic}</DialogTitle>
                 <DialogDescription>
                   {selectedPaper.subject_name} - Created on {selectedPaper && format(new Date(selectedPaper.created_at), "dd MMM yyyy")}
                 </DialogDescription>
               </DialogHeader>
               
               <div className="space-y-4 mt-4">
-                <h3 className="text-lg font-medium">Questions</h3>
-                
                 {selectedPaper && Array.isArray(selectedPaper.questions) ? (
                   <div className="space-y-3 max-h-[50vh] overflow-y-auto">
                     {(selectedPaper.questions as Question[]).map((question, idx) => (
@@ -377,7 +636,7 @@ export default function PaperGeneration() {
                   }}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Paper
+                  Delete Questions
                 </Button>
                 <Button variant="outline" onClick={() => setSelectedPaper(null)}>
                   Close
@@ -394,7 +653,7 @@ export default function PaperGeneration() {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this paper? This action cannot be undone.
+              Are you sure you want to delete these questions? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex space-x-2 pt-4">

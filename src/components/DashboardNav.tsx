@@ -47,7 +47,7 @@ const links = [
     href: "/dashboard/tests",
   },
   {
-    title: "Paper Generation",
+    title: "Questions Generation",
     icon: FileText,
     href: "/dashboard/paper-generation",
   },
