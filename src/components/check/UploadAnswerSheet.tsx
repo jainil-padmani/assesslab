@@ -32,7 +32,10 @@ export function UploadAnswerSheet({
     }
   };
 
-  const handleUpload = async () => {
+  const handleUpload = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent default form submission behavior
+    e.preventDefault();
+    
     if (!file) {
       toast.error('Please select a file to upload');
       return;
@@ -126,11 +129,14 @@ export function UploadAnswerSheet({
             const oldFileName = pathParts[pathParts.length - 1];
             
             if (oldFileName) {
+              // Remove any query parameters from the filename
+              const cleanFileName = oldFileName.split('?')[0];
+              
               await supabase.storage
                 .from('documents')
-                .remove([`answer-sheets/${oldFileName}`]);
+                .remove([`answer-sheets/${cleanFileName}`]);
               
-              console.log('Successfully deleted previous file from storage:', oldFileName);
+              console.log('Successfully deleted previous file from storage:', cleanFileName);
             }
           }
         } catch (deleteError) {
@@ -143,8 +149,14 @@ export function UploadAnswerSheet({
       
       setFile(null);
       
-      // Force a full page reload to ensure all components refresh with new data
-      window.location.reload();
+      // Clear the file input
+      const fileInput = document.getElementById(`file-${studentId}`) as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      // Refresh evaluations without full page reload
+      window.dispatchEvent(new CustomEvent('refreshEvaluations'));
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);
