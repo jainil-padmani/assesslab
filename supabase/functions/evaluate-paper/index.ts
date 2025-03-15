@@ -46,7 +46,7 @@ serve(async (req) => {
       console.log(`Processing ${documentName} with Pixtral OCR: ${url}`);
       
       try {
-        const response = await fetch("https://api.mistral.ai/v1/vision", {
+        const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -54,7 +54,7 @@ serve(async (req) => {
             "Authorization": `Bearer ${pixtralApiKey}`
           },
           body: JSON.stringify({
-            model: "pixtral-8x7b-instruct",
+            model: "mistral-large-latest",
             messages: [
               {
                 role: "user",
