@@ -26,7 +26,7 @@ interface Topic {
 export default function PaperHistory() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [filteredTopics, setFilteredTopics] = useState<Topic[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [isTopicDialogOpen, setIsTopicDialogOpen] = useState(false);
@@ -245,7 +245,7 @@ export default function PaperHistory() {
                       >
                         <div className="font-medium">Q{idx + 1}. {question.text}</div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="inline-flex items-center px-2 5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {question.type}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
