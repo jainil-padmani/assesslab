@@ -39,19 +39,20 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     try {
-      const { data: existingAssessment, error: fetchError } = await supabase
+      const { data: existingAssessments, error: fetchError } = await supabase
         .from('assessments')
         .select('id, answer_sheet_url')
         .eq('student_id', studentId)
-        .eq('subject_id', selectedSubject)
-        .maybeSingle();
+        .eq('subject_id', selectedSubject);
         
       if (fetchError) {
-        console.error('Error checking existing assessment:', fetchError);
+        console.error('Error checking existing assessments:', fetchError);
+        throw fetchError;
       }
       
-      const previousUrl = existingAssessment?.answer_sheet_url;
+      const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
+      const timestamp = Date.now();
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       
@@ -65,7 +66,9 @@ export function UploadAnswerSheet({
         .from('documents')
         .getPublicUrl(`answer-sheets/${fileName}`);
 
-      if (existingAssessment) {
+      if (existingAssessments && existingAssessments.length > 0) {
+        const primaryAssessmentId = existingAssessments[0].id;
+        
         const { error: updateError } = await supabase
           .from('assessments')
           .update({
@@ -73,15 +76,45 @@ export function UploadAnswerSheet({
             status: 'pending',
             updated_at: new Date().toISOString()
           })
-          .eq('id', existingAssessment.id);
+          .eq('id', primaryAssessmentId);
           
         if (updateError) throw updateError;
         
-        toast.success('Answer sheet updated successfully');
+        if (existingAssessments.length > 1) {
+          const duplicateIds = existingAssessments.slice(1).map(a => a.id);
+          const { error: deleteError } = await supabase
+            .from('assessments')
+            .delete()
+            .in('id', duplicateIds);
+            
+          if (deleteError) {
+            console.error('Error removing duplicate assessments:', deleteError);
+          } else {
+            console.log(`Removed ${duplicateIds.length} duplicate assessment(s)`);
+          }
+        }
         
-        if (previousUrl) {
-          try {
-            const urlPath = new URL(previousUrl).pathname;
+        toast.success('Answer sheet updated successfully');
+      } else {
+        const { error: assessmentError } = await supabase
+          .from('assessments')
+          .insert({
+            student_id: studentId,
+            subject_id: selectedSubject,
+            answer_sheet_url: publicUrl,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (assessmentError) throw assessmentError;
+        toast.success('Answer sheet uploaded successfully');
+      }
+      
+      for (const prevUrl of previousUrls) {
+        try {
+          if (prevUrl) {
+            const urlPath = new URL(prevUrl).pathname;
             const pathParts = urlPath.split('/');
             const oldFileName = pathParts[pathParts.length - 1];
             
@@ -90,31 +123,21 @@ export function UploadAnswerSheet({
                 .from('documents')
                 .remove([`answer-sheets/${oldFileName}`]);
               
-              console.log('Successfully deleted previous file from storage');
+              console.log('Successfully deleted previous file from storage:', oldFileName);
             }
-          } catch (deleteError) {
-            console.error('Error deleting previous file:', deleteError);
           }
+        } catch (deleteError) {
+          console.error('Error deleting previous file:', deleteError);
         }
-        
-        await resetEvaluations(studentId, selectedSubject);
-      } else {
-        const { error: assessmentError } = await supabase
-          .from('assessments')
-          .insert({
-            student_id: studentId,
-            subject_id: selectedSubject,
-            answer_sheet_url: publicUrl,
-            status: 'pending'
-          });
-
-        if (assessmentError) throw assessmentError;
-        toast.success('Answer sheet uploaded successfully');
       }
       
+      await resetEvaluations(studentId, selectedSubject);
+      
       setFile(null);
+      
+      window.location.reload();
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);
     } finally {
       setIsUploading(false);
@@ -135,34 +158,23 @@ export function UploadAnswerSheet({
       
       if (!tests || tests.length === 0) return;
       
+      console.log(`Resetting evaluations for student ${studentId} across ${tests.length} tests`);
+      
       const testIds = tests.map(test => test.id);
       
+      const { error: evalDeleteError } = await supabase
+        .from('paper_evaluations')
+        .delete()
+        .eq('student_id', studentId)
+        .in('test_id', testIds);
+        
+      if (evalDeleteError) {
+        console.error('Error deleting evaluations:', evalDeleteError);
+      } else {
+        console.log(`Reset evaluations for student ${studentId} across all tests`);
+      }
+      
       for (const testId of testIds) {
-        const { data: evaluations, error: evalFetchError } = await supabase
-          .from('paper_evaluations')
-          .select('id')
-          .eq('student_id', studentId)
-          .eq('test_id', testId);
-          
-        if (evalFetchError) {
-          console.error('Error fetching evaluations:', evalFetchError);
-          continue;
-        }
-        
-        if (evaluations && evaluations.length > 0) {
-          const { error: evalDeleteError } = await supabase
-            .from('paper_evaluations')
-            .delete()
-            .eq('student_id', studentId)
-            .eq('test_id', testId);
-            
-          if (evalDeleteError) {
-            console.error('Error deleting evaluations:', evalDeleteError);
-          } else {
-            console.log(`Reset evaluation for student ${studentId} and test ${testId}`);
-          }
-        }
-        
         const { data: grades, error: gradesFetchError } = await supabase
           .from('test_grades')
           .select('id')

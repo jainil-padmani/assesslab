@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -28,6 +29,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
 import type { TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
 import { useTestFiles } from "@/hooks/test-selection/useTestFiles";
@@ -55,8 +57,44 @@ export function StudentEvaluationDetails({
 }: StudentEvaluationDetailsProps) {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [activeTab, setActiveTab] = useState("evaluation");
+  const [latestAnswerSheetUrl, setLatestAnswerSheetUrl] = useState<string | null>(null);
   
   const { testFiles } = useTestFiles(test?.id);
+
+  // Fetch the latest answer sheet URL directly from the database
+  useEffect(() => {
+    const fetchLatestAnswerSheet = async () => {
+      if (!selectedStudentGrade?.student_id || !test?.subject_id) return;
+      
+      try {
+        // Get the latest assessment for this student and subject
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('answer_sheet_url')
+          .eq('student_id', selectedStudentGrade.student_id)
+          .eq('subject_id', test.subject_id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching latest answer sheet:', error);
+          return;
+        }
+        
+        if (data?.answer_sheet_url) {
+          // Add a cache-busting parameter to avoid browser caching
+          const url = new URL(data.answer_sheet_url);
+          url.searchParams.set('t', Date.now().toString());
+          setLatestAnswerSheetUrl(url.toString());
+        }
+      } catch (error) {
+        console.error('Error in fetchLatestAnswerSheet:', error);
+      }
+    };
+    
+    fetchLatestAnswerSheet();
+  }, [selectedStudentGrade?.student_id, test?.subject_id, selectedStudentGrade?.id]);
 
   if (!selectedStudentGrade?.evaluation) {
     return null;
@@ -72,7 +110,10 @@ export function StudentEvaluationDetails({
     ? testFiles[0].answer_key_url 
     : test?.files?.find((file: any) => file.answer_key_url)?.answer_key_url;
     
-  const studentPaperUrl = selectedStudentGrade.answer_sheet_url;
+  // Prioritize the latest answer sheet URL from the database
+  const studentPaperUrl = latestAnswerSheetUrl || 
+                         evaluation?.answer_sheet_url || 
+                         selectedStudentGrade.answer_sheet_url;
 
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + 25, 200));
@@ -84,6 +125,13 @@ export function StudentEvaluationDetails({
 
   const handleResetZoom = () => {
     setZoomLevel(100);
+  };
+  
+  // Add cache-busting parameters to PDF URLs
+  const addCacheBuster = (url: string | null | undefined) => {
+    if (!url) return null;
+    const cacheBuster = `t=${Date.now()}`;
+    return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
   };
   
   return (
@@ -259,7 +307,7 @@ export function StudentEvaluationDetails({
               <div className="h-[600px] overflow-auto border rounded-md">
                 <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
                   <iframe 
-                    src={`${questionPaperUrl}#view=FitH`} 
+                    src={`${addCacheBuster(questionPaperUrl)}#view=FitH`} 
                     title="Question Paper" 
                     className="w-full h-[600px]"
                   />
@@ -280,7 +328,7 @@ export function StudentEvaluationDetails({
               <div className="h-[600px] overflow-auto border rounded-md">
                 <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
                   <iframe 
-                    src={`${answerKeyUrl}#view=FitH`} 
+                    src={`${addCacheBuster(answerKeyUrl)}#view=FitH`} 
                     title="Answer Key" 
                     className="w-full h-[600px]"
                   />
@@ -301,7 +349,7 @@ export function StudentEvaluationDetails({
               <div className="h-[600px] overflow-auto border rounded-md">
                 <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
                   <iframe 
-                    src={`${studentPaperUrl}#view=FitH`} 
+                    src={`${addCacheBuster(studentPaperUrl)}#view=FitH`} 
                     title="Student Paper" 
                     className="w-full h-[600px]"
                   />
@@ -321,4 +369,3 @@ export function StudentEvaluationDetails({
     </Card>
   );
 }
-

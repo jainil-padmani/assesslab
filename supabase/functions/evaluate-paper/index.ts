@@ -23,6 +23,17 @@ serve(async (req) => {
     console.log("Received evaluation request for student:", studentInfo?.name);
     console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
     
+    // Add cache-busting parameter to URLs to prevent caching issues
+    const addCacheBuster = (url: string) => {
+      const cacheBuster = `cache=${Date.now()}`;
+      return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
+    };
+    
+    // Apply cache busting to all URLs
+    if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
+    if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
+    if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
+    
     // First, check if the student answer is an image/handwritten document
     // If so, we need to run OCR on it
     let processedStudentAnswer = studentAnswer;
@@ -223,6 +234,11 @@ Return ONLY the JSON object without any additional text or markdown formatting.
         totalScore: [totalAssignedScore, totalPossibleScore],
         percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
       };
+      
+      // Add the answer sheet URL to the evaluation for reference
+      if (studentAnswer?.url) {
+        evaluation.answer_sheet_url = studentAnswer.url;
+      }
       
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
       
