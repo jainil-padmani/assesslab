@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -44,12 +45,14 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     try {
-      const query = supabase
+      // Fixed: Correctly build the query with type safety
+      let query = supabase
         .from('assessments')
         .select('id, answer_sheet_url')
         .eq('student_id', studentId)
         .eq('subject_id', selectedSubject);
         
+      // Only add the test_id condition if testId is provided
       const { data: existingAssessments, error: fetchError } = testId 
         ? await query.eq('test_id', testId)
         : await query;
@@ -76,7 +79,7 @@ export function UploadAnswerSheet({
       if (existingAssessments && existingAssessments.length > 0) {
         const primaryAssessmentId = existingAssessments[0].id;
         
-        const updateData: any = {
+        const updateData: Record<string, any> = {
           answer_sheet_url: publicUrl,
           status: 'pending',
           updated_at: new Date().toISOString()
@@ -109,7 +112,7 @@ export function UploadAnswerSheet({
         
         toast.success('Answer sheet updated successfully');
       } else {
-        const newAssessment: any = {
+        const newAssessment: Record<string, any> = {
           student_id: studentId,
           subject_id: selectedSubject,
           answer_sheet_url: publicUrl,

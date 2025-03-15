@@ -120,6 +120,7 @@ export function StudentAnswerSheetsCard({
                 evaluationData={getEvaluationData(student.id)}
                 isEvaluating={isStudentEvaluating(student.id)}
                 selectedSubject={selectedSubject}
+                selectedTest={selectedTest} 
                 testFilesAvailable={areTestFilesReady}
                 onEvaluate={onEvaluateSingle}
               />
