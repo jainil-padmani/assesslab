@@ -9,6 +9,7 @@ interface AssessmentData {
   status: string;
   updated_at: string;
   test_id?: string;
+  text_content?: string | null;
 }
 
 /**
@@ -21,7 +22,7 @@ export const fetchExistingAssessments = async (
 ) => {
   let query = supabase
     .from('assessments')
-    .select('id, answer_sheet_url');
+    .select('id, answer_sheet_url, text_content');
   
   query = query.eq('student_id', studentId).eq('subject_id', subjectId);
   

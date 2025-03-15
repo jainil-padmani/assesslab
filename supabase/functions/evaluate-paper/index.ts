@@ -37,6 +37,7 @@ serve(async (req) => {
     
     // Process the student answer if it's a PDF or image
     let processedStudentAnswer = studentAnswer;
+    let extractedText = null;
     
     if (studentAnswer?.url && (
         studentAnswer.url.includes('.jpg') || 
@@ -52,7 +53,7 @@ serve(async (req) => {
         const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -105,20 +106,51 @@ serve(async (req) => {
             isOcrProcessed: false,
             ocrError: errorText
           };
+          extractedText = "OCR extraction failed: " + errorText;
         } else {
           const ocrResult = await ocrResponse.json();
-          const extractedText = ocrResult.choices[0]?.message?.content;
+          const extractedOcrText = ocrResult.choices[0]?.message?.content;
           
-          console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
-          console.log("Sample extracted text:", extractedText?.substring(0, 100) + "...");
+          console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
+          console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+          
+          // Store the extracted text for updating in the database
+          extractedText = extractedOcrText;
           
           // Update the student answer with OCR text
           processedStudentAnswer = {
             ...studentAnswer,
-            text: extractedText,
+            text: extractedOcrText,
             isOcrProcessed: true,
             testId: testId // Include test ID to ensure answers are synced with the correct test
           };
+        }
+        
+        // Update the assessment record with the extracted text
+        if (extractedText && studentInfo?.id) {
+          try {
+            // Create Supabase client
+            const supabaseClient = createClient(
+              Deno.env.get('SUPABASE_URL') || '',
+              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+              { auth: { persistSession: false } }
+            );
+            
+            // Find and update the assessment with the extracted text
+            const { error } = await supabaseClient
+              .from('assessments')
+              .update({ text_content: extractedText })
+              .eq('student_id', studentInfo.id)
+              .eq('test_id', testId);
+              
+            if (error) {
+              console.error("Error updating assessment with extracted text:", error);
+            } else {
+              console.log("Successfully updated assessment with extracted text");
+            }
+          } catch (dbError) {
+            console.error("Error connecting to database:", dbError);
+          }
         }
       } catch (ocrError) {
         console.error("Error during OCR processing:", ocrError);
@@ -257,6 +289,12 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       evaluation.test_id = testId;
       evaluation.answer_sheet_url = studentAnswer.url;
       
+      // Add the extracted text if available
+      if (extractedText) {
+        evaluation.text = extractedText;
+        evaluation.isOcrProcessed = true;
+      }
+      
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
       
       return new Response(
@@ -278,3 +316,6 @@ Return ONLY the JSON object without any additional text or markdown formatting.
     );
   }
 });
+
+// Add import for Supabase client
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';

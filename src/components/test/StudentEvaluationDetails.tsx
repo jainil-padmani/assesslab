@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -20,7 +19,8 @@ import {
   CheckCircle, 
   ZoomIn, 
   ZoomOut,
-  RotateCw
+  RotateCw,
+  FileDigit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +58,7 @@ export function StudentEvaluationDetails({
   const [zoomLevel, setZoomLevel] = useState(100);
   const [activeTab, setActiveTab] = useState("evaluation");
   const [latestAnswerSheetUrl, setLatestAnswerSheetUrl] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
   
   const { testFiles } = useTestFiles(test?.id);
 
@@ -70,9 +71,10 @@ export function StudentEvaluationDetails({
         // Get the latest assessment for this student and subject
         const { data, error } = await supabase
           .from('assessments')
-          .select('answer_sheet_url')
+          .select('answer_sheet_url, text_content')
           .eq('student_id', selectedStudentGrade.student_id)
           .eq('subject_id', test.subject_id)
+          .eq('test_id', test.id)
           .order('updated_at', { ascending: false })
           .limit(1)
           .single();
@@ -88,13 +90,20 @@ export function StudentEvaluationDetails({
           url.searchParams.set('t', Date.now().toString());
           setLatestAnswerSheetUrl(url.toString());
         }
+
+        // Set the extracted text from OCR if available
+        if (data?.text_content) {
+          setExtractedText(data.text_content);
+        } else {
+          setExtractedText(null);
+        }
       } catch (error) {
         console.error('Error in fetchLatestAnswerSheet:', error);
       }
     };
     
     fetchLatestAnswerSheet();
-  }, [selectedStudentGrade?.student_id, test?.subject_id, selectedStudentGrade?.id]);
+  }, [selectedStudentGrade?.student_id, test?.subject_id, test?.id]);
 
   if (!selectedStudentGrade?.evaluation) {
     return null;
@@ -133,6 +142,11 @@ export function StudentEvaluationDetails({
     const cacheBuster = `t=${Date.now()}`;
     return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
   };
+  
+  // Get the OCR extracted text
+  const ocrText = extractedText || 
+                  evaluation?.isOcrProcessed ? evaluation.text : 
+                  "No OCR text available for this answer sheet";
   
   return (
     <Card className="mb-8">
@@ -180,11 +194,12 @@ export function StudentEvaluationDetails({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-4 mb-4">
+          <TabsList className="grid grid-cols-5 mb-4">
             <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
             <TabsTrigger value="question-paper">Question Paper</TabsTrigger>
             <TabsTrigger value="answer-key">Answer Key</TabsTrigger>
             <TabsTrigger value="student-paper">Student Paper</TabsTrigger>
+            <TabsTrigger value="ocr-text">OCR Text</TabsTrigger>
           </TabsList>
           
           <TabsContent value="evaluation">
@@ -363,6 +378,32 @@ export function StudentEvaluationDetails({
                 </div>
               </div>
             )}
+          </TabsContent>
+          
+          <TabsContent value="ocr-text">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileDigit className="h-5 w-5 text-primary" />
+                  Extracted Text from OCR
+                </h3>
+              </div>
+              
+              {!ocrText || ocrText === "No OCR text available for this answer sheet" ? (
+                <div className="flex items-center justify-center h-[600px] border rounded-md">
+                  <div className="text-center text-muted-foreground">
+                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                    <p>No OCR text available for this answer sheet</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
+                  <div className="whitespace-pre-wrap font-mono text-sm">
+                    {ocrText}
+                  </div>
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </CardContent>

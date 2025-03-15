@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Uploads a file to Supabase storage
  */
-export const uploadAnswerSheetFile = async (file: File) => {
+export const uploadAnswerSheetFile = async (file: File, textContent?: string) => {
   const fileName = `${crypto.randomUUID()}.pdf`;
   
   const { error } = await supabase.storage
@@ -17,7 +17,7 @@ export const uploadAnswerSheetFile = async (file: File) => {
     .from('documents')
     .getPublicUrl(`answer-sheets/${fileName}`);
     
-  return { fileName, publicUrl };
+  return { fileName, publicUrl, textContent };
 };
 
 /**
@@ -50,4 +50,20 @@ export const deletePreviousFiles = async (previousUrls: string[]) => {
  */
 export const validatePdfFile = (file: File): boolean => {
   return file.type === 'application/pdf';
+};
+
+/**
+ * Extract text from PDF using OCR
+ * Note: This function doesn't perform OCR itself but serves as a placeholder
+ * for the extraction process that happens in the edge function
+ */
+export const extractTextFromPdf = async (file: File): Promise<string | null> => {
+  try {
+    // In a real implementation, we would send the PDF to an OCR service
+    // For now, we'll return a placeholder message
+    return "Text extraction is handled server-side during evaluation";
+  } catch (error) {
+    console.error("Error extracting text from PDF:", error);
+    return null;
+  }
 };
