@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileX, ExternalLink, History, FileText, File } from "lucide-react";
+import { Trash2, History, FileX, File } from "lucide-react";
 import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function PaperGeneration() {
   const [selectedTab, setSelectedTab] = useState<string>("generate");
@@ -24,6 +25,8 @@ export default function PaperGeneration() {
   const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [paperToDelete, setPaperToDelete] = useState<GeneratedPaper | null>(null);
   const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
 
@@ -49,7 +52,7 @@ export default function PaperGeneration() {
         .from("generated_papers")
         .select("*, subjects(name)")
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(100);
       
       if (error) {
         console.error("Error fetching papers:", error);
@@ -110,24 +113,35 @@ export default function PaperGeneration() {
     setSelectedPaper(paper);
   };
 
-  const handleDownload = (paper: GeneratedPaper) => {
-    const downloadUrl = paper.pdf_url || paper.paper_url;
-    window.open(downloadUrl, '_blank');
-  };
+  const confirmDeletePaper = (paper: GeneratedPaper, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click from triggering
+    setPaperToDelete(paper);
+    setIsDeleteDialogOpen(true);
+  }
 
-  const generateDocx = async () => {
-    if (!selectedPaper) return;
+  const handleDeletePaper = async () => {
+    if (!paperToDelete) return;
     
     try {
-      toast.info("Downloading document...");
+      const { error } = await supabase
+        .from('generated_papers')
+        .delete()
+        .eq('id', paperToDelete.id);
+        
+      if (error) throw error;
       
-      const downloadUrl = selectedPaper.pdf_url || selectedPaper.paper_url;
-      window.open(downloadUrl, '_blank');
+      toast.success('Paper deleted successfully');
+      fetchPapers();
+      setIsDeleteDialogOpen(false);
+      setPaperToDelete(null);
       
-      toast.success("Document ready for download");
-    } catch (error) {
-      console.error("Error downloading document:", error);
-      toast.error("Failed to download document");
+      // If the deleted paper is the one being viewed, close the dialog
+      if (selectedPaper && selectedPaper.id === paperToDelete.id) {
+        setSelectedPaper(null);
+      }
+    } catch (error: any) {
+      console.error('Error deleting paper:', error);
+      toast.error('Failed to delete paper');
     }
   };
 
@@ -229,7 +243,7 @@ export default function PaperGeneration() {
                     <SelectValue placeholder="All subjects" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Subjects</SelectItem>
+                    <SelectItem value="">All Subjects</SelectItem>
                     {subjects && subjects.length > 0 && subjects.map((subject) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name}
@@ -266,7 +280,11 @@ export default function PaperGeneration() {
                   </TableHeader>
                   <TableBody>
                     {filteredPapers.map((paper) => (
-                      <TableRow key={paper.id}>
+                      <TableRow 
+                        key={paper.id} 
+                        className="cursor-pointer"
+                        onClick={() => handleViewPaperDetails(paper)}
+                      >
                         <TableCell>
                           {format(new Date(paper.created_at), "dd MMM yyyy")}
                         </TableCell>
@@ -276,20 +294,13 @@ export default function PaperGeneration() {
                           {Array.isArray(paper.questions) ? paper.questions.length : 'N/A'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end">
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              onClick={() => handleViewPaperDetails(paper)}
+                              onClick={(e) => confirmDeletePaper(paper, e)}
                             >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownload(paper)}
-                            >
-                              <Download className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
                         </TableCell>
@@ -303,8 +314,9 @@ export default function PaperGeneration() {
         </TabsContent>
       </Tabs>
 
+      {/* Paper Questions Dialog */}
       <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           {selectedPaper && (
             <>
               <DialogHeader>
@@ -314,96 +326,86 @@ export default function PaperGeneration() {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Questions</h3>
-                  
-                  {selectedPaper && Array.isArray(selectedPaper.questions) ? (
-                    <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-                      {(selectedPaper.questions as Question[]).map((question, idx) => (
-                        <div 
-                          key={idx} 
-                          className="p-3 border rounded-md"
-                        >
-                          <div className="flex items-start">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">
-                                Q{idx + 1}. {question.text}
-                              </p>
-                              <div className="mt-1 flex flex-wrap gap-2">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  {question.type}
+              <div className="space-y-4 mt-4">
+                <h3 className="text-lg font-medium">Questions</h3>
+                
+                {selectedPaper && Array.isArray(selectedPaper.questions) ? (
+                  <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+                    {(selectedPaper.questions as Question[]).map((question, idx) => (
+                      <div 
+                        key={idx} 
+                        className="p-3 border rounded-md"
+                      >
+                        <div className="flex items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">
+                              Q{idx + 1}. {question.text}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {question.type}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                {question.level}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {question.marks} marks
+                              </span>
+                              {question.courseOutcome && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  CO{question.courseOutcome}
                                 </span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                  {question.level}
-                                </span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  {question.marks} marks
-                                </span>
-                                {question.courseOutcome && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    CO{question.courseOutcome}
-                                  </span>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">No questions available</p>
-                  )}
-                </div>
-                
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Paper Preview</h3>
-                  
-                  <div className="aspect-[3/4] border rounded-md overflow-hidden bg-white">
-                    {selectedPaper ? (
-                      selectedPaper.pdf_url ? (
-                        <iframe 
-                          src={selectedPaper.pdf_url} 
-                          className="w-full h-full"
-                          title="Generated Paper PDF"
-                        />
-                      ) : (
-                        <iframe 
-                          src={selectedPaper.paper_url} 
-                          className="w-full h-full"
-                          title="Generated Paper HTML"
-                        />
-                      )
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-gray-500">No preview available</p>
                       </div>
-                    )}
+                    ))}
                   </div>
-                  
-                  <div className="flex flex-wrap gap-2 justify-center mt-4">
-                    {selectedPaper && selectedPaper.pdf_url && (
-                      <Button onClick={() => window.open(selectedPaper.pdf_url!, '_blank')}>
-                        <File className="mr-2 h-4 w-4" />
-                        View PDF
-                      </Button>
-                    )}
-                    <Button onClick={() => window.open(selectedPaper.paper_url, '_blank')}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      View {selectedPaper?.pdf_url ? 'HTML' : 'Paper'}
-                    </Button>
-                    <Button onClick={generateDocx}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Document
-                    </Button>
-                    <Button variant="outline" onClick={() => setSelectedPaper(null)}>
-                      Close
-                    </Button>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-gray-500">No questions available</p>
+                )}
               </div>
+              
+              <DialogFooter className="flex justify-between items-center mt-4">
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    setSelectedPaper(null);
+                    setPaperToDelete(selectedPaper);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Paper
+                </Button>
+                <Button variant="outline" onClick={() => setSelectedPaper(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this paper? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex space-x-2 pt-4">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeletePaper}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
