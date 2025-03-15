@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,10 +52,9 @@ export function UploadAnswerSheet({
       
       const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
-      // Add timestamp to make the filename unique
       const timestamp = Date.now();
       const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}-${timestamp}.${fileExt}`;
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('documents')
@@ -64,13 +62,9 @@ export function UploadAnswerSheet({
 
       if (uploadError) throw uploadError;
 
-      // Get public URL and add cache busting parameter
       const { data: { publicUrl } } = supabase.storage
         .from('documents')
         .getPublicUrl(`answer-sheets/${fileName}`);
-      
-      // Add cache busting parameter to URL
-      const cacheBustedUrl = `${publicUrl}?t=${timestamp}`;
 
       if (existingAssessments && existingAssessments.length > 0) {
         const primaryAssessmentId = existingAssessments[0].id;
@@ -78,7 +72,7 @@ export function UploadAnswerSheet({
         const { error: updateError } = await supabase
           .from('assessments')
           .update({
-            answer_sheet_url: cacheBustedUrl,
+            answer_sheet_url: publicUrl,
             status: 'pending',
             updated_at: new Date().toISOString()
           })
@@ -107,7 +101,7 @@ export function UploadAnswerSheet({
           .insert({
             student_id: studentId,
             subject_id: selectedSubject,
-            answer_sheet_url: cacheBustedUrl,
+            answer_sheet_url: publicUrl,
             status: 'pending',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -117,7 +111,6 @@ export function UploadAnswerSheet({
         toast.success('Answer sheet uploaded successfully');
       }
       
-      // Delete previous files from storage
       for (const prevUrl of previousUrls) {
         try {
           if (prevUrl) {
@@ -138,12 +131,10 @@ export function UploadAnswerSheet({
         }
       }
       
-      // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject);
       
       setFile(null);
       
-      // Force a full page reload to ensure all components refresh with new data
       window.location.reload();
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
@@ -171,7 +162,6 @@ export function UploadAnswerSheet({
       
       const testIds = tests.map(test => test.id);
       
-      // Delete all existing evaluations for this student and subject tests
       const { error: evalDeleteError } = await supabase
         .from('paper_evaluations')
         .delete()
@@ -184,7 +174,6 @@ export function UploadAnswerSheet({
         console.log(`Reset evaluations for student ${studentId} across all tests`);
       }
       
-      // Reset grades for each test
       for (const testId of testIds) {
         const { data: grades, error: gradesFetchError } = await supabase
           .from('test_grades')

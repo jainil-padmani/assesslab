@@ -46,18 +46,6 @@ export function StudentGradesTable({
 }: StudentGradesTableProps) {
   const navigate = useNavigate();
 
-  // Add a cache buster to the answer sheet URL
-  const getAnswerSheetUrl = (url: string | null) => {
-    if (!url) return null;
-    
-    // If URL already has a timestamp parameter, use it; otherwise add one
-    if (url.includes('?t=')) {
-      return url;
-    } else {
-      return `${url}?t=${Date.now()}`;
-    }
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -106,7 +94,7 @@ export function StudentGradesTable({
                   <TableCell>
                     {grade.answer_sheet_url ? (
                       <a 
-                        href={getAnswerSheetUrl(grade.answer_sheet_url)} 
+                        href={grade.answer_sheet_url} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="flex items-center text-blue-600 hover:text-blue-800"
