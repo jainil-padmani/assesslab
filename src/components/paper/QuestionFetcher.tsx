@@ -5,13 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Question } from "@/types/papers";
-import { Search, Check } from "lucide-react";
+import { Search, Check, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Json } from "@/integrations/supabase/types";
+import { Badge } from "@/components/ui/badge";
 
 interface QuestionFetcherProps {
   open: boolean;
@@ -38,6 +38,7 @@ export function QuestionFetcher({
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showExactMatches, setShowExactMatches] = useState(false);
 
   // Fetch available topics for the subject
   useEffect(() => {
@@ -81,17 +82,35 @@ export function QuestionFetcher({
     }
   }, [selectedTopic]);
 
-  // Filter questions based on search query
+  // Filter questions based on search query and exact match setting
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredQuestions(questions);
-    } else {
+    let filtered = questions;
+    
+    // First filter by search query
+    if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
-      setFilteredQuestions(
-        questions.filter(q => q.text.toLowerCase().includes(query))
-      );
+      filtered = filtered.filter(q => q.text.toLowerCase().includes(query));
     }
-  }, [questions, searchQuery]);
+    
+    // Then filter by exact matches if enabled
+    if (showExactMatches) {
+      filtered = filtered.filter(q => {
+        const matchesLevel = q.level === level;
+        const matchesCO = courseOutcome ? q.courseOutcome === courseOutcome : true;
+        const matchesMarks = q.marks === marks;
+        return matchesLevel && matchesCO && matchesMarks;
+      });
+    } else {
+      // Apply base filtering by level and CO
+      filtered = filtered.filter(q => {
+        const matchesLevel = q.level === level;
+        const matchesCO = courseOutcome ? q.courseOutcome === courseOutcome : true;
+        return matchesLevel && matchesCO;
+      });
+    }
+    
+    setFilteredQuestions(filtered);
+  }, [questions, searchQuery, showExactMatches, level, courseOutcome, marks]);
 
   const fetchQuestions = async () => {
     try {
@@ -136,18 +155,9 @@ export function QuestionFetcher({
             }));
         }
         
-        // Filter by level and courseOutcome if provided
-        let filteredByAttributes = allQuestions.filter(q => {
-          let matchesLevel = q.level === level;
-          let matchesCO = courseOutcome ? q.courseOutcome === courseOutcome : true;
-          return matchesLevel && matchesCO;
-        });
-        
-        setQuestions(filteredByAttributes);
-        setFilteredQuestions(filteredByAttributes);
+        setQuestions(allQuestions);
       } else {
         setQuestions([]);
-        setFilteredQuestions([]);
       }
     } catch (error) {
       console.error("Error fetching questions:", error);
@@ -163,6 +173,13 @@ export function QuestionFetcher({
       marks: marks // Override with the marks from the paper format
     });
     onOpenChange(false);
+  };
+
+  // Check if a question is an exact match for all criteria
+  const isExactMatch = (question: Question) => {
+    return question.level === level && 
+           (courseOutcome ? question.courseOutcome === courseOutcome : true) && 
+           question.marks === marks;
   };
 
   return (
@@ -208,11 +225,22 @@ export function QuestionFetcher({
             </div>
           </div>
           
-          <div className="bg-muted/30 rounded-md p-2 text-sm">
-            <span className="font-medium">Filters:</span>
-            <span className="ml-2">Level: {level.charAt(0).toUpperCase() + level.slice(1)}</span>
-            {courseOutcome && <span className="ml-2">• CO{courseOutcome}</span>}
-            <span className="ml-2">• {marks} marks</span>
+          <div className="flex items-center justify-between">
+            <div className="bg-muted/30 rounded-md p-2 text-sm flex-1">
+              <span className="font-medium">Filters:</span>
+              <span className="ml-2">Level: {level.charAt(0).toUpperCase() + level.slice(1)}</span>
+              {courseOutcome && <span className="ml-2">• CO{courseOutcome}</span>}
+              <span className="ml-2">• {marks} marks</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowExactMatches(!showExactMatches)}
+              className="ml-2 flex items-center gap-1"
+            >
+              <Filter className="h-4 w-4" />
+              {showExactMatches ? "Show All" : "Exact Matches"}
+            </Button>
           </div>
           
           {loading ? (
@@ -231,33 +259,45 @@ export function QuestionFetcher({
           ) : (
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-2">
-                {filteredQuestions.map((question, index) => (
-                  <Card key={question.id || index} className="hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => handleSelectQuestion(question)}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm">{question.text}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                              {question.level}
-                            </span>
-                            {question.courseOutcome && (
-                              <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                                CO{question.courseOutcome}
-                              </span>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
-                            </span>
+                {filteredQuestions.map((question, index) => {
+                  const exactMatch = isExactMatch(question);
+                  return (
+                    <Card 
+                      key={question.id || index} 
+                      className={`hover:bg-accent/10 cursor-pointer transition-colors ${exactMatch ? 'border-primary/50' : ''}`}
+                      onClick={() => handleSelectQuestion(question)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1">
+                            <p className="text-sm">{question.text}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <Badge variant={question.level === level ? "default" : "outline"}>
+                                {question.level}
+                              </Badge>
+                              {question.courseOutcome && (
+                                <Badge variant={question.courseOutcome === courseOutcome ? "default" : "outline"}>
+                                  CO{question.courseOutcome}
+                                </Badge>
+                              )}
+                              <Badge variant={question.marks === marks ? "default" : "outline"}>
+                                {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                              </Badge>
+                              {exactMatch && (
+                                <Badge variant="secondary" className="ml-auto">
+                                  Exact Match
+                                </Badge>
+                              )}
+                            </div>
                           </div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <Check className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </ScrollArea>
           )}
