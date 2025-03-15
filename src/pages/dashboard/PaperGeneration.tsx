@@ -252,7 +252,17 @@ export default function PaperGeneration() {
 
   return (
     <div className="container max-w-4xl mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Questions Generation</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Questions Generation</h1>
+        <Button
+          variant="outline"
+          onClick={viewFullHistory}
+          className="flex items-center gap-2"
+        >
+          <History className="h-4 w-4" />
+          View History
+        </Button>
+      </div>
       
       <Tabs defaultValue="generate" value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList className="grid grid-cols-2 w-[400px] mb-6">
