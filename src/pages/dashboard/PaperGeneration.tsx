@@ -134,12 +134,21 @@ export default function PaperGeneration() {
   const viewFullHistory = () => {
     navigate("/dashboard/paper-generation/history");
   };
+  
+  // Handle tab change - if history is selected, navigate to the history page
+  const handleTabChange = (value: string) => {
+    if (value === "history") {
+      navigate("/dashboard/paper-generation/history");
+    } else {
+      setSelectedTab(value);
+    }
+  };
 
   return (
     <div className="container max-w-4xl mx-auto py-6">
       <h1 className="text-3xl font-bold mb-6">Questions Generation</h1>
       
-      <Tabs defaultValue="generate" value={selectedTab} onValueChange={setSelectedTab}>
+      <Tabs defaultValue="generate" value={selectedTab} onValueChange={handleTabChange}>
         <TabsList className="grid grid-cols-2 w-[400px] mb-6">
           <TabsTrigger value="generate">Generate Questions</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
@@ -197,101 +206,6 @@ export default function PaperGeneration() {
                 {isLoading ? "Loading..." : "Continue"}
               </Button>
             </CardFooter>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="history">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Generated Questions</CardTitle>
-                <CardDescription>
-                  View your previously generated questions by topic
-                </CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={viewFullHistory}
-                className="flex items-center gap-1"
-              >
-                <History className="h-4 w-4" />
-                View Full History
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <Label htmlFor="filter-subject">Filter by subject</Label>
-                <Select 
-                  value={selectedSubject} 
-                  onValueChange={setSelectedSubject}
-                >
-                  <SelectTrigger id="filter-subject">
-                    <SelectValue placeholder="All subjects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All Subjects</SelectItem>
-                    {subjects && subjects.length > 0 && subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {isHistoryLoading ? (
-                <div className="text-center py-8">Loading question history...</div>
-              ) : filteredQuestions.length === 0 ? (
-                <div className="text-center py-8 flex flex-col items-center">
-                  <FileX className="h-16 w-16 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No questions found</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setSelectedTab("generate")}
-                  >
-                    Generate New Questions
-                  </Button>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Topic</TableHead>
-                      <TableHead>Questions</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredQuestions.map((item) => (
-                      <TableRow key={item.id} className="cursor-pointer" onClick={() => handleViewTopicQuestions(item)}>
-                        <TableCell>
-                          {format(new Date(item.created_at), "dd MMM yyyy")}
-                        </TableCell>
-                        <TableCell>{item.subject_name}</TableCell>
-                        <TableCell>{item.topic}</TableCell>
-                        <TableCell>
-                          {item.questionCount}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteTopic(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
