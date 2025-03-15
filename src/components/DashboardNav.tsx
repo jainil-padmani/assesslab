@@ -56,7 +56,7 @@ const links = [
   {
     title: "Questions History",
     icon: History,
-    href: "/dashboard/paper-history",
+    href: "/dashboard/paper-generation/history",
   },
   {
     title: "Set Question Paper",
