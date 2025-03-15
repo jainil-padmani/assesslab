@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Card,
@@ -34,11 +33,15 @@ import type { PaperEvaluation } from "@/hooks/useTestDetail";
 
 interface StudentEvaluationDetailsProps {
   selectedStudentGrade: (TestGrade & { 
-    evaluation?: PaperEvaluation | null 
+    evaluation?: PaperEvaluation | null;
+    answer_sheet_url?: string | null;
   }) | null;
   test: any;
   handleUpdateAnswerScore: (
-    grade: TestGrade & { evaluation?: PaperEvaluation | null }, 
+    grade: TestGrade & { 
+      evaluation?: PaperEvaluation | null;
+      answer_sheet_url?: string | null;
+    }, 
     questionIndex: number, 
     newScore: number
   ) => void;
