@@ -10,7 +10,7 @@ interface AssessmentData {
   updated_at: string;
   test_id?: string;
   text_content?: string | null;
-  zip_url?: string; // Add ZIP URL support
+  zip_url?: string | null; // ZIP URL is now properly typed
 }
 
 /**

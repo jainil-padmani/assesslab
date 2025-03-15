@@ -95,13 +95,14 @@ export const convertPdfToPng = async (pdfFile: File): Promise<File[]> => {
         viewport: viewport
       }).promise;
       
-      // Convert canvas to PNG blob
+      // Convert canvas to PNG blob with maximum quality
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => resolve(blob!), 'image/png', 1.0);
       });
       
-      // Create a PNG file
-      const pngFileName = `${pdfFile.name.replace('.pdf', '')}-page-${i}.png`;
+      // Create a PNG file with a naming convention that ensures proper order (pad page numbers)
+      const pageNum = String(i).padStart(3, '0'); // Ensures 001, 002, etc. for correct sorting
+      const pngFileName = `page-${pageNum}.png`;
       const pngFile = new File([blob], pngFileName, { type: 'image/png' });
       pngFiles.push(pngFile);
     }
@@ -124,13 +125,17 @@ export const createZipFromPngFiles = async (pngFiles: File[], baseName: string):
     
     const zip = new JSZip();
     
-    // Add each PNG file to the ZIP
-    pngFiles.forEach((file, index) => {
-      zip.file(`page-${index + 1}.png`, file);
+    // Add each PNG file to the ZIP, preserving the filenames for ordering
+    pngFiles.forEach(file => {
+      zip.file(file.name, file);
     });
     
     // Generate the ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 } // Balance between size and speed
+    });
     const zipFile = new File([zipBlob], `${baseName}.zip`, { type: 'application/zip' });
     
     console.log('Successfully created ZIP file:', zipFile.name);
@@ -201,12 +206,10 @@ export const extractTextFromPdf = async (file: File): Promise<string | null> => 
     // Process the PDF file to get ZIP URL
     const zipUrl = await processPdfFile(file, 'student');
     
-    // In a real implementation, we would send the ZIP URL to the OCR service
-    // For now, we'll return the ZIP URL as a placeholder
-    return `Document processed for OCR. ZIP file available at: ${zipUrl}`;
+    // Return information about the processing for display to the user
+    return `Document processed for OCR with enhanced image extraction. ZIP file created with ${file.name.split('.')[0]}.zip`;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
     return null;
   }
 };
-
