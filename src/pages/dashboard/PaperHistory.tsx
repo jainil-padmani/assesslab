@@ -64,10 +64,10 @@ export default function PaperHistory() {
         // Transform the data to match our Topic interface
         const mappedTopics: Topic[] = data.map((item: any) => ({
           id: item.id,
-          topic: item.topic,
-          subject_id: item.subject_id,
+          topic: item.topic || "Untitled Topic",
+          subject_id: item.subject_id || "",
           subject_name: item.subjects?.name || "Unknown Subject",
-          created_at: item.created_at,
+          created_at: item.created_at || new Date().toISOString(),
           questions: Array.isArray(item.questions) ? item.questions : []
         }));
         
@@ -110,6 +110,12 @@ export default function PaperHistory() {
       await fetchTopics();
       setDeleteDialogOpen(false);
       setTopicToDelete(null);
+      
+      // Close the dialog if the deleted topic is the currently selected one
+      if (selectedTopic && selectedTopic.id === topicToDelete.id) {
+        setIsTopicDialogOpen(false);
+        setSelectedTopic(null);
+      }
     } catch (error: any) {
       console.error("Error deleting topic:", error);
       toast.error("Failed to delete topic");
@@ -219,75 +225,73 @@ export default function PaperHistory() {
       </Card>
       
       {/* Topic Questions Dialog */}
-      <Dialog open={isTopicDialogOpen} onOpenChange={setIsTopicDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          {selectedTopic && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Topic: {selectedTopic.topic}</DialogTitle>
-                <DialogDescription>
-                  {selectedTopic.subject_name} - Created on {format(new Date(selectedTopic.created_at), "dd MMM yyyy")}
-                </DialogDescription>
-              </DialogHeader>
+      {isTopicDialogOpen && selectedTopic && (
+        <Dialog open={isTopicDialogOpen} onOpenChange={setIsTopicDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Topic: {selectedTopic.topic}</DialogTitle>
+              <DialogDescription>
+                {selectedTopic.subject_name} - Created on {format(new Date(selectedTopic.created_at), "dd MMM yyyy")}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="mt-4">
+              <h3 className="text-lg font-medium mb-4 flex items-center">
+                <List className="mr-2 h-5 w-5" />
+                Questions ({Array.isArray(selectedTopic.questions) ? selectedTopic.questions.length : 0})
+              </h3>
               
-              <div className="mt-4">
-                <h3 className="text-lg font-medium mb-4 flex items-center">
-                  <List className="mr-2 h-5 w-5" />
-                  Questions ({Array.isArray(selectedTopic.questions) ? selectedTopic.questions.length : 0})
-                </h3>
-                
-                {Array.isArray(selectedTopic.questions) && selectedTopic.questions.length > 0 ? (
-                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-                    {selectedTopic.questions.map((question, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-3 border rounded-md"
-                      >
-                        <div className="font-medium">Q{idx + 1}. {question.text}</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {question.type}
+              {Array.isArray(selectedTopic.questions) && selectedTopic.questions.length > 0 ? (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                  {selectedTopic.questions.map((question, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-3 border rounded-md"
+                    >
+                      <div className="font-medium">Q{idx + 1}. {question.text}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {question.type}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {question.level}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {question.marks} marks
+                        </span>
+                        {question.courseOutcome && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            CO{question.courseOutcome}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            {question.level}
-                          </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            {question.marks} marks
-                          </span>
-                          {question.courseOutcome && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                              CO{question.courseOutcome}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-4">No questions available for this topic</p>
-                )}
-              </div>
-              
-              <DialogFooter className="flex justify-between items-center mt-4">
-                <Button 
-                  variant="destructive" 
-                  onClick={() => {
-                    setIsTopicDialogOpen(false);
-                    setTopicToDelete(selectedTopic);
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Topic
-                </Button>
-                <Button variant="outline" onClick={() => setIsTopicDialogOpen(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">No questions available for this topic</p>
+              )}
+            </div>
+            
+            <DialogFooter className="flex justify-between items-center mt-4">
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  setIsTopicDialogOpen(false);
+                  setTopicToDelete(selectedTopic);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Topic
+              </Button>
+              <Button variant="outline" onClick={() => setIsTopicDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
