@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -43,7 +44,6 @@ export default function PaperCreation() {
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcomeConfig[]>([]);
   const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
-  const [isStoringQuestions, setIsStoringQuestions] = useState(false);
   
   useEffect(() => {
     if (!subjectId || !topicName) {
@@ -192,12 +192,8 @@ export default function PaperCreation() {
         return;
       }
       
-      const questions = response.data.questions;
-      setGeneratedQuestions(questions);
-      
-      await storeQuestionsInSupabase(questions);
-      
-      toast.success("Questions generated and stored successfully");
+      setGeneratedQuestions(response.data.questions);
+      toast.success("Questions generated successfully");
     } catch (error) {
       console.error("Error generating questions:", error);
       toast.error("Failed to generate questions");
@@ -206,33 +202,19 @@ export default function PaperCreation() {
     }
   };
   
-  const storeQuestionsInSupabase = async (questions: Question[]) => {
-    if (questions.length === 0) return;
-    
-    setIsStoringQuestions(true);
-    try {
-      const { error } = await supabase
-        .from('generated_questions')
-        .insert({
-          subject_id: subjectId,
-          topic: topicName,
-          questions: questions as any,
-          user_id: (await supabase.auth.getUser()).data.user?.id || ''
-        });
-      
-      if (error) throw error;
-      
-    } catch (error) {
-      console.error("Error storing questions:", error);
-      toast.error("Failed to store questions");
-    } finally {
-      setIsStoringQuestions(false);
-    }
+  const toggleQuestionSelection = (id: string) => {
+    setGeneratedQuestions(prev => 
+      prev.map(q => 
+        q.id === id ? { ...q, selected: !q.selected } : q
+      )
+    );
   };
   
   const createPaper = async () => {
-    if (generatedQuestions.length === 0) {
-      toast.error("Please generate questions first");
+    const selectedQuestions = generatedQuestions.filter(q => q.selected);
+    
+    if (selectedQuestions.length === 0) {
+      toast.error("Please select at least one question");
       return;
     }
     
@@ -246,7 +228,7 @@ export default function PaperCreation() {
           subjectCode,
           topicName,
           headerUrl,
-          questions: generatedQuestions.slice(0, 5)
+          questions: selectedQuestions
         }
       });
       
@@ -268,7 +250,7 @@ export default function PaperCreation() {
           topic: topicName,
           paper_url: paperUrl,
           pdf_url: pdfUrl || null,
-          questions: generatedQuestions.slice(0, 5) as any,
+          questions: selectedQuestions as any,
           header_url: headerUrl || null,
           content_url: contentUrl || null,
           user_id: (await supabase.auth.getUser()).data.user?.id || ''
@@ -614,7 +596,7 @@ export default function PaperCreation() {
                 {isGenerating ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating & Storing...
+                    Generating...
                   </>
                 ) : (
                   'Generate Questions'
@@ -634,9 +616,9 @@ export default function PaperCreation() {
             <TabsContent value="questions">
               <Card>
                 <CardHeader>
-                  <CardTitle>Generated Questions</CardTitle>
+                  <CardTitle>Select Questions for Paper</CardTitle>
                   <CardDescription>
-                    All generated questions are automatically stored in your question bank
+                    Choose the questions you want to include in your test paper
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -652,13 +634,21 @@ export default function PaperCreation() {
                     <div className="space-y-4">
                       {generatedQuestions.map((question, index) => (
                         <div 
-                          key={question.id || index} 
-                          className="p-4 border rounded-md border-gray-200"
+                          key={question.id} 
+                          className={`p-4 border rounded-md ${question.selected ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
                         >
                           <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 pt-0.5">
+                              <Checkbox 
+                                id={`question-${question.id}`}
+                                checked={question.selected}
+                                onCheckedChange={() => toggleQuestionSelection(question.id)}
+                              />
+                            </div>
                             <div className="flex-1 min-w-0">
                               <Label 
-                                className="text-sm font-medium"
+                                htmlFor={`question-${question.id}`}
+                                className="text-sm font-medium cursor-pointer"
                               >
                                 Q{index + 1}. {question.text}
                               </Label>
@@ -689,7 +679,7 @@ export default function PaperCreation() {
                   <Button 
                     className="ml-auto" 
                     onClick={createPaper}
-                    disabled={isCreatingPaper || generatedQuestions.length === 0}
+                    disabled={isCreatingPaper || generatedQuestions.filter(q => q.selected).length === 0}
                   >
                     {isCreatingPaper ? 'Creating Paper...' : 'Create Paper'}
                   </Button>
@@ -754,4 +744,3 @@ export default function PaperCreation() {
     </div>
   );
 }
-
