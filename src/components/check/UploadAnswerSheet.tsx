@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FilePlus } from "lucide-react";
 import { toast } from "sonner";
-import { validatePdfFile, uploadAnswerSheetFile, deletePreviousFiles } from "@/utils/assessment/fileUploadUtils";
+import { validatePdfFile, uploadAnswerSheetFile, deletePreviousFiles, extractTextFromPdf } from "@/utils/assessment/fileUploadUtils";
 import { 
   fetchExistingAssessments, 
   updateAssessment, 
