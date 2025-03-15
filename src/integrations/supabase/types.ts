@@ -72,6 +72,7 @@ export type Database = {
           student_id: string | null
           subject_id: string | null
           test_id: string | null
+          text_content: string | null
           updated_at: string | null
         }
         Insert: {
@@ -85,6 +86,7 @@ export type Database = {
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
+          text_content?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -98,6 +100,7 @@ export type Database = {
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
+          text_content?: string | null
           updated_at?: string | null
         }
         Relationships: [

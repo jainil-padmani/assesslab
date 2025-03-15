@@ -56,10 +56,13 @@ export function UploadAnswerSheet({
       const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
       
       // Extract previous URLs for cleanup later
-      const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
+      const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
+      
+      // Process the file (extract text would normally happen here)
+      const textContent = await extractTextFromPdf(file);
       
       // Upload the file to storage
-      const { publicUrl } = await uploadAnswerSheetFile(file);
+      const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
 
       // Prepare the assessment data
       const assessmentData = {
@@ -67,7 +70,8 @@ export function UploadAnswerSheet({
         subject_id: selectedSubject,
         answer_sheet_url: publicUrl,
         status: 'pending',
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        text_content: textContent
       };
       
       if (testId) {
