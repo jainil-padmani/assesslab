@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,12 +9,14 @@ interface UploadAnswerSheetProps {
   studentId: string;
   selectedSubject: string;
   isEvaluating: boolean;
+  testId?: string;
 }
 
 export function UploadAnswerSheet({ 
   studentId, 
   selectedSubject,
-  isEvaluating 
+  isEvaluating,
+  testId
 }: UploadAnswerSheetProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,7 +35,6 @@ export function UploadAnswerSheet({
   };
 
   const handleUpload = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    // Prevent any default browser behavior
     e.preventDefault();
     
     if (!file) {
@@ -44,11 +44,15 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     try {
-      const { data: existingAssessments, error: fetchError } = await supabase
+      const query = supabase
         .from('assessments')
         .select('id, answer_sheet_url')
         .eq('student_id', studentId)
         .eq('subject_id', selectedSubject);
+        
+      const { data: existingAssessments, error: fetchError } = testId 
+        ? await query.eq('test_id', testId)
+        : await query;
         
       if (fetchError) {
         console.error('Error checking existing assessments:', fetchError);
@@ -57,9 +61,7 @@ export function UploadAnswerSheet({
       
       const previousUrls = existingAssessments?.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
-      const timestamp = Date.now();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const fileName = `${crypto.randomUUID()}.pdf`;
       
       const { error: uploadError } = await supabase.storage
         .from('documents')
@@ -74,13 +76,19 @@ export function UploadAnswerSheet({
       if (existingAssessments && existingAssessments.length > 0) {
         const primaryAssessmentId = existingAssessments[0].id;
         
+        const updateData: any = {
+          answer_sheet_url: publicUrl,
+          status: 'pending',
+          updated_at: new Date().toISOString()
+        };
+        
+        if (testId) {
+          updateData.test_id = testId;
+        }
+        
         const { error: updateError } = await supabase
           .from('assessments')
-          .update({
-            answer_sheet_url: publicUrl,
-            status: 'pending',
-            updated_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', primaryAssessmentId);
           
         if (updateError) throw updateError;
@@ -101,16 +109,22 @@ export function UploadAnswerSheet({
         
         toast.success('Answer sheet updated successfully');
       } else {
+        const newAssessment: any = {
+          student_id: studentId,
+          subject_id: selectedSubject,
+          answer_sheet_url: publicUrl,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        if (testId) {
+          newAssessment.test_id = testId;
+        }
+        
         const { error: assessmentError } = await supabase
           .from('assessments')
-          .insert({
-            student_id: studentId,
-            subject_id: selectedSubject,
-            answer_sheet_url: publicUrl,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
+          .insert(newAssessment);
 
         if (assessmentError) throw assessmentError;
         toast.success('Answer sheet uploaded successfully');
@@ -136,17 +150,15 @@ export function UploadAnswerSheet({
         }
       }
       
-      await resetEvaluations(studentId, selectedSubject);
+      await resetEvaluations(studentId, selectedSubject, testId);
       
-      // Reset file state and clear the file input
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       
-      // Dispatch a custom event to notify Check component that evaluations need to be refreshed
       const customEvent = new CustomEvent('answerSheetUploaded', {
-        detail: { studentId, subjectId: selectedSubject }
+        detail: { studentId, subjectId: selectedSubject, testId }
       });
       document.dispatchEvent(customEvent);
       
@@ -158,64 +170,71 @@ export function UploadAnswerSheet({
     }
   };
   
-  const resetEvaluations = async (studentId: string, subjectId: string) => {
+  const resetEvaluations = async (studentId: string, subjectId: string, testId?: string) => {
     try {
-      const { data: tests, error: testsError } = await supabase
-        .from('tests')
-        .select('id')
-        .eq('subject_id', subjectId);
-        
-      if (testsError) {
-        console.error('Error fetching tests:', testsError);
-        return;
-      }
-      
-      if (!tests || tests.length === 0) return;
-      
-      console.log(`Resetting evaluations for student ${studentId} across ${tests.length} tests`);
-      
-      const testIds = tests.map(test => test.id);
-      
-      const { error: evalDeleteError } = await supabase
+      let query = supabase
         .from('paper_evaluations')
         .delete()
-        .eq('student_id', studentId)
-        .in('test_id', testIds);
+        .eq('student_id', studentId);
+      
+      if (testId) {
+        query = query.eq('test_id', testId);
+        console.log(`Resetting evaluations for student ${studentId} for test ${testId}`);
+      } else {
+        const { data: tests, error: testsError } = await supabase
+          .from('tests')
+          .select('id')
+          .eq('subject_id', subjectId);
+          
+        if (testsError) {
+          console.error('Error fetching tests:', testsError);
+          return;
+        }
         
+        if (!tests || tests.length === 0) return;
+        
+        console.log(`Resetting evaluations for student ${studentId} across ${tests.length} tests`);
+        
+        const testIds = tests.map(test => test.id);
+        query = query.in('test_id', testIds);
+      }
+      
+      const { error: evalDeleteError } = await query;
+          
       if (evalDeleteError) {
         console.error('Error deleting evaluations:', evalDeleteError);
       } else {
-        console.log(`Reset evaluations for student ${studentId} across all tests`);
+        console.log(`Reset evaluations for student ${studentId}`);
       }
       
-      for (const testId of testIds) {
-        const { data: grades, error: gradesFetchError } = await supabase
-          .from('test_grades')
-          .select('id')
-          .eq('student_id', studentId)
-          .eq('test_id', testId);
-          
-        if (gradesFetchError) {
-          console.error('Error fetching grades:', gradesFetchError);
-          continue;
-        }
+      let gradesQuery = supabase
+        .from('test_grades')
+        .update({
+          marks: 0,
+          remarks: 'Reset due to answer sheet reupload'
+        })
+        .eq('student_id', studentId);
         
-        if (grades && grades.length > 0) {
-          const { error: gradesUpdateError } = await supabase
-            .from('test_grades')
-            .update({
-              marks: 0,
-              remarks: 'Reset due to answer sheet reupload'
-            })
-            .eq('student_id', studentId)
-            .eq('test_id', testId);
-            
-          if (gradesUpdateError) {
-            console.error('Error updating grades:', gradesUpdateError);
-          } else {
-            console.log(`Reset grades for student ${studentId} and test ${testId}`);
-          }
+      if (testId) {
+        gradesQuery = gradesQuery.eq('test_id', testId);
+      } else if (subjectId) {
+        const { data: tests } = await supabase
+          .from('tests')
+          .select('id')
+          .eq('subject_id', subjectId);
+          
+        if (tests && tests.length > 0) {
+          const testIds = tests.map(test => test.id);
+          gradesQuery = gradesQuery.in('test_id', testIds);
         }
+      }
+      
+      const { error: gradesUpdateError } = await gradesQuery;
+          
+      if (gradesUpdateError) {
+        console.error('Error updating grades:', gradesUpdateError);
+      } else {
+        console.log(`Reset grades for student ${studentId}`);
       }
     } catch (error) {
       console.error('Error resetting evaluations and grades:', error);
@@ -237,7 +256,7 @@ export function UploadAnswerSheet({
         size="sm" 
         onClick={handleUpload}
         disabled={!file || isUploading || isEvaluating}
-        type="button" // Explicitly set type to "button" to prevent form submission
+        type="button"
       >
         {isUploading ? (
           "Uploading..."

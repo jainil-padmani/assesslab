@@ -30,7 +30,7 @@ export function useEvaluations(
   
   const queryClient = useQueryClient();
 
-  // Fetch evaluations
+  // Fetch evaluations specifically for the selected test
   const { data: evaluations = [], refetch: refetchEvaluations } = useQuery({
     queryKey: ['evaluations', selectedTest],
     queryFn: async () => {
@@ -48,7 +48,7 @@ export function useEvaluations(
         return [];
       }
       
-      console.log(`Found ${data?.length || 0} evaluations`);
+      console.log(`Found ${data?.length || 0} evaluations for test ${selectedTest}`);
       return data as PaperEvaluation[];
     },
     enabled: !!selectedTest
@@ -83,7 +83,7 @@ export function useEvaluations(
         subject: string;
       }
     }) => {
-      console.log("Starting evaluation for student:", studentInfo.name);
+      console.log("Starting evaluation for student:", studentInfo.name, "for test:", testId);
       
       // Check if an evaluation already exists for this student and test
       const { data: existingEvaluations, error: fetchError } = await supabase
@@ -155,7 +155,8 @@ export function useEvaluations(
             url: answerSheetUrl,
             studentId
           },
-          studentInfo
+          studentInfo,
+          testId // Pass the testId to ensure answers are synced with the correct test
         });
         
         const { data, error } = await supabase.functions.invoke('evaluate-paper', {
@@ -172,7 +173,8 @@ export function useEvaluations(
               url: answerSheetUrl,
               studentId
             },
-            studentInfo
+            studentInfo,
+            testId // Pass the testId to the edge function
           }
         });
         
@@ -293,6 +295,7 @@ export function useEvaluations(
     return evaluation?.status || 'pending';
   };
 
+  // Get answer sheet URL specific to a subject
   const getStudentAnswerSheetUrl = async (studentId: string): Promise<string | null> => {
     try {
       const { data, error } = await supabase
@@ -368,20 +371,6 @@ export function useEvaluations(
         } else {
           console.log("Successfully deleted from test_grades table");
         }
-        
-        // Also delete any assessment records related to this evaluation
-        const { error: assessmentError } = await supabase
-          .from('assessments')
-          .delete()
-          .eq('student_id', targetStudentId)
-          .eq('subject_id', selectedSubject);
-          
-        if (assessmentError) {
-          console.error('Error deleting assessment:', assessmentError);
-          // Continue even if there's an error deleting the assessment
-        } else {
-          console.log("Successfully deleted related assessment records");
-        }
       }
       
       // Force invalidate queries to ensure fresh data on next fetch
@@ -389,7 +378,6 @@ export function useEvaluations(
       queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
       queryClient.invalidateQueries({ queryKey: ['test-grades'] });
       queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
-      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       
       // Update local state to remove the deleted evaluation immediately
       setEvaluationResults(prev => {
@@ -410,7 +398,7 @@ export function useEvaluations(
       console.error('Error deleting evaluation:', error);
       return false;
     }
-  }, [selectedTest, selectedSubject, evaluations, queryClient, refetchEvaluations]);
+  }, [selectedTest, evaluations, queryClient, refetchEvaluations]);
 
   return {
     evaluations,

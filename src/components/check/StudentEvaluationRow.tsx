@@ -14,6 +14,7 @@ interface StudentEvaluationRowProps {
   evaluationData: any;
   isEvaluating: boolean;
   selectedSubject: string;
+  selectedTest: string; // Add selected test prop
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
 }
@@ -24,6 +25,7 @@ export function StudentEvaluationRow({
   evaluationData,
   isEvaluating, 
   selectedSubject,
+  selectedTest, // Receive selected test
   testFilesAvailable,
   onEvaluate
 }: StudentEvaluationRowProps) {
@@ -75,6 +77,7 @@ export function StudentEvaluationRow({
           studentId={student.id}
           selectedSubject={selectedSubject}
           isEvaluating={isEvaluating}
+          testId={selectedTest} // Pass the test ID to ensure papers are synced with tests
         />
       </TableCell>
       <TableCell>

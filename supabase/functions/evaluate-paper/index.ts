@@ -18,10 +18,11 @@ serve(async (req) => {
     const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
     console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
     
-    const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
+    const { questionPaper, answerKey, studentAnswer, studentInfo, testId } = await req.json();
 
     console.log("Received evaluation request for student:", studentInfo?.name);
     console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
+    console.log("Test ID for evaluation:", testId);
     
     // Add cache-busting parameter to URLs to prevent caching issues
     const addCacheBuster = (url: string) => {
@@ -34,8 +35,7 @@ serve(async (req) => {
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     
-    // First, check if the student answer is an image/handwritten document
-    // If so, we need to run OCR on it
+    // Process the student answer if it's a PDF or image
     let processedStudentAnswer = studentAnswer;
     
     if (studentAnswer?.url && (
@@ -44,19 +44,15 @@ serve(async (req) => {
         studentAnswer.url.includes('.png') ||
         studentAnswer.url.includes('.pdf')
     )) {
-      console.log("Detected handwritten/PDF answer sheet, performing OCR...");
+      console.log("Detected document/image answer sheet, performing OCR with GPT-4o...");
       console.log("URL:", studentAnswer.url);
       
-      // For PDFs, we need to tell OpenAI specifically that it's a document
-      const contentType = studentAnswer.url.toLowerCase().endsWith('.pdf') ? 
-        "application/pdf" : "image/jpeg";
-        
-      // Use OpenAI's vision capabilities to extract text from image/PDF
       try {
+        // Use GPT-4o's vision capabilities for OCR
         const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -64,12 +60,25 @@ serve(async (req) => {
             messages: [
               { 
                 role: 'system', 
-                content: 'You are an OCR expert. Extract all text from this document or image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
+                content: `You are an OCR expert specialized in extracting text from handwritten answer sheets and documents.
+                
+                For each question in the document:
+                1. Identify the question number clearly.
+                2. Extract the complete answer text.
+                3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
+                4. If the handwriting is difficult to read, make your best effort and indicate uncertainty with [?].
+                5. Maintain the structure of mathematical equations, diagrams descriptions, and any special formatting.
+                6. If you identify multiple pages, process each and maintain continuity between questions.
+                
+                Your response should be structured, accurate, and preserve the original content's organization.`
               },
               { 
                 role: 'user', 
                 content: [
-                  { type: 'text', text: 'This is a student\'s handwritten answer sheet or PDF document. Extract all the text, preserving the structure of questions and answers:' },
+                  { 
+                    type: 'text', 
+                    text: `This is a student's answer sheet for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:` 
+                  },
                   { 
                     type: 'image_url', 
                     image_url: { 
@@ -80,7 +89,8 @@ serve(async (req) => {
                 ] 
               }
             ],
-            temperature: 0.3,
+            temperature: 0.2,
+            max_tokens: 4000,
           }),
         });
 
@@ -95,8 +105,6 @@ serve(async (req) => {
             isOcrProcessed: false,
             ocrError: errorText
           };
-          
-          // Continue with evaluation despite OCR failure
         } else {
           const ocrResult = await ocrResponse.json();
           const extractedText = ocrResult.choices[0]?.message?.content;
@@ -108,7 +116,8 @@ serve(async (req) => {
           processedStudentAnswer = {
             ...studentAnswer,
             text: extractedText,
-            isOcrProcessed: true
+            isOcrProcessed: true,
+            testId: testId // Include test ID to ensure answers are synced with the correct test
           };
         }
       } catch (ocrError) {
@@ -121,30 +130,38 @@ serve(async (req) => {
           isOcrProcessed: false,
           ocrError: ocrError.message
         };
-        
-        // Continue with evaluation despite OCR failure
       }
     }
     
     // Prepare the prompt for OpenAI evaluation
     const systemPrompt = `
-You are an AI evaluator responsible for grading a student's answer sheet.
-The user will provide you with the question paper(s), answer key(s), and the student's answer sheet(s).
-Analyse the question paper to understand the questions and their marks.
-Analyse the answer key to understand the correct answers and valuation criteria.
-Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
-Your task is to grade the answer sheet and return it in a JSON format.
-If this is a revaluation it will be mentioned in the request and you should strictly follow the revaluation prompt.
+You are an AI evaluator responsible for grading a student's answer sheet for test ID: ${testId}.
+The user will provide you with the question paper, answer key, and the student's answer sheet.
+Follow these steps:
+
+1. Analyze the question paper to understand the questions and their marks allocation.
+2. Analyze the answer key to understand the correct answers and valuation criteria.
+3. Extract questions and answers from the student's submission, matching questions by number where possible.
+4. For each question:
+   - Identify the question number
+   - Compare the student's answer with the answer key
+   - Assign appropriate marks based on correctness and completeness
+   - Provide brief remarks explaining the score
+
+5. Be generous in your assessment but objective. Award 0 marks for completely incorrect or unattempted answers.
+6. Ensure you only evaluate answers for THIS specific test (ID: ${testId}).
+
+Your evaluation must be returned in a structured JSON format.
 `;
 
     const userPrompt = `
-Question Paper:
+Question Paper for Test ID ${testId}:
 ${JSON.stringify(questionPaper)}
 
-Answer Key:
+Answer Key for Test ID ${testId}:
 ${JSON.stringify(answerKey)}
 
-Student Answer Sheet:
+Student Answer Sheet for Test ID ${testId}:
 ${JSON.stringify(processedStudentAnswer)}
 
 Student Info:
@@ -156,6 +173,7 @@ student_name: "${studentInfo?.name || 'Unknown'}"
 roll_no: "${studentInfo?.roll_number || 'Unknown'}"
 class: "${studentInfo?.class || 'Unknown'}"
 subject: "${studentInfo?.subject || 'Unknown'}"
+test_id: "${testId || 'Unknown'}"
 
 answers: an array of objects containing the following fields:
 - question_no: the question number
@@ -174,7 +192,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -235,10 +253,9 @@ Return ONLY the JSON object without any additional text or markdown formatting.
         percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
       };
       
-      // Add the answer sheet URL to the evaluation for reference
-      if (studentAnswer?.url) {
-        evaluation.answer_sheet_url = studentAnswer.url;
-      }
+      // Add metadata to ensure proper syncing
+      evaluation.test_id = testId;
+      evaluation.answer_sheet_url = studentAnswer.url;
       
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
       
