@@ -74,6 +74,7 @@ export type Database = {
           test_id: string | null
           text_content: string | null
           updated_at: string | null
+          zip_url: string | null
         }
         Insert: {
           answer_key_id?: string | null
@@ -88,6 +89,7 @@ export type Database = {
           test_id?: string | null
           text_content?: string | null
           updated_at?: string | null
+          zip_url?: string | null
         }
         Update: {
           answer_key_id?: string | null
@@ -102,6 +104,7 @@ export type Database = {
           test_id?: string | null
           text_content?: string | null
           updated_at?: string | null
+          zip_url?: string | null
         }
         Relationships: [
           {
