@@ -128,7 +128,7 @@ Format each question as:
               marks: question.marks || getMarksForQuestion(question.level, question.difficulty || "moderate"),
               level: question.level,
               courseOutcome: question.courseOutcome,
-              selected: false
+              // No more selected property since we store all questions
             });
           } catch (parseError) {
             console.error("Error parsing question JSON:", parseError, jsonStr);
@@ -196,7 +196,7 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         marks: marks,
         level: bloomsLevel,
         courseOutcome: co.co_number,
-        selected: false
+        // Removed selected property
       });
     }
   }
