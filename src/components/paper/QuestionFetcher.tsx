@@ -11,6 +11,7 @@ import { Search, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Json } from "@/integrations/supabase/types";
 
 interface QuestionFetcherProps {
   open: boolean;
@@ -111,11 +112,11 @@ export function QuestionFetcher({
         const questionsData = data[0].questions;
         let allQuestions: Question[] = [];
         
-        // Validate if it's an array and has the structure we expect
+        // Validate if it's an array and has the right structure
         if (Array.isArray(questionsData)) {
-          // Convert from Json[] to Question[] with proper type validation
+          // Convert from Json[] to Question[] with proper type checking
           allQuestions = questionsData
-            .filter(q => 
+            .filter((q): q is Record<string, Json> => 
               typeof q === 'object' && 
               q !== null && 
               'id' in q && 
@@ -125,13 +126,13 @@ export function QuestionFetcher({
               'level' in q
             )
             .map(q => ({
-              id: String(q.id),
-              text: String(q.text),
-              type: String(q.type),
-              marks: Number(q.marks),
-              level: String(q.level),
+              id: String(q.id || ''),
+              text: String(q.text || ''),
+              type: String(q.type || ''),
+              marks: Number(q.marks || 0),
+              level: String(q.level || ''),
               // Handle optional courseOutcome property
-              courseOutcome: 'courseOutcome' in q ? Number(q.courseOutcome) : undefined
+              courseOutcome: q.courseOutcome !== undefined ? Number(q.courseOutcome) : undefined
             }));
         }
         
