@@ -153,26 +153,47 @@ export default function PaperGeneration() {
       return;
     }
     
+    if (!selectedSubject) {
+      toast.error("Please select a subject");
+      return;
+    }
+    
+    if (!topicName) {
+      toast.error("Please enter a topic name");
+      return;
+    }
+    
     setIsGenerating(true);
     toast.info("Generating questions, this may take a moment...");
     
     try {
+      // Create a default array for course outcomes if none are provided
+      const defaultCourseOutcomes = [
+        { co_number: 1, description: "General understanding", selected: true, questionCount: 10 }
+      ];
+      
       const response = await supabase.functions.invoke('generate-questions', {
         body: {
           topic: topicName,
-          content: extractedContent,
+          content: extractedContent || "No content provided",
           bloomsTaxonomy,
           difficulty,
-          courseOutcomes: []
+          courseOutcomes: [] // Send empty array by default
         }
       });
       
       if (response.error) {
-        toast.error(`Error generating questions: ${response.error.message}`);
+        console.error("Error generating questions:", response.error);
+        toast.error(`Error generating questions: ${response.error}`);
+        setIsGenerating(false);
         return;
       }
       
       setGeneratedQuestions(response.data.questions);
+      
+      if (response.data.warning) {
+        toast.warning(response.data.warning);
+      }
       
       try {
         await supabase.from('generated_papers').insert({
@@ -185,6 +206,7 @@ export default function PaperGeneration() {
         });
         
         toast.success("Questions generated and saved successfully");
+        fetchPapers();
       } catch (saveError) {
         console.error("Error saving questions:", saveError);
         toast.error("Questions generated but failed to save to history");

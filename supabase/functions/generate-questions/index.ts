@@ -23,18 +23,16 @@ serve(async (req: Request) => {
       );
     }
     
-    if (!courseOutcomes || courseOutcomes.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "At least one course outcome must be selected" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
-    }
+    // Make course outcomes optional
+    const validCourseOutcomes = courseOutcomes || [];
     
     console.log(`Generating questions for ${topic} with difficulty ${difficulty}%`);
-    console.log("Course outcomes:", courseOutcomes);
+    console.log("Course outcomes:", validCourseOutcomes);
     
     // Total number of questions required
-    const totalQuestions = courseOutcomes.reduce((total, co) => total + co.questionCount, 0);
+    const totalQuestions = validCourseOutcomes.length > 0 
+      ? validCourseOutcomes.reduce((total, co) => total + (co.questionCount || 0), 0)
+      : 10; // Default to 10 questions if no course outcomes specified
     
     // Get the OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -59,11 +57,11 @@ Requirements:
 - Questions should be aligned with the specified course outcomes and Bloom's taxonomy levels
 - Difficulty level should be approximately ${difficulty}% on a scale of 0-100
 
-Course Outcomes:
-${courseOutcomes.filter(co => co.selected).map(co => `CO${co.co_number}: ${co.description}`).join('\n')}
+${validCourseOutcomes.length > 0 ? `Course Outcomes:
+${validCourseOutcomes.filter(co => co.selected).map(co => `CO${co.co_number}: ${co.description}`).join('\n')}
 
 Question Distribution:
-${courseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: ${co.questionCount} questions`).join('\n')}
+${validCourseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: ${co.questionCount} questions`).join('\n')}` : 'No specific course outcomes provided.'}
 
 Bloom's Taxonomy distribution:
 ${Object.entries(bloomsTaxonomy).map(([level, value]) => `- ${level}: ${value}%`).join('\n')}
@@ -109,6 +107,7 @@ Format each question as:
       }
     
       const aiResponse = await response.json();
+      console.log("OpenAI response received");
       const aiContent = aiResponse.choices[0].message.content;
       
       // Extract JSON objects from the response
@@ -140,7 +139,7 @@ Format each question as:
       
       // If we couldn't extract questions from the JSON format, fallback to generating them
       if (generatedQuestions.length === 0) {
-        generatedQuestions = generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic);
+        generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic);
       }
       
       console.log(`Generated ${generatedQuestions.length} questions`);
@@ -153,7 +152,7 @@ Format each question as:
       console.error("Error calling OpenAI API:", apiError);
       
       // Fallback to local question generation
-      const generatedQuestions = generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic);
+      const generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic);
       
       return new Response(
         JSON.stringify({ 
@@ -176,26 +175,47 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
   const generatedQuestions = [];
   let questionId = 1;
   
-  // Generate questions for each course outcome
-  for (const co of courseOutcomes) {
-    if (!co.selected) continue;
-    
-    for (let i = 0; i < co.questionCount; i++) {
-      // Determine Bloom's taxonomy level based on distribution
-      let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
+  // If we have course outcomes, generate questions for each
+  if (courseOutcomes && courseOutcomes.length > 0) {
+    // Generate questions for each course outcome
+    for (const co of courseOutcomes) {
+      if (!co.selected) continue;
       
-      // Generate question based on difficulty
+      for (let i = 0; i < (co.questionCount || 1); i++) {
+        // Determine Bloom's taxonomy level based on distribution
+        let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
+        
+        // Generate question based on difficulty
+        const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
+        const questionType = getRandomQuestionType(bloomsLevel);
+        const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
+        
+        generatedQuestions.push({
+          id: `q${questionId++}`,
+          text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+          type: questionType,
+          marks: marks,
+          level: bloomsLevel,
+          courseOutcome: co.co_number,
+          selected: false
+        });
+      }
+    }
+  } else {
+    // If no course outcomes, generate default questions
+    for (let i = 0; i < totalQuestions; i++) {
+      let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
       const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
       const questionType = getRandomQuestionType(bloomsLevel);
       const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
       
       generatedQuestions.push({
         id: `q${questionId++}`,
-        text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+        text: `[${topic}] Question about this topic (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
         type: questionType,
         marks: marks,
         level: bloomsLevel,
-        courseOutcome: co.co_number,
+        courseOutcome: null,
         selected: false
       });
     }
