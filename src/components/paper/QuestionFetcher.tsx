@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Question } from "@/types/papers";
-import { Search, Check, Filter, ChevronDown } from "lucide-react";
+import { Search, Check, Filter, ChevronDown, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -161,8 +161,10 @@ export function QuestionFetcher({
         }
         
         setQuestions(allQuestions);
+        toast.success(`Loaded ${allQuestions.length} questions for topic "${selectedTopic}"`);
       } else {
         setQuestions([]);
+        toast.info("No questions found for this topic");
       }
     } catch (error) {
       console.error("Error fetching questions:", error);
@@ -178,6 +180,7 @@ export function QuestionFetcher({
       marks: marks // Override with the marks from the paper format
     });
     onOpenChange(false);
+    toast.success("Question added to paper");
   };
 
   // Check if a question is an exact match for all criteria
@@ -191,9 +194,9 @@ export function QuestionFetcher({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Select Question</DialogTitle>
+          <DialogTitle>Select Question for Paper</DialogTitle>
           <DialogDescription>
-            Choose a question from your generated question bank
+            Choose a question from your generated question bank to add to your paper
           </DialogDescription>
         </DialogHeader>
         
@@ -223,7 +226,7 @@ export function QuestionFetcher({
               onClick={handleFetchQuestions}
               disabled={!selectedTopic || loading}
             >
-              <ChevronDown className="h-4 w-4 mr-2" />
+              <FileText className="h-4 w-4 mr-2" />
               Fetch Questions
             </Button>
             <div className="flex-1">
@@ -234,6 +237,7 @@ export function QuestionFetcher({
                   className="pl-8"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled={!topicSelected || questions.length === 0}
                 />
               </div>
             </div>
@@ -241,7 +245,7 @@ export function QuestionFetcher({
           
           <div className="flex items-center justify-between">
             <div className="bg-muted/30 rounded-md p-2 text-sm flex-1">
-              <span className="font-medium">Filters:</span>
+              <span className="font-medium">Criteria:</span>
               <span className="ml-2">Level: {level.charAt(0).toUpperCase() + level.slice(1)}</span>
               {courseOutcome && <span className="ml-2">• CO{courseOutcome}</span>}
               <span className="ml-2">• {marks} marks</span>
@@ -251,6 +255,7 @@ export function QuestionFetcher({
               size="sm"
               onClick={() => setShowExactMatches(!showExactMatches)}
               className="ml-2 flex items-center gap-1"
+              disabled={!topicSelected || questions.length === 0}
             >
               <Filter className="h-4 w-4" />
               {showExactMatches ? "Show All" : "Exact Matches"}
@@ -273,7 +278,7 @@ export function QuestionFetcher({
                 No questions found matching the criteria
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Try selecting a different topic or adjusting your question parameters
+                Try selecting a different topic or adjusting your search
               </p>
             </div>
           ) : (
