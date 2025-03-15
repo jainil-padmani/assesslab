@@ -114,15 +114,19 @@ export function QuestionFetcher({
         if (Array.isArray(questionsData)) {
           // Convert from Json[] to Question[] with proper type validation
           allQuestions = questionsData
-            .filter(q => 
-              typeof q === 'object' && 
-              q !== null && 
-              'id' in q && 
-              'text' in q && 
-              'type' in q && 
-              'marks' in q && 
-              'level' in q
-            )
+            .filter(q => {
+              // First check if q is an object and not null
+              if (typeof q !== 'object' || q === null) return false;
+              
+              // Then check if it has all the required properties
+              return (
+                'id' in q && 
+                'text' in q && 
+                'type' in q && 
+                'marks' in q && 
+                'level' in q
+              );
+            })
             .map(q => ({
               id: String(q.id),
               text: String(q.text),
