@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardHeader,
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tabs";
 import type { TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
+import { useTestFiles } from "@/hooks/test-selection/useTestFiles";
 
 interface StudentEvaluationDetailsProps {
   selectedStudentGrade: (TestGrade & { 
@@ -54,14 +55,23 @@ export function StudentEvaluationDetails({
 }: StudentEvaluationDetailsProps) {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [activeTab, setActiveTab] = useState("evaluation");
+  
+  const { testFiles } = useTestFiles(test?.id);
 
   if (!selectedStudentGrade?.evaluation) {
     return null;
   }
 
   const evaluation = selectedStudentGrade.evaluation?.evaluation_data;
-  const questionPaperUrl = test?.files?.find((file: any) => file.question_paper_url)?.question_paper_url;
-  const answerKeyUrl = test?.files?.find((file: any) => file.answer_key_url)?.answer_key_url;
+  
+  const questionPaperUrl = testFiles && testFiles.length > 0 
+    ? testFiles[0].question_paper_url 
+    : test?.files?.find((file: any) => file.question_paper_url)?.question_paper_url;
+    
+  const answerKeyUrl = testFiles && testFiles.length > 0 
+    ? testFiles[0].answer_key_url 
+    : test?.files?.find((file: any) => file.answer_key_url)?.answer_key_url;
+    
   const studentPaperUrl = selectedStudentGrade.answer_sheet_url;
 
   const handleZoomIn = () => {
@@ -311,3 +321,4 @@ export function StudentEvaluationDetails({
     </Card>
   );
 }
+
