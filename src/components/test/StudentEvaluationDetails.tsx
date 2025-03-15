@@ -20,7 +20,8 @@ import {
   CheckCircle, 
   ZoomIn, 
   ZoomOut,
-  RotateCw
+  RotateCw,
+  FileDigit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,6 +134,13 @@ export function StudentEvaluationDetails({
     const cacheBuster = `t=${Date.now()}`;
     return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
   };
+
+  // Extract OCR data from evaluation
+  const ocrData = evaluation?.ocr_data || {
+    question_paper: { extracted_text: null },
+    answer_key: { extracted_text: null },
+    student_answer: { extracted_text: null }
+  };
   
   return (
     <Card className="mb-8">
@@ -180,11 +188,14 @@ export function StudentEvaluationDetails({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-4 mb-4">
+          <TabsList className="grid grid-cols-5 mb-4">
             <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
             <TabsTrigger value="question-paper">Question Paper</TabsTrigger>
             <TabsTrigger value="answer-key">Answer Key</TabsTrigger>
             <TabsTrigger value="student-paper">Student Paper</TabsTrigger>
+            <TabsTrigger value="ocr-text" className="flex items-center">
+              <FileDigit className="h-4 w-4 mr-1" /> OCR Text
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="evaluation">
@@ -364,8 +375,94 @@ export function StudentEvaluationDetails({
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="ocr-text">
+            <div className="space-y-6">
+              <div className="border rounded-md overflow-hidden">
+                <div className="bg-muted p-2 font-medium flex items-center border-b">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Question Paper OCR Text
+                </div>
+                <div className="p-4 max-h-[200px] overflow-auto whitespace-pre-wrap">
+                  {ocrData.question_paper.extracted_text ? (
+                    <div className="font-mono text-sm">
+                      {ocrData.question_paper.extracted_text}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-center py-4">
+                      <AlertTriangle className="h-5 w-5 mx-auto mb-2" />
+                      No OCR text available for question paper
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="border rounded-md overflow-hidden">
+                <div className="bg-muted p-2 font-medium flex items-center border-b">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Answer Key OCR Text
+                </div>
+                <div className="p-4 max-h-[200px] overflow-auto whitespace-pre-wrap">
+                  {ocrData.answer_key.extracted_text ? (
+                    <div className="font-mono text-sm">
+                      {ocrData.answer_key.extracted_text}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-center py-4">
+                      <AlertTriangle className="h-5 w-5 mx-auto mb-2" />
+                      No OCR text available for answer key
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="border rounded-md overflow-hidden">
+                <div className="bg-muted p-2 font-medium flex items-center border-b">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Student Answer Sheet OCR Text
+                </div>
+                <div className="p-4 max-h-[200px] overflow-auto whitespace-pre-wrap">
+                  {ocrData.student_answer.extracted_text ? (
+                    <div className="font-mono text-sm">
+                      {ocrData.student_answer.extracted_text}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-center py-4">
+                      <AlertTriangle className="h-5 w-5 mx-auto mb-2" />
+                      No OCR text available for student answer sheet
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-4 text-sm">
+                <p className="text-blue-800 dark:text-blue-300 flex items-center">
+                  <InfoIcon className="h-4 w-4 mr-2" />
+                  OCR text was extracted using Pixtral by Mistral AI and then processed with OpenAI's GPT-4o.
+                </p>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   );
 }
+
+// Helper component for displaying info icon
+const InfoIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </svg>
+);

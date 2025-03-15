@@ -14,9 +14,11 @@ serve(async (req) => {
   }
 
   try {
-    // Log the API Key being used (masked)
-    const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
-    console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
+    // Log the API Keys being used (masked)
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
+    const pixtralApiKey = Deno.env.get('PIXTRAL_API_KEY') || '';
+    console.log("Using OpenAI API Key: " + openaiApiKey.substring(0, 5) + '...' + openaiApiKey.substring(openaiApiKey.length - 4));
+    console.log("Using Pixtral API Key: " + pixtralApiKey.substring(0, 5) + '...' + pixtralApiKey.substring(pixtralApiKey.length - 4));
     
     const { questionPaper, answerKey, studentAnswer, studentInfo } = await req.json();
 
@@ -34,96 +36,104 @@ serve(async (req) => {
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     
-    // First, check if the student answer is an image/handwritten document
-    // If so, we need to run OCR on it
-    let processedStudentAnswer = studentAnswer;
+    // OCR Processing Results
+    let processedQuestionPaper = { ...questionPaper };
+    let processedAnswerKey = { ...answerKey };
+    let processedStudentAnswer = { ...studentAnswer };
     
-    if (studentAnswer?.url && (
-        studentAnswer.url.includes('.jpg') || 
-        studentAnswer.url.includes('.jpeg') || 
-        studentAnswer.url.includes('.png') ||
-        studentAnswer.url.includes('.pdf')
-    )) {
-      console.log("Detected handwritten/PDF answer sheet, performing OCR...");
-      console.log("URL:", studentAnswer.url);
+    // Function to extract text using Pixtral's OCR capabilities
+    const extractTextWithPixtral = async (url: string, documentName: string) => {
+      console.log(`Processing ${documentName} with Pixtral OCR: ${url}`);
       
-      // For PDFs, we need to tell OpenAI specifically that it's a document
-      const contentType = studentAnswer.url.toLowerCase().endsWith('.pdf') ? 
-        "application/pdf" : "image/jpeg";
-        
-      // Use OpenAI's vision capabilities to extract text from image/PDF
       try {
-        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
+        const response = await fetch("https://api.mistral.ai/v1/vision", {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": `Bearer ${pixtralApiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o',
+            model: "pixtral-8x7b-instruct",
             messages: [
-              { 
-                role: 'system', 
-                content: 'You are an OCR expert. Extract all text from this document or image of a handwritten answer sheet. Format each answer on a new line starting with the question number.' 
-              },
-              { 
-                role: 'user', 
+              {
+                role: "user",
                 content: [
-                  { type: 'text', text: 'This is a student\'s handwritten answer sheet or PDF document. Extract all the text, preserving the structure of questions and answers:' },
-                  { 
-                    type: 'image_url', 
-                    image_url: { 
-                      url: studentAnswer.url,
-                      detail: "high" 
-                    } 
+                  {
+                    type: "text",
+                    text: `Extract all the text content from this document. Format the content to preserve structure. This is a ${documentName}.`
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: url
+                    }
                   }
-                ] 
+                ]
               }
             ],
-            temperature: 0.3,
-          }),
+            temperature: 0.1,
+            max_tokens: 4096
+          })
         });
 
-        if (!ocrResponse.ok) {
-          const errorText = await ocrResponse.text();
-          console.error("OpenAI OCR error:", errorText);
-          
-          // Create a placeholder text if OCR fails
-          processedStudentAnswer = {
-            ...studentAnswer,
-            text: "Unable to extract text from document. Please try with a clearer image or document.",
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Pixtral OCR error for ${documentName}:`, errorText);
+          return {
+            text: `Failed to extract text from ${documentName}. Error: ${errorText}`,
             isOcrProcessed: false,
             ocrError: errorText
           };
-          
-          // Continue with evaluation despite OCR failure
-        } else {
-          const ocrResult = await ocrResponse.json();
-          const extractedText = ocrResult.choices[0]?.message?.content;
-          
-          console.log("OCR extraction successful, extracted text length:", extractedText?.length || 0);
-          console.log("Sample extracted text:", extractedText?.substring(0, 100) + "...");
-          
-          // Update the student answer with OCR text
-          processedStudentAnswer = {
-            ...studentAnswer,
-            text: extractedText,
-            isOcrProcessed: true
-          };
         }
-      } catch (ocrError) {
-        console.error("Error during OCR processing:", ocrError);
+
+        const result = await response.json();
+        const extractedText = result.choices[0]?.message?.content || "";
+        console.log(`OCR extraction successful for ${documentName}, extracted text length:`, extractedText.length);
+        console.log("Sample extracted text:", extractedText.substring(0, 100) + "...");
         
-        // Create a placeholder text if OCR fails
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: "Error processing document. Technical details: " + ocrError.message,
-          isOcrProcessed: false,
-          ocrError: ocrError.message
+        return {
+          text: extractedText,
+          isOcrProcessed: true,
+          ocrSource: "pixtral"
         };
-        
-        // Continue with evaluation despite OCR failure
+      } catch (error) {
+        console.error(`Error during Pixtral OCR processing for ${documentName}:`, error);
+        return {
+          text: `Error processing document. Technical details: ${error.message}`,
+          isOcrProcessed: false,
+          ocrError: error.message,
+          ocrSource: "pixtral-error"
+        };
       }
+    };
+
+    // Process all documents with Pixtral OCR
+    // Process question paper if URL is provided
+    if (questionPaper?.url) {
+      const extractionResult = await extractTextWithPixtral(questionPaper.url, "question paper");
+      processedQuestionPaper = {
+        ...questionPaper,
+        ...extractionResult
+      };
+    }
+    
+    // Process answer key if URL is provided
+    if (answerKey?.url) {
+      const extractionResult = await extractTextWithPixtral(answerKey.url, "answer key");
+      processedAnswerKey = {
+        ...answerKey,
+        ...extractionResult
+      };
+    }
+    
+    // Process student answer if URL is provided
+    if (studentAnswer?.url) {
+      const extractionResult = await extractTextWithPixtral(studentAnswer.url, "student answer sheet");
+      processedStudentAnswer = {
+        ...studentAnswer,
+        ...extractionResult
+      };
     }
     
     // Prepare the prompt for OpenAI evaluation
@@ -139,10 +149,10 @@ If this is a revaluation it will be mentioned in the request and you should stri
 
     const userPrompt = `
 Question Paper:
-${JSON.stringify(questionPaper)}
+${JSON.stringify(processedQuestionPaper)}
 
 Answer Key:
-${JSON.stringify(answerKey)}
+${JSON.stringify(processedAnswerKey)}
 
 Student Answer Sheet:
 ${JSON.stringify(processedStudentAnswer)}
@@ -174,7 +184,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -233,6 +243,28 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       evaluation.summary = {
         totalScore: [totalAssignedScore, totalPossibleScore],
         percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
+      };
+      
+      // Add the OCR data to the evaluation
+      evaluation.ocr_data = {
+        question_paper: {
+          url: questionPaper?.url,
+          extracted_text: processedQuestionPaper?.text,
+          is_processed: processedQuestionPaper?.isOcrProcessed,
+          source: processedQuestionPaper?.ocrSource
+        },
+        answer_key: {
+          url: answerKey?.url,
+          extracted_text: processedAnswerKey?.text,
+          is_processed: processedAnswerKey?.isOcrProcessed,
+          source: processedAnswerKey?.ocrSource
+        },
+        student_answer: {
+          url: studentAnswer?.url,
+          extracted_text: processedStudentAnswer?.text,
+          is_processed: processedStudentAnswer?.isOcrProcessed,
+          source: processedStudentAnswer?.ocrSource
+        }
       };
       
       // Add the answer sheet URL to the evaluation for reference
