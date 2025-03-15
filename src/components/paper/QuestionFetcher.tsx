@@ -106,19 +106,18 @@ export function QuestionFetcher({
       if (error) throw error;
       
       if (data && data.length > 0 && data[0].questions) {
-        // Fix the type conversion issue here
         const questionsData = data[0].questions;
         let allQuestions: Question[] = [];
         
         // Validate if it's an array and has the structure we expect
         if (Array.isArray(questionsData)) {
-          // Convert from Json[] to Question[] with proper type validation
+          // Convert from Json[] to Question[] with proper type validation and type casting
           allQuestions = questionsData
             .filter(q => {
               // First check if q is an object and not null
               if (typeof q !== 'object' || q === null) return false;
               
-              // Then check if it has all the required properties
+              // Then check if it has all the required properties using type guards
               return (
                 'id' in q && 
                 'text' in q && 
@@ -127,15 +126,19 @@ export function QuestionFetcher({
                 'level' in q
               );
             })
-            .map(q => ({
-              id: String(q.id),
-              text: String(q.text),
-              type: String(q.type),
-              marks: Number(q.marks),
-              level: String(q.level),
-              // Handle optional courseOutcome property
-              courseOutcome: 'courseOutcome' in q ? Number(q.courseOutcome) : undefined
-            }));
+            .map(q => {
+              // Safely access properties with type assertion
+              const question = q as Record<string, any>;
+              return {
+                id: String(question.id),
+                text: String(question.text),
+                type: String(question.type),
+                marks: Number(question.marks),
+                level: String(question.level),
+                // Handle optional courseOutcome property
+                courseOutcome: 'courseOutcome' in question ? Number(question.courseOutcome) : undefined
+              };
+            });
         }
         
         // Filter by level and courseOutcome if provided

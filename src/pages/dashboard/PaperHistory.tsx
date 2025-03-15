@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowLeft, Trash2, ChevronRight, List } from "lucide-react";
+import { ArrowLeft, Trash2, List } from "lucide-react";
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { Question } from "@/types/papers";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -200,13 +200,13 @@ export default function PaperHistory() {
                       {Array.isArray(topic.questions) ? topic.questions.length : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           onClick={(e) => confirmDeleteTopic(topic, e)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -220,7 +220,7 @@ export default function PaperHistory() {
       
       {/* Topic Questions Dialog */}
       <Dialog open={isTopicDialogOpen} onOpenChange={setIsTopicDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           {selectedTopic && (
             <>
               <DialogHeader>
@@ -268,7 +268,18 @@ export default function PaperHistory() {
                 )}
               </div>
               
-              <DialogFooter>
+              <DialogFooter className="flex justify-between items-center mt-4">
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    setIsTopicDialogOpen(false);
+                    setTopicToDelete(selectedTopic);
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Topic
+                </Button>
                 <Button variant="outline" onClick={() => setIsTopicDialogOpen(false)}>
                   Close
                 </Button>
