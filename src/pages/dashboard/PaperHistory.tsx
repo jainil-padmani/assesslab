@@ -3,11 +3,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Plus, Edit, Trash, Download, ExternalLink, ChevronLeft } from "lucide-react";
+import { FileText, Plus, Edit, Trash, Download, ExternalLink, ChevronLeft, Calendar, Clock, LayoutGrid } from "lucide-react";
 import { PaperFormat, PaperSection } from "@/types/papers";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { 
   Dialog, 
   DialogContent, 
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTestFormData } from "@/hooks/useTestFormData";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PaperHistory() {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ export default function PaperHistory() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { subjects } = useTestFormData();
 
   useEffect(() => {
@@ -222,6 +225,12 @@ export default function PaperHistory() {
     }
   };
 
+  // Get subject name by ID
+  const getSubjectName = (subjectId: string) => {
+    const subject = subjects.find(s => s.id === subjectId);
+    return subject?.name || "Unknown Subject";
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-8">
       <div className="flex justify-between items-center">
@@ -241,8 +250,8 @@ export default function PaperHistory() {
         </Button>
       </div>
 
-      <div className="flex justify-end">
-        <div className="w-72">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="w-full md:w-72">
           <Select 
             value={selectedSubject} 
             onValueChange={setSelectedSubject}
@@ -262,6 +271,25 @@ export default function PaperHistory() {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">View as:</p>
+          <Button 
+            variant={viewMode === "grid" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setViewMode("grid")}
+            className="px-3"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant={viewMode === "list" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setViewMode("list")}
+            className="px-3"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -280,17 +308,29 @@ export default function PaperHistory() {
             Create your first question paper
           </Button>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {paperFormats.map(format => (
-            <Card key={format.id}>
-              <CardHeader className="pb-3">
-                <CardTitle className="truncate">{format.title}</CardTitle>
-                <CardDescription>
-                  {format.totalMarks} marks • {format.duration} min
+            <Card key={format.id} className="overflow-hidden border border-border/40 hover:border-border/80 transition-all shadow-sm hover:shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="truncate flex justify-between items-start">
+                  <span className="truncate">{format.title}</span>
+                </CardTitle>
+                <CardDescription className="flex items-center justify-between">
+                  <Badge variant="outline" className="mt-1">
+                    {getSubjectName(format.subject_id)}
+                  </Badge>
+                  <span className="text-sm font-medium flex items-center gap-1">
+                    <span className="text-muted-foreground">{format.totalMarks} marks</span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      {format.duration} min
+                    </span>
+                  </span>
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pb-2">
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sections:</span>
@@ -305,12 +345,15 @@ export default function PaperHistory() {
                   {format.created_at && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Created:</span>
-                      <span>{formatDistanceToNow(new Date(format.created_at), { addSuffix: true })}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        {formatDistanceToNow(new Date(format.created_at), { addSuffix: true })}
+                      </span>
                     </div>
                   )}
                 </div>
               </CardContent>
-              <CardFooter className="flex gap-2">
+              <CardFooter className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(format.id)}>
                   <Edit className="h-3.5 w-3.5 mr-1" />
                   Edit
@@ -348,6 +391,100 @@ export default function PaperHistory() {
                   <Trash className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {paperFormats.map(format => (
+            <Card key={format.id} className="overflow-hidden border border-border/40 hover:border-border/80 transition-all shadow-sm hover:shadow">
+              <div className="flex flex-col md:flex-row">
+                <div className="flex-grow p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+                    <div>
+                      <h3 className="text-lg font-medium">{format.title}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline">{getSubjectName(format.subject_id)}</Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {format.totalMarks} marks • {format.duration} min
+                        </span>
+                      </div>
+                    </div>
+                    {format.created_at && (
+                      <div className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {format(new Date(format.created_at), "PPP")}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                    <div>
+                      <p className="text-muted-foreground">Sections</p>
+                      <p className="font-medium">{format.sections.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Questions</p>
+                      <p className="font-medium">
+                        {format.sections.reduce((total, section) => total + section.questions.length, 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total Marks</p>
+                      <p className="font-medium">{format.totalMarks}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Duration</p>
+                      <p className="font-medium">{format.duration} min</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex md:flex-col justify-between p-4 border-t md:border-t-0 md:border-l bg-muted/30">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex items-center gap-1" 
+                    onClick={() => handleEdit(format.id)}
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span className="hidden md:inline">Edit</span>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex items-center gap-1" 
+                    onClick={async () => {
+                      const pdfUrl = format.pdfUrl || await generatePdf(format);
+                      if (pdfUrl) handlePreview(pdfUrl);
+                    }}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="hidden md:inline">Preview</span>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex items-center gap-1" 
+                    onClick={async () => {
+                      const pdfUrl = format.pdfUrl || await generatePdf(format);
+                      if (pdfUrl) handleDownload(pdfUrl, format.title);
+                    }}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="hidden md:inline">Download</span>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex items-center gap-1 text-destructive hover:text-destructive" 
+                    onClick={() => handleDelete(format.id)}
+                  >
+                    <Trash className="h-4 w-4" />
+                    <span className="hidden md:inline">Delete</span>
+                  </Button>
+                </div>
+              </div>
             </Card>
           ))}
         </div>

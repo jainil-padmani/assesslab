@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, History } from "lucide-react";
+import { FileText, Plus, History, ArrowRight } from "lucide-react";
 
 export default function QuestionPaperBuilder() {
   const navigate = useNavigate();
@@ -25,67 +25,63 @@ export default function QuestionPaperBuilder() {
         </Button>
       </div>
 
-      <div className="space-y-4 mt-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-medium">Create New Paper</CardTitle>
-              <CardDescription>
-                Create a new question paper with questions from your bank
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-28">
-                <FileText className="h-12 w-12 text-muted-foreground" />
+      <Card className="border-2 border-primary/20 shadow-lg overflow-hidden">
+        <CardHeader className="bg-primary/5 pb-4">
+          <CardTitle className="text-xl font-bold">Create New Question Paper</CardTitle>
+          <CardDescription>
+            Start building a new question paper with sections, questions, and formatting
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-primary font-medium">1</div>
+                <p className="font-medium">Add paper details (title, subject, duration)</p>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full" onClick={() => navigate("/dashboard/question-paper-builder/create")}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Paper
-              </Button>
-            </CardFooter>
-          </Card>
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-primary font-medium">2</div>
+                <p className="font-medium">Create sections with instructions</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-primary font-medium">3</div>
+                <p className="font-medium">Add questions to each section</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-primary font-medium">4</div>
+                <p className="font-medium">Generate PDF and save your paper</p>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="h-24 w-24 mx-auto text-primary/40 mb-4" />
+                <Button 
+                  className="mt-4 gap-2" 
+                  size="lg"
+                  onClick={() => navigate("/dashboard/question-paper-builder/create")}
+                >
+                  Create Paper Now
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-medium">Paper History</CardTitle>
-              <CardDescription>
-                View and manage your saved question papers
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-center h-28">
-                <History className="h-12 w-12 text-muted-foreground" />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full" onClick={() => navigate("/dashboard/question-paper-builder/history")}>
-                <History className="mr-2 h-4 w-4" />
-                View History
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-        
-        <div className="flex justify-end mb-4">
-          <Button onClick={() => navigate("/dashboard/question-paper-builder/create")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Paper
-          </Button>
-        </div>
-        
-        <div className="bg-card rounded-lg border p-6 flex flex-col items-center justify-center h-48 text-center">
-          <FileText className="h-16 w-16 mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground">No question papers created yet</p>
-          <Button
-            variant="link"
-            className="mt-2"
-            onClick={() => navigate("/dashboard/question-paper-builder/create")}
-          >
-            Create your first question paper
-          </Button>
-        </div>
+      <div className="flex justify-between mt-8">
+        <Button 
+          variant="outline" 
+          onClick={() => navigate("/dashboard/question-paper-builder/history")}
+          className="px-5"
+        >
+          <History className="mr-2 h-4 w-4" />
+          View Paper History
+        </Button>
+        <Button onClick={() => navigate("/dashboard/question-paper-builder/create")}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create New Paper
+        </Button>
       </div>
     </div>
   );
