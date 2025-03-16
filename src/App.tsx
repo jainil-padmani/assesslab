@@ -30,7 +30,6 @@ import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
 import QuestionPaperBuilder from "./pages/dashboard/QuestionPaperBuilder";
 import CreatePaperFormat from "./pages/dashboard/CreatePaperFormat";
-import PaperHistory from "./pages/dashboard/PaperHistory";
 
 const queryClient = new QueryClient();
 
