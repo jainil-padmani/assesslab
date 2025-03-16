@@ -359,6 +359,7 @@ export type Database = {
           footer_text: string | null
           header_text: string | null
           id: string
+          pdf_url: string | null
           sections: Json
           subject_id: string
           title: string
@@ -371,6 +372,7 @@ export type Database = {
           footer_text?: string | null
           header_text?: string | null
           id: string
+          pdf_url?: string | null
           sections: Json
           subject_id: string
           title: string
@@ -383,6 +385,7 @@ export type Database = {
           footer_text?: string | null
           header_text?: string | null
           id?: string
+          pdf_url?: string | null
           sections?: Json
           subject_id?: string
           title?: string
