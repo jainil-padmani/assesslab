@@ -28,6 +28,7 @@ export default function PaperHistory() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const { subjects } = useTestFormData();
 
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function PaperHistory() {
 
   const generatePdf = async (paperFormat: PaperFormat) => {
     try {
+      setIsGeneratingPdf(true);
       toast.info("Generating PDF, please wait...");
       
       // Get subject name
@@ -166,6 +168,13 @@ export default function PaperHistory() {
         }))
       );
       
+      console.log("Calling generate-paper with:", {
+        subjectName: subjectData.name,
+        subjectCode: subjectData.subject_code, 
+        topicName: paperFormat.title,
+        questions: questions
+      });
+      
       // Call the generate-paper edge function
       const response = await supabase.functions.invoke('generate-paper', {
         body: {
@@ -177,13 +186,20 @@ export default function PaperHistory() {
         }
       });
       
-      if (response.error) throw new Error(response.error);
+      console.log("Generate paper response:", response);
+      
+      if (response.error) {
+        console.error("Error from generate-paper function:", response.error);
+        throw new Error(response.error);
+      }
       
       // Update the paper format with the PDF URL
-      if (response.data?.pdfUrl) {
+      if (response.data?.paperUrl) {
+        let pdfUrl = response.data.pdfUrl || response.data.paperUrl;
+        
         const { error } = await supabase
           .from('paper_formats')
-          .update({ pdf_url: response.data.pdfUrl })
+          .update({ pdf_url: pdfUrl })
           .eq('id', paperFormat.id);
         
         if (error) throw error;
@@ -192,19 +208,23 @@ export default function PaperHistory() {
         setPaperFormats(prev => 
           prev.map(p => 
             p.id === paperFormat.id 
-              ? { ...p, pdfUrl: response.data.pdfUrl } 
+              ? { ...p, pdfUrl: pdfUrl } 
               : p
           )
         );
         
-        toast.success("PDF generated successfully");
-        return response.data.pdfUrl;
+        toast.success("Paper document generated successfully");
+        return pdfUrl;
+      } else {
+        throw new Error("No URL returned from generate-paper function");
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating PDF:", error);
-      toast.error("Failed to generate PDF");
+      toast.error(`Failed to generate PDF: ${error.message || "Unknown error"}`);
       return null;
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -279,7 +299,7 @@ export default function PaperHistory() {
                   {subject.name}
                 </SelectItem>
               )) : (
-                <SelectItem value="no-subjects" disabled>No subjects available</SelectItem>
+                <SelectItem value="none" disabled>No subjects available</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -366,6 +386,7 @@ export default function PaperHistory() {
                           const pdfUrl = format.pdfUrl || await generatePdf(format);
                           if (pdfUrl) handlePreview(pdfUrl);
                         }}
+                        disabled={isGeneratingPdf}
                       >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
@@ -376,6 +397,7 @@ export default function PaperHistory() {
                           const pdfUrl = format.pdfUrl || await generatePdf(format);
                           if (pdfUrl) handleDownload(pdfUrl, format.title);
                         }}
+                        disabled={isGeneratingPdf}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
@@ -383,6 +405,7 @@ export default function PaperHistory() {
                         variant="ghost" 
                         size="sm"
                         onClick={() => handleDelete(format.id)}
+                        disabled={isGeneratingPdf}
                       >
                         <Trash className="h-4 w-4 text-destructive" />
                       </Button>
@@ -442,6 +465,7 @@ export default function PaperHistory() {
                     const pdfUrl = format.pdfUrl || await generatePdf(format);
                     if (pdfUrl) handlePreview(pdfUrl);
                   }}
+                  disabled={isGeneratingPdf}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   View
@@ -454,6 +478,7 @@ export default function PaperHistory() {
                     const pdfUrl = format.pdfUrl || await generatePdf(format);
                     if (pdfUrl) handleDownload(pdfUrl, format.title);
                   }}
+                  disabled={isGeneratingPdf}
                 >
                   <Download className="h-4 w-4 mr-1" />
                   Save
@@ -462,6 +487,7 @@ export default function PaperHistory() {
                   variant="outline" 
                   size="icon"
                   onClick={() => handleDelete(format.id)}
+                  disabled={isGeneratingPdf}
                 >
                   <Trash className="h-4 w-4 text-destructive" />
                 </Button>

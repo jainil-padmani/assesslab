@@ -159,7 +159,7 @@ serve(async (req: Request) => {
               <span>(${q.marks} marks)</span>
             </div>
             <div class="question-info">
-              Type: ${q.type}, Level: ${q.level}
+              Type: ${q.type || 'Text'}, Level: ${q.level}
             </div>
             <div class="answer-space"></div>
           </div>
@@ -191,7 +191,7 @@ serve(async (req: Request) => {
                   <span>(${q.marks} marks)</span>
                 </div>
                 <div class="question-info">
-                  Type: ${q.type}, Level: ${q.level}
+                  Type: ${q.type || 'Text'}, Level: ${q.level}
                 </div>
                 <div class="answer-space"></div>
               </div>
@@ -238,6 +238,7 @@ serve(async (req: Request) => {
       });
     
     if (htmlError) {
+      console.error(`Error uploading HTML: ${htmlError.message}`);
       throw new Error(`Error uploading HTML: ${htmlError.message}`);
     }
     
@@ -246,6 +247,28 @@ serve(async (req: Request) => {
       .from('files')
       .getPublicUrl(htmlFileName);
     
+    if (!htmlUrlData || !htmlUrlData.publicUrl) {
+      console.error("Failed to get HTML public URL");
+      throw new Error("Failed to get HTML public URL");
+    }
+    
+    console.log("HTML paper saved at:", htmlUrlData.publicUrl);
+    
+    // Return early with HTML URL only
+    return new Response(
+      JSON.stringify({ 
+        paperUrl: htmlUrlData.publicUrl,
+        pdfUrl: null,
+        htmlOnly: true
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+    
+    // NOTE: The PDF generation code below is intentionally skipped for now since Puppeteer
+    // has been causing issues. We'll return the HTML version only which will still be displayable
+    // in the iframe.
+
+    /* PDF Generation code commented out intentionally
     // Generate PDF from HTML using Puppeteer
     console.log("Generating PDF...");
     let pdfBuffer: Uint8Array;
@@ -334,6 +357,7 @@ serve(async (req: Request) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+    */
     
   } catch (error) {
     console.error("Error generating paper:", error);
