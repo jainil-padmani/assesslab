@@ -24,7 +24,7 @@ export default function PaperHistory() {
   const [loading, setLoading] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const { subjects } = useTestFormData();
 
   useEffect(() => {
@@ -39,7 +39,8 @@ export default function PaperHistory() {
         .from('paper_formats')
         .select('*');
         
-      if (selectedSubject) {
+      // Only apply filter if not "all" subjects
+      if (selectedSubject && selectedSubject !== "all") {
         query = query.eq('subject_id', selectedSubject);
       }
 
@@ -250,12 +251,14 @@ export default function PaperHistory() {
               <SelectValue placeholder="Filter by subject" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Subjects</SelectItem>
-              {subjects && subjects.length > 0 && subjects.map(subject => (
+              <SelectItem value="all">All Subjects</SelectItem>
+              {subjects && subjects.length > 0 ? subjects.map(subject => (
                 <SelectItem key={subject.id} value={subject.id}>
                   {subject.name}
                 </SelectItem>
-              ))}
+              )) : (
+                <SelectItem value="no-subjects">No subjects available</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
