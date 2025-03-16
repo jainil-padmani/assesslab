@@ -15,7 +15,7 @@ import {
   FileUp,
   School,
   FileText,
-  LayoutTemplate
+  FilePlus
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -53,7 +53,7 @@ const links = [
   },
   {
     title: "Set Question Paper",
-    icon: LayoutTemplate,
+    icon: FilePlus,
     href: "/dashboard/question-paper-builder",
   },
   {

@@ -77,4 +77,5 @@ export interface PaperFormat {
   sections: PaperSection[];
   created_at?: string;
   user_id?: string;
+  pdfUrl?: string; // Add URL to the generated PDF
 }
