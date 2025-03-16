@@ -8,7 +8,7 @@ import { FileText, Plus, Edit, Trash, Download, ExternalLink, ChevronLeft, Calen
 import { PaperFormat, PaperSection } from "@/types/papers";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format as dateFormat } from "date-fns";
 import { 
   Dialog, 
   DialogContent, 
@@ -231,6 +231,17 @@ export default function PaperHistory() {
     return subject?.name || "Unknown Subject";
   };
 
+  // Format date helper function
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return "—";
+    try {
+      return dateFormat(new Date(dateString), "MMM d, yyyy");
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -335,7 +346,7 @@ export default function PaperHistory() {
                     <Badge variant="outline">{getSubjectName(format.subject_id)}</Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {format.created_at ? format(new Date(format.created_at), "MMM d, yyyy") : "—"}
+                    {formatDate(format.created_at)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-col gap-1 text-sm">
