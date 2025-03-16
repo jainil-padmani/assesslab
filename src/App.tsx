@@ -67,8 +67,8 @@ function App() {
                 {/* Question Paper Builder routes */}
                 <Route path="question-paper-builder" element={<QuestionPaperBuilder />} />
                 <Route path="question-paper-builder/create" element={<CreatePaperFormat />} />
-                <Route path="question-paper-builder/history" element={<PaperHistory />} />
                 <Route path="question-paper-builder/edit/:id" element={<CreatePaperFormat />} />
+                <Route path="question-paper-builder/history" element={<PaperHistory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

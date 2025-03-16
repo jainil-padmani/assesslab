@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Settings, List, History, Download } from "lucide-react";
+import { FileText, Plus, History } from "lucide-react";
 
 export default function QuestionPaperBuilder() {
   const navigate = useNavigate();
