@@ -5,11 +5,9 @@ import { Button } from "@/components/ui/button";
 import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
-  validatePdfFile, 
-  uploadAnswerSheetFile, 
-  deletePreviousFiles, 
-  extractTextFromPdf,
-  processPdfFile
+  uploadAnswerSheet,
+  convertPdfToZip,
+  extractTextFromPdf
 } from "@/utils/assessment/fileUploadUtils";
 import { 
   fetchExistingAssessments, 
@@ -40,7 +38,8 @@ export function UploadAnswerSheet({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (!validatePdfFile(selectedFile)) {
+      // Validate if file is PDF
+      if (selectedFile.type !== 'application/pdf') {
         toast.error('Please upload PDF files only');
         return;
       }
@@ -70,23 +69,28 @@ export function UploadAnswerSheet({
       // Extract previous URLs for cleanup later
       const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
-      // Process the file for enhanced OCR
-      toast.loading('Converting PDF to images for better OCR...', { id: processingToast });
-      const zipUrl = await processPdfFile(file, 'student');
+      // Process the file for OCR and upload
+      toast.loading('Processing PDF for better OCR...', { id: processingToast });
       
-      // Extract text content (this now returns info about the processed ZIP)
-      toast.loading('Extracting text content...', { id: processingToast });
+      // Extract text content
       const textContent = await extractTextFromPdf(file);
       
-      // Upload the original PDF file to storage
-      toast.loading('Uploading answer sheet...', { id: processingToast });
-      const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
+      // Convert PDF to ZIP with images for better OCR
+      const zipFile = await convertPdfToZip(file);
+      
+      // Upload the answer sheet
+      const { url, zipUrl } = await uploadAnswerSheet(
+        file,
+        studentId,
+        selectedSubject,
+        testId
+      );
 
       // Prepare the assessment data
       const assessmentData = {
         student_id: studentId,
         subject_id: selectedSubject,
-        answer_sheet_url: publicUrl,
+        answer_sheet_url: url,
         status: 'pending',
         updated_at: new Date().toISOString(),
         text_content: textContent,
@@ -113,12 +117,6 @@ export function UploadAnswerSheet({
         // Create a new assessment
         await createAssessment(assessmentData);
       }
-      
-      // Delete previous files
-      await deletePreviousFiles(previousUrls);
-      
-      // Reset evaluations and grades
-      await resetEvaluations(studentId, selectedSubject, testId);
       
       // Reset form
       setFile(null);
