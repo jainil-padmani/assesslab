@@ -21,7 +21,10 @@ import {
   ZoomIn, 
   ZoomOut,
   RotateCw,
-  FileDigit
+  FileDigit,
+  FileQuestion,
+  FileCheck,
+  FilePen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -144,10 +147,16 @@ export function StudentEvaluationDetails({
     return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
   };
   
-  // Get the OCR extracted text
-  const ocrText = extractedText || 
-                  evaluation?.isOcrProcessed ? evaluation.text : 
-                  "No OCR text available for this answer sheet";
+  // Get the OCR extracted text for all documents
+  const studentOcrText = extractedText || 
+                        evaluation?.isOcrProcessed ? evaluation.text : 
+                        "No OCR text available for this answer sheet";
+                        
+  const questionPaperOcrText = evaluation?.questionPaperText || 
+                               "No OCR text available for the question paper";
+                               
+  const answerKeyOcrText = evaluation?.answerKeyText || 
+                           "No OCR text available for the answer key";
   
   return (
     <Card className="mb-8">
@@ -195,12 +204,14 @@ export function StudentEvaluationDetails({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-5 mb-4">
+          <TabsList className="grid grid-cols-7 mb-4">
             <TabsTrigger value="evaluation">Evaluation</TabsTrigger>
             <TabsTrigger value="question-paper">Question Paper</TabsTrigger>
             <TabsTrigger value="answer-key">Answer Key</TabsTrigger>
             <TabsTrigger value="student-paper">Student Paper</TabsTrigger>
-            <TabsTrigger value="ocr-text">OCR Text</TabsTrigger>
+            <TabsTrigger value="question-ocr">Question OCR</TabsTrigger>
+            <TabsTrigger value="answer-key-ocr">Answer Key OCR</TabsTrigger>
+            <TabsTrigger value="student-ocr">Student OCR</TabsTrigger>
           </TabsList>
           
           <TabsContent value="evaluation">
@@ -381,16 +392,68 @@ export function StudentEvaluationDetails({
             )}
           </TabsContent>
           
-          <TabsContent value="ocr-text">
+          <TabsContent value="question-ocr">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FileDigit className="h-5 w-5 text-primary" />
-                  Extracted Text from OCR
+                  <FileQuestion className="h-5 w-5 text-primary" />
+                  Extracted Text from Question Paper
                 </h3>
               </div>
               
-              {!ocrText || ocrText === "No OCR text available for this answer sheet" ? (
+              {!questionPaperOcrText || questionPaperOcrText === "No OCR text available for the question paper" ? (
+                <div className="flex items-center justify-center h-[600px] border rounded-md">
+                  <div className="text-center text-muted-foreground">
+                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                    <p>No OCR text available for the question paper</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
+                  <div className="whitespace-pre-wrap font-mono text-sm">
+                    {questionPaperOcrText}
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="answer-key-ocr">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileCheck className="h-5 w-5 text-primary" />
+                  Extracted Text from Answer Key
+                </h3>
+              </div>
+              
+              {!answerKeyOcrText || answerKeyOcrText === "No OCR text available for the answer key" ? (
+                <div className="flex items-center justify-center h-[600px] border rounded-md">
+                  <div className="text-center text-muted-foreground">
+                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                    <p>No OCR text available for the answer key</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
+                  <div className="whitespace-pre-wrap font-mono text-sm">
+                    {answerKeyOcrText}
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="student-ocr">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FilePen className="h-5 w-5 text-primary" />
+                  Extracted Text from Student Answer
+                </h3>
+              </div>
+              
+              {!studentOcrText || studentOcrText === "No OCR text available for this answer sheet" ? (
                 <div className="flex items-center justify-center h-[600px] border rounded-md">
                   <div className="text-center text-muted-foreground">
                     <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
@@ -400,7 +463,7 @@ export function StudentEvaluationDetails({
               ) : (
                 <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
                   <div className="whitespace-pre-wrap font-mono text-sm">
-                    {ocrText}
+                    {studentOcrText}
                   </div>
                 </div>
               )}
