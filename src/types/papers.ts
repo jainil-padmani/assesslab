@@ -88,3 +88,6 @@ export interface PaperFormat {
   user_id?: string;
   pdfUrl?: string; // URL to the generated PDF
 }
+
+// Re-export Json type from Supabase
+export { Json };
