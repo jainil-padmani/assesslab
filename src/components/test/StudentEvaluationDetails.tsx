@@ -72,7 +72,7 @@ export function StudentEvaluationDetails({
         // Get the latest assessment for this student and subject
         const { data, error } = await supabase
           .from('assessments')
-          .select('answer_sheet_url, text_content, zip_url')
+          .select('answer_sheet_url, text_content')
           .eq('student_id', selectedStudentGrade.student_id)
           .eq('subject_id', test.subject_id)
           .eq('test_id', test.id)
@@ -146,29 +146,8 @@ export function StudentEvaluationDetails({
   
   // Get the OCR extracted text
   const ocrText = extractedText || 
-                  evaluation?.text || 
                   evaluation?.isOcrProcessed ? evaluation.text : 
                   "No OCR text available for this answer sheet";
-  
-  // Format OCR text for display
-  const formatOcrText = (text: string) => {
-    if (!text || text === "No OCR text available for this answer sheet") {
-      return text;
-    }
-    
-    // Handle cases where this is an error message
-    if (text.includes("Error") || text.includes("Failed") || text.includes("Unable")) {
-      return text;
-    }
-    
-    // Attempt to format text in a readable way
-    return text
-      .replace(/Q(\d+):/g, '\n\nQuestion $1:\n') // Add spacing before questions
-      .replace(/(\d+)\./g, '\n$1.'); // Add line breaks before numbered items
-  };
-  
-  // Check if there's a regeneration recommendation
-  const needsRegeneration = ocrText?.includes("For better results, please regenerate") || false;
   
   return (
     <Card className="mb-8">
@@ -411,21 +390,6 @@ export function StudentEvaluationDetails({
                 </h3>
               </div>
               
-              {needsRegeneration ? (
-                <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-4 mb-4">
-                  <div className="flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 mr-2" />
-                    <div>
-                      <h4 className="font-medium text-amber-800 dark:text-amber-200">OCR Processing Needed</h4>
-                      <p className="text-amber-700 dark:text-amber-300 text-sm mt-1">
-                        For better results, please upload the PDF again to use enhanced OCR via ZIP processing.
-                        The current PDF was processed with basic OCR which may have reduced accuracy.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              
               {!ocrText || ocrText === "No OCR text available for this answer sheet" ? (
                 <div className="flex items-center justify-center h-[600px] border rounded-md">
                   <div className="text-center text-muted-foreground">
@@ -436,7 +400,7 @@ export function StudentEvaluationDetails({
               ) : (
                 <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
                   <div className="whitespace-pre-wrap font-mono text-sm">
-                    {formatOcrText(ocrText)}
+                    {ocrText}
                   </div>
                 </div>
               )}

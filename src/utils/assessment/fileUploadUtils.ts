@@ -1,189 +1,215 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import JSZip from "jszip";
-import * as pdfjsLib from "pdfjs-dist";
-import { PDFDocument } from "pdf-lib";
+import * as pdfjs from 'pdfjs-dist';
+import JSZip from 'jszip';
 
-// Set the PDF.js worker source path
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure the PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 /**
- * Upload a file to Supabase storage
- * @param file The file to upload
- * @param path The path in the bucket to store the file
- * @returns The public URL of the uploaded file
+ * Uploads a file to Supabase storage
  */
-export const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
-  try {
-    const { data, error } = await supabase.storage
-      .from("answer-sheets")
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: true,
-      });
+export const uploadAnswerSheetFile = async (file: File, textContent?: string) => {
+  const fileName = `${crypto.randomUUID()}-${Date.now()}.pdf`;
+  
+  const { error } = await supabase.storage
+    .from('documents')
+    .upload(`answer-sheets/${fileName}`, file);
 
-    if (error) throw error;
+  if (error) throw error;
 
-    // Get the public URL for the file
-    const { data: publicUrlData } = supabase.storage
-      .from("answer-sheets")
-      .getPublicUrl(data.path);
+  const { data: { publicUrl } } = supabase.storage
+    .from('documents')
+    .getPublicUrl(`answer-sheets/${fileName}`);
+    
+  return { fileName, publicUrl, textContent };
+};
 
-    return publicUrlData.publicUrl;
-  } catch (error) {
-    console.error("Error uploading file:", error);
-    toast.error("Failed to upload file. Please try again.");
-    throw error;
+/**
+ * Deletes previous files from storage
+ */
+export const deletePreviousFiles = async (previousUrls: string[]) => {
+  for (const prevUrl of previousUrls) {
+    try {
+      if (prevUrl) {
+        const urlPath = new URL(prevUrl).pathname;
+        const pathParts = urlPath.split('/');
+        const oldFileName = pathParts[pathParts.length - 1];
+        
+        if (oldFileName) {
+          await supabase.storage
+            .from('documents')
+            .remove([`answer-sheets/${oldFileName}`]);
+          
+          console.log('Successfully deleted previous file from storage:', oldFileName);
+        }
+      }
+    } catch (deleteError) {
+      console.error('Error deleting previous file:', deleteError);
+    }
   }
 };
 
 /**
- * Convert a PDF file to a ZIP containing PNGs for better OCR
- * @param pdfFile The PDF file to convert
- * @returns A ZIP file containing PNG images for each page
+ * Validates a file is a PDF
  */
-export const convertPdfToZip = async (pdfFile: File): Promise<File> => {
+export const validatePdfFile = (file: File): boolean => {
+  return file.type === 'application/pdf';
+};
+
+/**
+ * Convert PDF to PNG images
+ */
+export const convertPdfToPng = async (pdfFile: File): Promise<File[]> => {
   try {
-    // Create a new JSZip instance
-    const zip = new JSZip();
+    console.log('Converting PDF to PNG images:', pdfFile.name);
     
-    // Load the PDF file
-    const pdfData = await pdfFile.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    // Convert File to ArrayBuffer
+    const arrayBuffer = await pdfFile.arrayBuffer();
     
-    const totalPages = pdf.numPages;
-    console.log(`PDF has ${totalPages} pages`);
+    // Load the PDF
+    const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+    const numPages = pdf.numPages;
+    const pngFiles: File[] = [];
     
-    // For each page in the PDF
-    for (let i = 1; i <= totalPages; i++) {
+    // Process each page
+    for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
       
-      // Scale the page for better OCR results
-      const viewport = page.getViewport({ scale: 2.0 });
-      
-      // Create a canvas to render the page
+      // Create a canvas for rendering
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       
       if (!context) {
-        throw new Error('Failed to get canvas context');
+        throw new Error('Canvas context could not be created');
       }
       
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       
-      // Render the page to the canvas
+      // Render the page
       await page.render({
         canvasContext: context,
         viewport: viewport
       }).promise;
       
-      // Convert the canvas to a PNG
-      const pngBlob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else resolve(new Blob([]));
-        }, 'image/png');
+      // Convert canvas to PNG blob with maximum quality
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/png', 1.0);
       });
       
-      // Add the PNG to the ZIP file
-      zip.file(`page-${i}.png`, pngBlob);
+      // Create a PNG file with a naming convention that ensures proper order (pad page numbers)
+      const pageNum = String(i).padStart(3, '0'); // Ensures 001, 002, etc. for correct sorting
+      const pngFileName = `page-${pageNum}.png`;
+      const pngFile = new File([blob], pngFileName, { type: 'image/png' });
+      pngFiles.push(pngFile);
     }
     
-    // Generate the ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    console.log(`Converted ${numPages} pages to PNG files`);
+    return pngFiles;
+  } catch (error) {
+    console.error('Error converting PDF to PNG:', error);
+    toast.error('Failed to convert PDF to PNG images');
+    throw error;
+  }
+};
+
+/**
+ * Create a ZIP file from PNG images
+ */
+export const createZipFromPngFiles = async (pngFiles: File[], baseName: string): Promise<File> => {
+  try {
+    console.log(`Creating ZIP file from ${pngFiles.length} PNG images`);
     
-    // Create a File from the Blob
-    const zipFile = new File([zipBlob], `${pdfFile.name.replace(/\.[^/.]+$/, '')}.zip`, { 
-      type: 'application/zip' 
+    const zip = new JSZip();
+    
+    // Add each PNG file to the ZIP, preserving the filenames for ordering
+    pngFiles.forEach(file => {
+      zip.file(file.name, file);
     });
     
+    // Generate the ZIP file
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 } // Balance between size and speed
+    });
+    const zipFile = new File([zipBlob], `${baseName}.zip`, { type: 'application/zip' });
+    
+    console.log('Successfully created ZIP file:', zipFile.name);
     return zipFile;
   } catch (error) {
-    console.error('Error converting PDF to ZIP:', error);
-    toast.error('Failed to convert PDF for OCR processing. Please try again.');
+    console.error('Error creating ZIP file:', error);
+    toast.error('Failed to create ZIP file from PNG images');
     throw error;
   }
 };
 
 /**
- * Extract text from a PDF file using PDF.js
- * @param pdfFile The PDF file to extract text from
- * @returns The extracted text
+ * Upload ZIP file to storage
  */
-export const extractTextFromPdf = async (pdfFile: File): Promise<string> => {
+export const uploadZipFile = async (zipFile: File, fileType: 'question' | 'answer' | 'student'): Promise<string> => {
   try {
-    const pdfData = await pdfFile.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    const fileName = `${fileType}-${crypto.randomUUID()}-${Date.now()}.zip`;
     
-    let extractedText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
+    const { error } = await supabase.storage
+      .from('documents')
+      .upload(`${fileType}-zips/${fileName}`, zipFile);
       
-      const pageText = textContent.items
-        .map(item => 'str' in item ? item.str : '')
-        .join(' ');
-        
-      extractedText += pageText + '\n\n';
-    }
+    if (error) throw error;
     
-    return extractedText;
+    const { data: { publicUrl } } = supabase.storage
+      .from('documents')
+      .getPublicUrl(`${fileType}-zips/${fileName}`);
+      
+    console.log(`Successfully uploaded ZIP file: ${fileName}`);
+    return publicUrl;
   } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    return 'Failed to extract text from PDF. Please try processing with OCR instead.';
+    console.error('Error uploading ZIP file:', error);
+    toast.error('Failed to upload ZIP file');
+    throw error;
   }
 };
 
 /**
- * Upload an answer sheet and check for OCR processing
+ * Process PDF file: Convert to PNG, create ZIP, upload ZIP
  */
-export const uploadAnswerSheet = async (
-  file: File,
-  studentId: string,
-  subjectId: string,
-  testId?: string
-): Promise<{ url: string; zipUrl?: string; textContent?: string }> => {
+export const processPdfFile = async (file: File, fileType: 'question' | 'answer' | 'student'): Promise<string> => {
   try {
-    // Create a unique path for the file
-    const timestamp = Date.now();
-    const fileName = `${timestamp}-${file.name.replace(/\s+/g, '_')}`;
-    const filePath = `${studentId}/${fileName}`;
+    // Convert PDF to PNG images
+    const pngFiles = await convertPdfToPng(file);
     
-    // Upload the original file
-    const fileUrl = await uploadFileToStorage(file, filePath);
+    // Create ZIP file from PNG images
+    const baseName = file.name.replace('.pdf', '');
+    const zipFile = await createZipFromPngFiles(pngFiles, baseName);
     
-    // For PDFs, create a ZIP with PNG images for better OCR
-    let zipUrl: string | undefined;
-    let textContent: string | undefined;
+    // Upload ZIP file to storage
+    const zipUrl = await uploadZipFile(zipFile, fileType);
     
-    if (file.type === 'application/pdf') {
-      try {
-        // Extract basic text from PDF
-        textContent = await extractTextFromPdf(file);
-        
-        // Convert PDF to ZIP for OCR processing
-        const zipFile = await convertPdfToZip(file);
-        const zipPath = `${studentId}/${timestamp}-${file.name.replace(/\.[^/.]+$/, '')}.zip`;
-        zipUrl = await uploadFileToStorage(zipFile, zipPath);
-        
-        console.log('PDF converted to ZIP for OCR:', zipUrl);
-      } catch (conversionError) {
-        console.error('Error in PDF conversion:', conversionError);
-        // Continue with just the PDF if conversion fails
-      }
-    }
-    
-    return {
-      url: fileUrl,
-      zipUrl,
-      textContent,
-    };
+    return zipUrl;
   } catch (error) {
-    console.error('Error in uploadAnswerSheet:', error);
-    toast.error('Failed to upload answer sheet. Please try again.');
+    console.error('Error processing PDF file:', error);
+    toast.error('Failed to process PDF file');
     throw error;
+  }
+};
+
+/**
+ * Extract text from PDF using OCR
+ * Note: This function doesn't perform OCR itself but serves as a placeholder
+ * for the extraction process that happens in the edge function
+ */
+export const extractTextFromPdf = async (file: File): Promise<string | null> => {
+  try {
+    // Process the PDF file to get ZIP URL
+    const zipUrl = await processPdfFile(file, 'student');
+    
+    // Return information about the processing for display to the user
+    return `Document processed for OCR with enhanced image extraction. ZIP file created with ${file.name.split('.')[0]}.zip`;
+  } catch (error) {
+    console.error("Error extracting text from PDF:", error);
+    return null;
   }
 };

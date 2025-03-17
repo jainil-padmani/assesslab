@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
-  uploadAnswerSheet,
-  convertPdfToZip,
-  extractTextFromPdf
+  validatePdfFile, 
+  uploadAnswerSheetFile, 
+  deletePreviousFiles, 
+  extractTextFromPdf,
+  processPdfFile
 } from "@/utils/assessment/fileUploadUtils";
 import { 
   fetchExistingAssessments, 
@@ -38,8 +40,7 @@ export function UploadAnswerSheet({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // Validate if file is PDF
-      if (selectedFile.type !== 'application/pdf') {
+      if (!validatePdfFile(selectedFile)) {
         toast.error('Please upload PDF files only');
         return;
       }
@@ -61,7 +62,7 @@ export function UploadAnswerSheet({
     
     try {
       // Show processing toast
-      const processingToast = toast.loading('Processing PDF file for enhanced OCR...');
+      toast.info('Processing PDF file for enhanced OCR...');
       
       // Fetch existing assessments
       const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
@@ -69,28 +70,20 @@ export function UploadAnswerSheet({
       // Extract previous URLs for cleanup later
       const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
-      // Process the file for OCR and upload
-      toast.loading('Processing PDF for better OCR...', { id: processingToast });
+      // Process the file for enhanced OCR
+      const zipUrl = await processPdfFile(file, 'student');
       
-      // Extract text content
+      // Extract text content (this now returns info about the processed ZIP)
       const textContent = await extractTextFromPdf(file);
       
-      // Convert PDF to ZIP with images for better OCR
-      const zipFile = await convertPdfToZip(file);
-      
-      // Upload the answer sheet
-      const { url, zipUrl } = await uploadAnswerSheet(
-        file,
-        studentId,
-        selectedSubject,
-        testId
-      );
+      // Upload the original PDF file to storage
+      const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
 
       // Prepare the assessment data
       const assessmentData = {
         student_id: studentId,
         subject_id: selectedSubject,
-        answer_sheet_url: url,
+        answer_sheet_url: publicUrl,
         status: 'pending',
         updated_at: new Date().toISOString(),
         text_content: textContent,
@@ -118,7 +111,10 @@ export function UploadAnswerSheet({
         await createAssessment(assessmentData);
       }
       
-      // Reset evaluations if needed
+      // Delete previous files
+      await deletePreviousFiles(previousUrls);
+      
+      // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject, testId);
       
       // Reset form
@@ -127,8 +123,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      // Complete toast
-      toast.success('Answer sheet uploaded and processed for OCR', { id: processingToast });
+      toast.success('Answer sheet uploaded and processed for OCR');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
@@ -137,7 +132,7 @@ export function UploadAnswerSheet({
       document.dispatchEvent(customEvent);
       
     } catch (error: any) {
-      toast.error(`Upload failed: ${error.message || 'Error processing the answer sheet'}`);
+      toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);
     } finally {
       setIsUploading(false);
