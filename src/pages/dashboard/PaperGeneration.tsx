@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSubjects } from "@/hooks/test-selection/useSubjects";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { GeneratedPaper, Question } from "@/types/papers";
+import { GeneratedPaper, Question, Json } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check } from "lucide-react";
 import { format } from "date-fns";
@@ -214,11 +213,14 @@ export default function PaperGeneration() {
       }
       
       try {
+        // Convert Question[] to a JSON-compatible object before storing in Supabase
+        const questionsJson = response.data.questions as any;
+        
         await supabase.from('generated_papers').insert({
           subject_id: selectedSubject,
           topic: topicName,
           paper_url: "",
-          questions: response.data.questions,
+          questions: questionsJson,
           content_url: contentUrl || null,
           user_id: (await supabase.auth.getUser()).data.user?.id || ''
         });

@@ -23,6 +23,7 @@ export interface QuestionOption {
   isCorrect: boolean;
 }
 
+// Make Question compatible with Json by adding index signature
 export interface Question {
   id: string;
   text: string;
@@ -33,6 +34,7 @@ export interface Question {
   selected?: boolean;
   answer?: string; // Answer to the question
   options?: QuestionOption[]; // Options for multiple choice questions
+  [key: string]: any; // Add index signature to make it compatible with Json type
 }
 
 // Ensure Question type is properly handled in the JSON type
