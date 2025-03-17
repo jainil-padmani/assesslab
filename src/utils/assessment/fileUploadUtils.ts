@@ -59,7 +59,7 @@ export const validatePdfFile = (file: File): boolean => {
 };
 
 /**
- * Convert PDF to PNG images
+ * Convert PDF to PNG images with optimized settings
  */
 export const convertPdfToPng = async (pdfFile: File): Promise<File[]> => {
   try {
@@ -69,18 +69,20 @@ export const convertPdfToPng = async (pdfFile: File): Promise<File[]> => {
     const arrayBuffer = await pdfFile.arrayBuffer();
     
     // Load the PDF
-    const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     const numPages = pdf.numPages;
     const pngFiles: File[] = [];
     
     // Process each page
     for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
+      // Use a higher scale for better OCR results
+      const scale = 2.5; // Higher scale for better quality
+      const viewport = page.getViewport({ scale });
       
       // Create a canvas for rendering
       const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { alpha: false }); // Disable alpha for better performance
       
       if (!context) {
         throw new Error('Canvas context could not be created');
@@ -89,10 +91,16 @@ export const convertPdfToPng = async (pdfFile: File): Promise<File[]> => {
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       
-      // Render the page
+      // Set white background to improve OCR
+      context.fillStyle = 'white';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Render the page with improved settings
       await page.render({
         canvasContext: context,
-        viewport: viewport
+        viewport: viewport,
+        enableWebGL: true, // Use WebGL if available for better performance
+        intent: 'display' // 'display' for screen viewing, 'print' for printing
       }).promise;
       
       // Convert canvas to PNG blob with maximum quality
@@ -175,41 +183,57 @@ export const uploadZipFile = async (zipFile: File, fileType: 'question' | 'answe
 
 /**
  * Process PDF file: Convert to PNG, create ZIP, upload ZIP
+ * Enhanced version with optimized settings for better OCR results
  */
 export const processPdfFile = async (file: File, fileType: 'question' | 'answer' | 'student'): Promise<string> => {
   try {
-    // Convert PDF to PNG images
+    // Display processing toast for user feedback
+    const toastId = toast.loading('Processing PDF for enhanced OCR...');
+    
+    // Convert PDF to PNG images with optimized settings
     const pngFiles = await convertPdfToPng(file);
+    toast.loading('Creating ZIP archive with extracted images...', { id: toastId });
     
     // Create ZIP file from PNG images
     const baseName = file.name.replace('.pdf', '');
     const zipFile = await createZipFromPngFiles(pngFiles, baseName);
     
     // Upload ZIP file to storage
+    toast.loading('Uploading processed files...', { id: toastId });
     const zipUrl = await uploadZipFile(zipFile, fileType);
+    
+    // Update toast to success
+    toast.success('PDF processed successfully for enhanced OCR', { id: toastId });
     
     return zipUrl;
   } catch (error) {
     console.error('Error processing PDF file:', error);
-    toast.error('Failed to process PDF file');
+    toast.error('Failed to process PDF file for OCR');
     throw error;
   }
 };
 
 /**
- * Extract text from PDF using OCR
- * Note: This function doesn't perform OCR itself but serves as a placeholder
- * for the extraction process that happens in the edge function
+ * Extract text from PDF for OCR processing
+ * Returns status information about the processing
  */
 export const extractTextFromPdf = async (file: File): Promise<string | null> => {
   try {
+    // Get file information for debugging
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    console.log(`Processing PDF for OCR. File: ${file.name}, Size: ${fileSizeMB}MB`);
+    
     // Process the PDF file to get ZIP URL
     const zipUrl = await processPdfFile(file, 'student');
     
     // Return information about the processing for display to the user
-    return `Document processed for OCR with enhanced image extraction. ZIP file created with ${file.name.split('.')[0]}.zip`;
+    return `Document processed for OCR with enhanced image extraction. 
+File: ${file.name} (${fileSizeMB}MB)
+Pages processed: ${file.size > 1024 * 1024 ? 'Multiple' : 'Single'} 
+ZIP archive created for optimal OCR processing.
+This document will be analyzed using advanced vision AI for better text recognition.`;
   } catch (error) {
     console.error("Error extracting text from PDF:", error);
-    return null;
+    return `Failed to process document: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 };

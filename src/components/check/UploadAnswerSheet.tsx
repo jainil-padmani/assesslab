@@ -62,7 +62,7 @@ export function UploadAnswerSheet({
     
     try {
       // Show processing toast
-      toast.info('Processing PDF file for enhanced OCR...');
+      const processingToast = toast.loading('Processing PDF file for enhanced OCR...');
       
       // Fetch existing assessments
       const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
@@ -71,12 +71,15 @@ export function UploadAnswerSheet({
       const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
       
       // Process the file for enhanced OCR
+      toast.loading('Converting PDF to images for better OCR...', { id: processingToast });
       const zipUrl = await processPdfFile(file, 'student');
       
       // Extract text content (this now returns info about the processed ZIP)
+      toast.loading('Extracting text content...', { id: processingToast });
       const textContent = await extractTextFromPdf(file);
       
       // Upload the original PDF file to storage
+      toast.loading('Uploading answer sheet...', { id: processingToast });
       const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
 
       // Prepare the assessment data
@@ -123,7 +126,8 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and processed for OCR');
+      // Complete toast
+      toast.success('Answer sheet uploaded and processed for OCR', { id: processingToast });
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
@@ -132,7 +136,7 @@ export function UploadAnswerSheet({
       document.dispatchEvent(customEvent);
       
     } catch (error: any) {
-      toast.error(error.message || 'Failed to upload answer sheet');
+      toast.error(`Upload failed: ${error.message || 'Error processing the answer sheet'}`);
       console.error('Error uploading answer sheet:', error);
     } finally {
       setIsUploading(false);

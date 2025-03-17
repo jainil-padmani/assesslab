@@ -38,280 +38,250 @@ serve(async (req) => {
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     if (studentAnswer?.zip_url) studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
     
-    // Process the student answer if it's a PDF or image
-    let processedStudentAnswer = studentAnswer;
-    let extractedText = null;
+    // Process all documents for comprehensive OCR
+    let questionPaperOcr = null;
+    let answerKeyOcr = null;
+    let studentAnswerOcr = null;
     
-    if (studentAnswer?.zip_url) {
-      console.log("Found ZIP URL for enhanced OCR processing:", studentAnswer.zip_url);
+    // Function to extract text from document URLs using GPT-4o Vision
+    const extractTextFromDocument = async (docUrl, docType, zipUrl = null) => {
+      if (!docUrl) {
+        return `No ${docType} document URL provided`;
+      }
+      
+      console.log(`Extracting text from ${docType} document:`, docUrl);
+      console.log(`ZIP URL available for ${docType}:`, zipUrl ? "Yes" : "No");
       
       try {
-        // Fetch the ZIP file with a longer timeout (30 seconds)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-        
-        const zipResponse = await fetch(studentAnswer.zip_url, { 
-          signal: controller.signal,
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        clearTimeout(timeoutId);
-        
-        if (!zipResponse.ok) {
-          console.error("Failed to fetch ZIP file:", zipResponse.statusText);
-          throw new Error("Failed to fetch ZIP file: " + zipResponse.statusText);
-        }
-        
-        const zipData = await zipResponse.arrayBuffer();
-        console.log("Successfully downloaded ZIP file, size:", zipData.byteLength);
-        
-        // Extract PNG files from ZIP
-        const zip = await JSZip.loadAsync(zipData);
-        const imagePromises = [];
-        const imageFiles = [];
-        
-        // Process each file in the ZIP
-        zip.forEach((relativePath, zipEntry) => {
-          if (!zipEntry.dir && (relativePath.endsWith('.png') || relativePath.endsWith('.jpg'))) {
-            const promise = zipEntry.async('base64').then(base64Data => {
-              const imgFormat = relativePath.endsWith('.png') ? 'png' : 'jpeg';
-              imageFiles.push({
-                name: relativePath,
-                dataUrl: `data:image/${imgFormat};base64,${base64Data}`
-              });
-            });
-            imagePromises.push(promise);
-          }
-        });
-        
-        await Promise.all(imagePromises);
-        
-        // Sort images by filename (ensures page order)
-        imageFiles.sort((a, b) => a.name.localeCompare(b.name));
-        
-        console.log(`Successfully extracted ${imageFiles.length} images from ZIP`);
-        
-        if (imageFiles.length > 0) {
-          // Use GPT-4o's vision capabilities for OCR on all pages
-          console.log("Performing OCR with GPT-4o on extracted images...");
+        // Check if we have a ZIP file to process (improved OCR)
+        if (zipUrl) {
+          console.log(`Processing ZIP for ${docType} document:`, zipUrl);
           
-          const messages = [
-            { 
-              role: 'system', 
-              content: `You are an OCR expert specialized in extracting text from handwritten answer sheets and documents.
-              
-              For each question in the document:
-              1. Identify the question number clearly.
-              2. Extract the complete answer text.
-              3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
-              4. If the handwriting is difficult to read, make your best effort and indicate uncertainty with [?].
-              5. Maintain the structure of mathematical equations, diagrams descriptions, and any special formatting.
-              6. If you identify multiple pages, process each and maintain continuity between questions.
-              
-              Your response should be structured, accurate, and preserve the original content's organization.`
-            }
-          ];
-          
-          // Create user message with text and images
-          const userContent = [
-            { 
-              type: 'text', 
-              text: `This is a student's answer sheet for test ID: ${testId}. Extract all the text from these ${imageFiles.length} pages, focusing on identifying question numbers and their corresponding answers:` 
-            }
-          ];
-          
-          // Add each image to the request (up to 20 images)
-          const maxImages = Math.min(imageFiles.length, 20);
-          for (let i = 0; i < maxImages; i++) {
-            userContent.push({ 
-              type: 'image_url', 
-              image_url: { 
-                url: imageFiles[i].dataUrl,
-                detail: "high" 
-              } 
-            });
-          }
-          
-          messages.push({ role: 'user', content: userContent });
-          
-          // Increase timeout for OpenAI API call (120 seconds)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 120000);
-          
-          const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o',
-              messages: messages,
-              temperature: 0.2,
-              max_tokens: 4000,
-            }),
+          // Fetch the ZIP file
+          const zipResponse = await fetch(zipUrl, { 
+            headers: { 'Cache-Control': 'no-cache' }
           });
           
-          clearTimeout(timeoutId);
-
-          if (!ocrResponse.ok) {
-            const errorText = await ocrResponse.text();
-            console.error("OpenAI OCR error:", errorText);
-            
-            // Create a placeholder text if OCR fails
-            processedStudentAnswer = {
-              ...studentAnswer,
-              text: "Unable to extract text from document. Please try with a clearer image or document.",
-              isOcrProcessed: false,
-              ocrError: errorText
-            };
-            extractedText = "OCR extraction failed: " + errorText;
+          if (!zipResponse.ok) {
+            console.error(`Failed to fetch ZIP for ${docType}:`, zipResponse.statusText);
+            // Fall back to direct URL processing
           } else {
-            const ocrResult = await ocrResponse.json();
-            const extractedOcrText = ocrResult.choices[0]?.message?.content;
+            // Process ZIP file contents
+            const zipData = await zipResponse.arrayBuffer();
+            const zip = await JSZip.loadAsync(zipData);
+            const imageFiles = [];
             
-            console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-            console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+            // Extract images from ZIP
+            const imagePromises = [];
+            zip.forEach((relativePath, zipEntry) => {
+              if (!zipEntry.dir && (relativePath.endsWith('.png') || relativePath.endsWith('.jpg'))) {
+                const promise = zipEntry.async('base64').then(base64Data => {
+                  const imgFormat = relativePath.endsWith('.png') ? 'png' : 'jpeg';
+                  imageFiles.push({
+                    name: relativePath,
+                    dataUrl: `data:image/${imgFormat};base64,${base64Data}`
+                  });
+                });
+                imagePromises.push(promise);
+              }
+            });
             
-            // Store the extracted text for updating in the database
-            extractedText = extractedOcrText;
+            await Promise.all(imagePromises);
             
-            // Update the student answer with OCR text
-            processedStudentAnswer = {
-              ...studentAnswer,
-              text: extractedOcrText,
-              isOcrProcessed: true,
-              testId: testId, // Include test ID to ensure answers are synced with the correct test
-              zipProcessed: true
-            };
-          }
-        } else {
-          console.error("No image files found in ZIP");
-          extractedText = "No image files found in ZIP for OCR processing";
-        }
-      } catch (zipError) {
-        console.error("Error processing ZIP file:", zipError);
-        extractedText = "Error processing ZIP file: " + zipError.message;
-      }
-    } else if (studentAnswer?.url && (
-        studentAnswer.url.includes('.jpg') || 
-        studentAnswer.url.includes('.jpeg') || 
-        studentAnswer.url.includes('.png') ||
-        studentAnswer.url.includes('.pdf')
-    )) {
-      console.log("Detected document/image answer sheet, performing OCR with GPT-4o...");
-      console.log("URL:", studentAnswer.url);
-      
-      try {
-        // For PDFs, we'll recommend using the ZIP processing path instead
-        if (studentAnswer.url.includes('.pdf')) {
-          console.log("PDF detected. For better results, please use ZIP processing path.");
-          extractedText = "PDF detected. For better results, please regenerate the assessment to use enhanced OCR via ZIP processing.";
-          processedStudentAnswer = {
-            ...studentAnswer,
-            text: extractedText,
-            isOcrProcessed: false
-          };
-        } else {
-          // For direct image processing (JPEG, PNG)
-          // Use GPT-4o's vision capabilities for OCR with extended timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 60000);
-          
-          const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o',
-              messages: [
+            // Sort images by filename
+            imageFiles.sort((a, b) => a.name.localeCompare(b.name));
+            console.log(`Extracted ${imageFiles.length} images from ${docType} ZIP`);
+            
+            if (imageFiles.length > 0) {
+              // Use GPT-4o vision for OCR on all images
+              const messages = [
                 { 
                   role: 'system', 
-                  content: `You are an OCR expert specialized in extracting text from handwritten answer sheets and documents.
+                  content: `You are an OCR expert specialized in extracting text from ${docType} documents.
                   
-                  For each question in the document:
-                  1. Identify the question number clearly.
-                  2. Extract the complete answer text.
-                  3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
-                  4. If the handwriting is difficult to read, make your best effort and indicate uncertainty with [?].
-                  5. Maintain the structure of mathematical equations, diagrams descriptions, and any special formatting.
-                  6. If you identify multiple pages, process each and maintain continuity between questions.
+                  For each image:
+                  1. Extract all visible text content.
+                  2. Maintain the structure of text, including paragraphs, lists, and formatting.
+                  3. Preserve question numbers and any identifiers.
+                  4. If there are multiple pages, maintain page order and continuity.
+                  5. For ${docType === 'answer key' ? 'answer keys' : docType === 'question paper' ? 'question papers' : 'student answer sheets'}, pay special attention to:
+                     - ${docType === 'answer key' ? 'Correct answers, scoring rubrics, and evaluation criteria' : 
+                        docType === 'question paper' ? 'Question numbering, instructions, and marks allocation' : 
+                                                     'Handwritten text, diagrams, and calculations'}
                   
-                  Your response should be structured, accurate, and preserve the original content's organization.`
-                },
-                { 
-                  role: 'user', 
-                  content: [
-                    { 
-                      type: 'text', 
-                      text: `This is a student's answer sheet for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:` 
-                    },
-                    { 
-                      type: 'image_url', 
-                      image_url: { 
-                        url: studentAnswer.url,
-                        detail: "high" 
-                      } 
-                    }
-                  ] 
+                  Your response should be well-structured and preserve the original document's organization.`
                 }
-              ],
-              temperature: 0.2,
-              max_tokens: 4000,
-            }),
-          });
-          
-          clearTimeout(timeoutId);
-
-          if (!ocrResponse.ok) {
-            const errorText = await ocrResponse.text();
-            console.error("OpenAI OCR error:", errorText);
-            
-            // Create a placeholder text if OCR fails
-            processedStudentAnswer = {
-              ...studentAnswer,
-              text: "Unable to extract text from document. Please try with a clearer image or document.",
-              isOcrProcessed: false,
-              ocrError: errorText
-            };
-            extractedText = "OCR extraction failed: " + errorText;
-          } else {
-            const ocrResult = await ocrResponse.json();
-            const extractedOcrText = ocrResult.choices[0]?.message?.content;
-            
-            console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-            console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
-            
-            // Store the extracted text for updating in the database
-            extractedText = extractedOcrText;
-            
-            // Update the student answer with OCR text
-            processedStudentAnswer = {
-              ...studentAnswer,
-              text: extractedOcrText,
-              isOcrProcessed: true,
-              testId: testId // Include test ID to ensure answers are synced with the correct test
-            };
+              ];
+              
+              // Create user message with text and images
+              const userContent = [
+                { 
+                  type: 'text', 
+                  text: `This is a ${docType} for test ID: ${testId}. Extract all text content from these ${imageFiles.length} pages:`
+                }
+              ];
+              
+              // Add each image to the request (up to 10 images per batch for better handling)
+              const maxImagesPerBatch = 10;
+              let extractedText = '';
+              
+              // Process images in batches to handle documents with many pages
+              for (let batchStart = 0; batchStart < imageFiles.length; batchStart += maxImagesPerBatch) {
+                const batchEnd = Math.min(batchStart + maxImagesPerBatch, imageFiles.length);
+                console.log(`Processing batch ${batchStart + 1} to ${batchEnd} of ${imageFiles.length} for ${docType}`);
+                
+                const batchContent = [
+                  { 
+                    type: 'text', 
+                    text: `This is a ${docType} for test ID: ${testId}. Extract all text content from pages ${batchStart + 1} to ${batchEnd}:`
+                  }
+                ];
+                
+                // Add images for this batch
+                for (let i = batchStart; i < batchEnd; i++) {
+                  batchContent.push({ 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: imageFiles[i].dataUrl,
+                      detail: "high" 
+                    } 
+                  });
+                }
+                
+                const batchMessages = [
+                  messages[0],
+                  { role: 'user', content: batchContent }
+                ];
+                
+                // Call OpenAI API for this batch
+                const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'gpt-4o',
+                    messages: batchMessages,
+                    temperature: 0.1,
+                    max_tokens: 4000,
+                  }),
+                });
+                
+                if (!ocrResponse.ok) {
+                  const errorText = await ocrResponse.text();
+                  console.error(`OpenAI OCR error for ${docType} batch ${batchStart}:`, errorText);
+                  extractedText += `\n\n[Error processing pages ${batchStart + 1}-${batchEnd}: ${errorText}]`;
+                } else {
+                  const ocrResult = await ocrResponse.json();
+                  const batchText = ocrResult.choices[0]?.message?.content || '';
+                  extractedText += '\n\n' + batchText;
+                }
+              }
+              
+              console.log(`Successfully extracted text from ${docType} using ZIP processing`);
+              return extractedText.trim();
+            }
           }
         }
-      } catch (ocrError) {
-        console.error("Error during OCR processing:", ocrError);
         
-        // Create a placeholder text if OCR fails
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: "Error processing document. Technical details: " + ocrError.message,
-          isOcrProcessed: false,
-          ocrError: ocrError.message
-        };
+        // Direct URL processing (fallback or primary method if no ZIP)
+        console.log(`Processing direct URL for ${docType} document`);
+        
+        // Check file type to determine appropriate processing
+        const isPdf = docUrl.toLowerCase().includes('.pdf');
+        const isImage = /\.(jpe?g|png|gif|webp)$/i.test(docUrl);
+        
+        if (!isPdf && !isImage) {
+          return `Unsupported file format for ${docType} document. Only PDF and image files are supported.`;
+        }
+        
+        if (isPdf) {
+          // For PDFs, provide a basic extraction with recommendation for enhanced OCR
+          return `PDF detected for ${docType}. For better results, please regenerate the assessment to use enhanced OCR via ZIP processing.`;
+        }
+        
+        // For images, use GPT-4o's vision capability
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              { 
+                role: 'system', 
+                content: `You are an OCR expert specialized in extracting text from ${docType} documents.`
+              },
+              { 
+                role: 'user', 
+                content: [
+                  { 
+                    type: 'text', 
+                    text: `This is a ${docType} for test ID: ${testId}. Extract all text content:`
+                  },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: docUrl,
+                      detail: "high" 
+                    } 
+                  }
+                ] 
+              }
+            ],
+            temperature: 0.1,
+            max_tokens: 4000,
+          }),
+        });
+        
+        if (!ocrResponse.ok) {
+          const errorText = await ocrResponse.text();
+          console.error(`OpenAI OCR error for ${docType}:`, errorText);
+          return `Error extracting text from ${docType}: ${errorText}`;
+        }
+        
+        const ocrResult = await ocrResponse.json();
+        const extractedText = ocrResult.choices[0]?.message?.content;
+        console.log(`Successfully extracted text from ${docType} using direct URL`);
+        return extractedText;
+      } catch (error) {
+        console.error(`Error extracting text from ${docType}:`, error);
+        return `Error processing ${docType} document: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
+    };
+    
+    // Extract text from all documents in parallel
+    console.log("Starting parallel OCR extraction for all documents");
+    const [questionOcr, answerOcr, studentOcr] = await Promise.all([
+      extractTextFromDocument(questionPaper?.url, 'question paper'),
+      extractTextFromDocument(answerKey?.url, 'answer key'),
+      extractTextFromDocument(studentAnswer?.url, 'student answer', studentAnswer?.zip_url)
+    ]);
+    
+    questionPaperOcr = questionOcr;
+    answerKeyOcr = answerOcr;
+    studentAnswerOcr = studentOcr;
+    
+    console.log("OCR extraction completed for all documents");
+    
+    // Process the student answer if it's provided as a URL
+    let processedStudentAnswer = studentAnswer;
+    
+    // Add extracted text to the student answer object
+    if (studentAnswerOcr) {
+      processedStudentAnswer = {
+        ...studentAnswer,
+        text: studentAnswerOcr,
+        isOcrProcessed: true,
+        testId: testId
+      };
     }
     
     // Update the assessment record with the extracted text
-    if (extractedText && studentInfo?.id) {
+    if (studentAnswerOcr && studentInfo?.id) {
       try {
         // Create Supabase client
         const supabaseClient = createClient(
@@ -323,7 +293,7 @@ serve(async (req) => {
         // Find and update the assessment with the extracted text
         const { error } = await supabaseClient
           .from('assessments')
-          .update({ text_content: extractedText })
+          .update({ text_content: studentAnswerOcr })
           .eq('student_id', studentInfo.id)
           .eq('test_id', testId);
           
@@ -467,14 +437,15 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       evaluation.test_id = testId;
       evaluation.answer_sheet_url = studentAnswer.url;
       
-      // Add the extracted text if available
-      if (extractedText) {
-        evaluation.text = extractedText;
-        evaluation.isOcrProcessed = true;
-        if (studentAnswer?.zip_url) {
-          evaluation.zipProcessed = true;
-          evaluation.zip_url = studentAnswer.zip_url;
-        }
+      // Add the extracted OCR text for all documents
+      evaluation.text = studentAnswerOcr;
+      evaluation.questionPaperOcr = questionPaperOcr;
+      evaluation.answerKeyOcr = answerKeyOcr;
+      evaluation.isOcrProcessed = true;
+      
+      if (studentAnswer?.zip_url) {
+        evaluation.zipProcessed = true;
+        evaluation.zip_url = studentAnswer.zip_url;
       }
       
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
@@ -493,7 +464,7 @@ Return ONLY the JSON object without any additional text or markdown formatting.
   } catch (error) {
     console.error('Error in evaluate-paper function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
