@@ -18,6 +18,11 @@ export interface CourseOutcomeConfig {
   selected: boolean;
 }
 
+export interface QuestionOption {
+  text: string;
+  isCorrect: boolean;
+}
+
 export interface Question {
   id: string;
   text: string;
@@ -26,6 +31,8 @@ export interface Question {
   level: string; // blooms taxonomy level
   courseOutcome?: number; // CO number this question belongs to
   selected?: boolean;
+  answer?: string; // Answer to the question
+  options?: QuestionOption[]; // Options for multiple choice questions
 }
 
 // Ensure Question type is properly handled in the JSON type

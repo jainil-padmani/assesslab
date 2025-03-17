@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, History, FileX, Upload, RefreshCw } from "lucide-react";
+import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +45,19 @@ export default function PaperGeneration() {
     evaluate: 15,
     create: 15
   });
+  
+  // New state for question types
+  const [questionTypes, setQuestionTypes] = useState<{[key: string]: number}>({
+    "Multiple Choice (1 mark)": 5,
+    "Short Answer (1 mark)": 5,
+    "Short Answer (2 marks)": 3,
+    "Medium Answer (4 marks)": 2,
+    "Long Answer (8 marks)": 1
+  });
+  
+  // New state for editing answers
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [editedAnswer, setEditedAnswer] = useState<string>("");
 
   useEffect(() => {
     if (selectedSubject && papers.length > 0) {
@@ -53,6 +66,10 @@ export default function PaperGeneration() {
       setFilteredPapers(papers);
     }
   }, [selectedSubject, papers]);
+
+  useEffect(() => {
+    fetchPapers();
+  }, []);
 
   const fetchPapers = async () => {
     try {
@@ -178,7 +195,8 @@ export default function PaperGeneration() {
           content: extractedContent || "No content provided",
           bloomsTaxonomy,
           difficulty,
-          courseOutcomes: [] // Send empty array by default
+          courseOutcomes: [], // Send empty array by default
+          questionTypes // Send the question types configuration
         }
       });
       
@@ -226,6 +244,13 @@ export default function PaperGeneration() {
     }));
   };
 
+  const handleQuestionTypeChange = (type: string, value: number) => {
+    setQuestionTypes(prev => ({
+      ...prev,
+      [type]: value
+    }));
+  };
+
   const handleViewPaperDetails = (paper: GeneratedPaper) => {
     setSelectedPaper(paper);
   };
@@ -263,6 +288,60 @@ export default function PaperGeneration() {
 
   const viewFullHistory = () => {
     navigate("/dashboard/paper-generation/history");
+  };
+
+  const handleEditAnswer = (question: Question) => {
+    setEditingQuestion(question);
+    setEditedAnswer(question.answer || "");
+  };
+
+  const saveEditedAnswer = async () => {
+    if (!editingQuestion || !selectedPaper) return;
+    
+    try {
+      // Update the answer in the local state
+      const updatedQuestions = selectedPaper.questions as Question[];
+      const questionIndex = updatedQuestions.findIndex(q => q.id === editingQuestion.id);
+      
+      if (questionIndex >= 0) {
+        updatedQuestions[questionIndex] = {
+          ...updatedQuestions[questionIndex],
+          answer: editedAnswer
+        };
+        
+        // Update the paper in state
+        const updatedPaper = {
+          ...selectedPaper,
+          questions: updatedQuestions
+        };
+        
+        setSelectedPaper(updatedPaper);
+        
+        // Update in the database
+        const { error } = await supabase
+          .from('generated_papers')
+          .update({ questions: updatedQuestions })
+          .eq('id', selectedPaper.id);
+          
+        if (error) throw error;
+        
+        // Update in the papers list
+        const updatedPapers = papers.map(p => 
+          p.id === selectedPaper.id ? updatedPaper : p
+        );
+        setPapers(updatedPapers);
+        setFilteredPapers(updatedPapers.filter(p => p.subject_id === selectedSubject || !selectedSubject));
+        
+        toast.success("Answer updated successfully");
+      }
+    } catch (error) {
+      console.error("Error updating answer:", error);
+      toast.error("Failed to update answer");
+    } finally {
+      // Clear editing state
+      setEditingQuestion(null);
+      setEditedAnswer("");
+    }
   };
 
   return (
@@ -373,6 +452,49 @@ export default function PaperGeneration() {
           
           <Card>
             <CardHeader>
+              <CardTitle>Question Types</CardTitle>
+              <CardDescription>Configure the number of each question type</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Object.entries(questionTypes).map(([type, count]) => (
+                <div key={type} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label>{type}</Label>
+                    <span className="text-sm font-medium">{count}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleQuestionTypeChange(type, Math.max(0, count - 1))}
+                    >
+                      -
+                    </Button>
+                    <Slider
+                      value={[count]}
+                      min={0}
+                      max={10}
+                      step={1}
+                      className="flex-1"
+                      onValueChange={(value) => handleQuestionTypeChange(type, value[0])}
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleQuestionTypeChange(type, Math.min(10, count + 1))}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
               <CardTitle>Question Parameters</CardTitle>
               <CardDescription>Configure question generation parameters</CardDescription>
             </CardHeader>
@@ -452,6 +574,27 @@ export default function PaperGeneration() {
                       <p className="text-sm font-medium">
                         Q{index + 1}. {question.text}
                       </p>
+                      
+                      {/* Display multiple choice options if available */}
+                      {question.options && (
+                        <div className="mt-2 space-y-1 pl-4">
+                          {question.options.map((option, idx) => (
+                            <div key={idx} className={`text-sm ${option.isCorrect ? 'font-bold text-green-600' : ''}`}>
+                              {String.fromCharCode(65 + idx)}. {option.text}
+                              {option.isCorrect && " ✓"}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Display answer if available */}
+                      {question.answer && (
+                        <div className="mt-2 pl-4">
+                          <p className="text-sm font-medium">Answer:</p>
+                          <p className="text-sm">{question.answer}</p>
+                        </div>
+                      )}
+                      
                       <div className="mt-1 flex flex-wrap gap-2">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {question.type}
@@ -505,11 +648,71 @@ export default function PaperGeneration() {
                         key={idx} 
                         className="p-3 border rounded-md"
                       >
-                        <div className="flex items-start">
+                        <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium">
                               Q{idx + 1}. {question.text}
                             </p>
+                            
+                            {/* Display multiple choice options if available */}
+                            {question.options && (
+                              <div className="mt-2 space-y-1 pl-4">
+                                {question.options.map((option, idx) => (
+                                  <div key={idx} className={`text-sm ${option.isCorrect ? 'font-bold text-green-600' : ''}`}>
+                                    {String.fromCharCode(65 + idx)}. {option.text}
+                                    {option.isCorrect && " ✓"}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Display answer section with edit option */}
+                            <div className="mt-2 pl-4">
+                              {editingQuestion?.id === question.id ? (
+                                <div className="space-y-2">
+                                  <Label htmlFor="edit-answer">Edit Answer:</Label>
+                                  <Textarea
+                                    id="edit-answer"
+                                    value={editedAnswer}
+                                    onChange={(e) => setEditedAnswer(e.target.value)}
+                                    className="min-h-[100px] w-full"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => setEditingQuestion(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button 
+                                      size="sm"
+                                      onClick={saveEditedAnswer}
+                                    >
+                                      <Check className="mr-1 h-4 w-4" />
+                                      Save
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium">Answer:</p>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="h-8 px-2"
+                                      onClick={() => handleEditAnswer(question)}
+                                    >
+                                      <Edit className="h-3 w-3 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </div>
+                                  <p className="text-sm">{question.answer || "No answer provided"}</p>
+                                </>
+                              )}
+                            </div>
+                            
                             <div className="mt-1 flex flex-wrap gap-2">
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 {question.type}

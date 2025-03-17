@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -14,7 +13,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { topic, content, bloomsTaxonomy, difficulty, courseOutcomes } = await req.json();
+    const { topic, content, bloomsTaxonomy, difficulty, courseOutcomes, questionTypes } = await req.json();
     
     if (!topic || !content) {
       return new Response(
@@ -28,11 +27,32 @@ serve(async (req: Request) => {
     
     console.log(`Generating questions for ${topic} with difficulty ${difficulty}%`);
     console.log("Course outcomes:", validCourseOutcomes);
+    console.log("Question types:", questionTypes);
     
-    // Total number of questions required
-    const totalQuestions = validCourseOutcomes.length > 0 
-      ? validCourseOutcomes.reduce((total, co) => total + (co.questionCount || 0), 0)
-      : 10; // Default to 10 questions if no course outcomes specified
+    // Calculate total questions from question types
+    let totalQuestions = 0;
+    let questionTypesConfig = {};
+    
+    if (questionTypes && Object.keys(questionTypes).length > 0) {
+      // Use the question types configuration provided
+      questionTypesConfig = questionTypes;
+      totalQuestions = Object.values(questionTypes).reduce((sum: number, count: any) => sum + (count as number), 0);
+    } else {
+      // Default question types configuration
+      questionTypesConfig = {
+        "Multiple Choice (1 mark)": 5,
+        "Short Answer (1 mark)": 5,
+        "Short Answer (2 marks)": 3,
+        "Medium Answer (4 marks)": 2,
+        "Long Answer (8 marks)": 1
+      };
+      totalQuestions = 16; // Default total from above
+    }
+    
+    // If no questions would be generated, set a minimum
+    if (totalQuestions === 0) {
+      totalQuestions = 10;
+    }
     
     // Get the OpenAI API key
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
@@ -46,16 +66,19 @@ serve(async (req: Request) => {
 
     // Generate actual questions using OpenAI API
     const promptContent = `
-Generate ${totalQuestions} exam questions for the topic: ${topic}.
+Generate ${totalQuestions} exam questions with answers for the topic: ${topic}.
 
 Course Content:
 ${content.substring(0, 4000)}
 
 Requirements:
 - Questions should be appropriate for a college-level exam
-- Create a variety of question types (multiple choice, short answer, problem solving, etc.)
+- Create questions according to the following distribution:
+${Object.entries(questionTypesConfig).map(([type, count]) => `  - ${type}: ${count} questions`).join('\n')}
 - Questions should be aligned with the specified course outcomes and Bloom's taxonomy levels
 - Difficulty level should be approximately ${difficulty}% on a scale of 0-100
+- For multiple choice questions, provide 4 options and clearly indicate the correct answer
+- For all question types, provide a model answer that would receive full marks
 
 ${validCourseOutcomes.length > 0 ? `Course Outcomes:
 ${validCourseOutcomes.filter(co => co.selected).map(co => `CO${co.co_number}: ${co.description}`).join('\n')}
@@ -71,9 +94,13 @@ Format each question as:
   "text": "The question text here",
   "type": "question type (Multiple Choice, Short Answer, etc.)",
   "level": "bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)",
-  "courseOutcome": CO number (integer),
-  "marks": estimated marks based on difficulty and cognitive level
+  "courseOutcome": CO number (integer, if applicable),
+  "marks": marks value based on question type,
+  "answer": "Detailed model answer that would receive full marks",
+  "options": [{"text": "Option A", "isCorrect": false}, {"text": "Option B", "isCorrect": true}, ...] (for multiple choice only)
 }
+
+Make sure ALL questions have appropriate answers. For multiple choice questions, clearly indicate the correct option in the options array.
 `;
 
     try {
@@ -88,7 +115,7 @@ Format each question as:
           messages: [
             {
               "role": "system",
-              "content": "You are an expert in generating educational assessment questions. Provide detailed, appropriate questions that align with course outcomes and Bloom's taxonomy levels."
+              "content": "You are an expert in generating educational assessment questions. Provide detailed, appropriate questions with model answers that align with course outcomes and Bloom's taxonomy levels."
             },
             {
               "role": "user",
@@ -124,9 +151,11 @@ Format each question as:
               id: `q${generatedQuestions.length + 1}`,
               text: question.text,
               type: question.type,
-              marks: question.marks || getMarksForQuestion(question.level, question.difficulty || "moderate"),
+              marks: question.marks || getMarksForQuestionType(question.type),
               level: question.level,
               courseOutcome: question.courseOutcome,
+              answer: question.answer || "",
+              options: question.options || null,
               selected: false
             });
           } catch (parseError) {
@@ -139,7 +168,7 @@ Format each question as:
       
       // If we couldn't extract questions from the JSON format, fallback to generating them
       if (generatedQuestions.length === 0) {
-        generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic);
+        generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig);
       }
       
       console.log(`Generated ${generatedQuestions.length} questions`);
@@ -152,7 +181,7 @@ Format each question as:
       console.error("Error calling OpenAI API:", apiError);
       
       // Fallback to local question generation
-      const generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic);
+      const generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig);
       
       return new Response(
         JSON.stringify({ 
@@ -171,9 +200,17 @@ Format each question as:
   }
 });
 
-function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic) {
+function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig) {
   const generatedQuestions = [];
   let questionId = 1;
+  
+  // Convert questionTypesConfig to an array for easier distribution
+  const questionTypesList = [];
+  Object.entries(questionTypesConfig).forEach(([type, count]) => {
+    for (let i = 0; i < (count as number); i++) {
+      questionTypesList.push(type);
+    }
+  });
   
   // If we have course outcomes, generate questions for each
   if (courseOutcomes && courseOutcomes.length > 0) {
@@ -185,10 +222,22 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         // Determine Bloom's taxonomy level based on distribution
         let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
         
+        // Get question type for this iteration
+        const typeIndex = Math.min(questionTypesList.length - 1, generatedQuestions.length);
+        const questionType = questionTypesList[typeIndex] || "Short Answer (1 mark)";
+        
         // Generate question based on difficulty
         const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
-        const questionType = getRandomQuestionType(bloomsLevel);
-        const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
+        const marks = getMarksForQuestionType(questionType);
+        
+        // Generate sample answer
+        const sampleAnswer = generateSampleAnswer(topic, co.description, bloomsLevel, questionType);
+        
+        // Generate multiple choice options if needed
+        let options = null;
+        if (questionType.includes("Multiple Choice")) {
+          options = generateMultipleChoiceOptions(topic, co.description);
+        }
         
         generatedQuestions.push({
           id: `q${questionId++}`,
@@ -197,17 +246,28 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
           marks: marks,
           level: bloomsLevel,
           courseOutcome: co.co_number,
-          selected: false
+          selected: false,
+          answer: sampleAnswer,
+          options: options
         });
       }
     }
   } else {
     // If no course outcomes, generate default questions
-    for (let i = 0; i < totalQuestions; i++) {
+    for (let i = 0; i < questionTypesList.length; i++) {
+      const questionType = questionTypesList[i];
       let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
       const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
-      const questionType = getRandomQuestionType(bloomsLevel);
-      const marks = getMarksForQuestion(bloomsLevel, questionDifficulty);
+      const marks = getMarksForQuestionType(questionType);
+      
+      // Generate sample answer
+      const sampleAnswer = generateSampleAnswer(topic, "", bloomsLevel, questionType);
+      
+      // Generate multiple choice options if needed
+      let options = null;
+      if (questionType.includes("Multiple Choice")) {
+        options = generateMultipleChoiceOptions(topic, "");
+      }
       
       generatedQuestions.push({
         id: `q${questionId++}`,
@@ -216,7 +276,9 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         marks: marks,
         level: bloomsLevel,
         courseOutcome: null,
-        selected: false
+        selected: false,
+        answer: sampleAnswer,
+        options: options
       });
     }
   }
@@ -297,36 +359,73 @@ function calculateQuestionDifficulty(overallDifficulty, bloomsLevel) {
   return "moderate"; // Default fallback
 }
 
-function getRandomQuestionType(bloomsLevel) {
-  const questionTypes = {
-    remember: ["Multiple Choice", "Short Answer", "Fill in the Blank"],
-    understand: ["Multiple Choice", "Short Answer", "True/False", "Matching"],
-    apply: ["Problem Solving", "Short Answer", "Case Study"],
-    analyze: ["Essay", "Case Study", "Problem Solving"],
-    evaluate: ["Essay", "Critical Analysis", "Comparison"],
-    create: ["Design Question", "Creative Response", "Project Proposal"]
-  };
+function getMarksForQuestionType(questionType) {
+  if (!questionType) return 1;
   
-  const types = questionTypes[bloomsLevel] || ["Short Answer"];
-  return types[Math.floor(Math.random() * types.length)];
+  // Extract marks from question type if it contains a number in parentheses
+  const marksMatch = questionType.match(/\((\d+)\s*marks?\)/i) || questionType.match(/\((\d+)\)/);
+  if (marksMatch && marksMatch[1]) {
+    return parseInt(marksMatch[1], 10);
+  }
+  
+  // Otherwise, use defaults based on question type keywords
+  if (questionType.toLowerCase().includes("multiple choice")) return 1;
+  if (questionType.toLowerCase().includes("short")) return questionType.toLowerCase().includes("2") ? 2 : 1;
+  if (questionType.toLowerCase().includes("medium")) return 4;
+  if (questionType.toLowerCase().includes("long")) return 8;
+  
+  return 1; // Default fallback
 }
 
-function getMarksForQuestion(bloomsLevel, difficulty) {
-  // Higher cognitive levels and harder questions get more marks
-  const baseMarks = {
-    remember: 1,
-    understand: 2,
-    apply: 3,
-    analyze: 4,
-    evaluate: 5,
-    create: 5
-  }[bloomsLevel] || 2;
+function generateSampleAnswer(topic, courseOutcomeDesc, bloomsLevel, questionType) {
+  // Generate a sample answer based on question parameters
+  const answerLength = getAnswerLength(questionType);
   
-  const difficultyMultiplier = {
-    easy: 1,
-    moderate: 1.5,
-    hard: 2
-  }[difficulty] || 1;
+  let answer = `Sample answer for a question about ${topic}`;
   
-  return Math.round(baseMarks * difficultyMultiplier);
+  if (courseOutcomeDesc) {
+    answer += ` related to ${courseOutcomeDesc}`;
+  }
+  
+  answer += `. This is a ${bloomsLevel} level question.`;
+  
+  // Add more detail for longer answers
+  if (answerLength > 1) {
+    answer += ` The answer should include key concepts and examples. `;
+    
+    if (answerLength > 2) {
+      answer += `Students should demonstrate critical thinking and application of concepts. `;
+      
+      if (answerLength > 3) {
+        answer += `A comprehensive answer would include theoretical framework, practical applications, and reflections on limitations or future directions.`;
+      }
+    }
+  }
+  
+  return answer;
+}
+
+function getAnswerLength(questionType) {
+  // Determine relative length of answer based on question type
+  if (questionType.toLowerCase().includes("multiple choice")) return 1;
+  if (questionType.toLowerCase().includes("short")) return 2;
+  if (questionType.toLowerCase().includes("medium")) return 3;
+  if (questionType.toLowerCase().includes("long")) return 4;
+  
+  return 2; // Default medium length
+}
+
+function generateMultipleChoiceOptions(topic, courseOutcomeDesc) {
+  // Generate 4 options with one correct answer
+  const correctIndex = Math.floor(Math.random() * 4);
+  
+  const options = [];
+  for (let i = 0; i < 4; i++) {
+    options.push({
+      text: `Sample option ${i + 1} for ${topic}${courseOutcomeDesc ? ` related to ${courseOutcomeDesc}` : ''}`,
+      isCorrect: i === correctIndex
+    });
+  }
+  
+  return options;
 }
