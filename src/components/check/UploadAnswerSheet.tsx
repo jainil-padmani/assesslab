@@ -118,6 +118,9 @@ export function UploadAnswerSheet({
         await createAssessment(assessmentData);
       }
       
+      // Reset evaluations if needed
+      await resetEvaluations(studentId, selectedSubject, testId);
+      
       // Reset form
       setFile(null);
       if (fileInputRef.current) {

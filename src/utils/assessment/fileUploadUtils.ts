@@ -76,8 +76,7 @@ export const convertPdfToZip = async (pdfFile: File): Promise<File> => {
       // Render the page to the canvas
       await page.render({
         canvasContext: context,
-        viewport: viewport,
-        // Remove the enableWebGL property as it's not supported in the type definition
+        viewport: viewport
       }).promise;
       
       // Convert the canvas to a PNG
