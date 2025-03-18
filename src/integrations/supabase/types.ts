@@ -221,6 +221,7 @@ export type Database = {
           id: string
           paper_url: string
           pdf_url: string | null
+          question_mode: string
           questions: Json
           subject_id: string
           topic: string
@@ -234,6 +235,7 @@ export type Database = {
           id?: string
           paper_url: string
           pdf_url?: string | null
+          question_mode?: string
           questions?: Json
           subject_id: string
           topic: string
@@ -247,6 +249,7 @@ export type Database = {
           id?: string
           paper_url?: string
           pdf_url?: string | null
+          question_mode?: string
           questions?: Json
           subject_id?: string
           topic?: string

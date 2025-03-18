@@ -313,7 +313,7 @@ export function QuestionFetcher({
                 onValueChange={setSelectedTopic}
                 disabled={loading || topics.length === 0}
               >
-                <SelectTrigger>
+                <SelectTrigger id="subject">
                   <SelectValue placeholder="Select topic" />
                 </SelectTrigger>
                 <SelectContent>
