@@ -118,7 +118,7 @@ export function QuestionFetcher({
       
       const { data, error } = await supabase
         .from('generated_questions')
-        .select('questions')
+        .select('questions, question_mode')
         .eq('subject_id', subjectId)
         .eq('topic', selectedTopic)
         .order('created_at', { ascending: false })
@@ -193,6 +193,106 @@ export function QuestionFetcher({
       marks: marks // Override with the marks from the paper format
     });
     onOpenChange(false);
+  };
+
+  // Format multiple choice question for display
+  const renderMultipleChoiceQuestion = (question: Question, index: number) => {
+    return (
+      <Card key={question.id || index} className="hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => handleSelectQuestion(question)}>
+        <CardContent className="p-3">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <div className="border-b pb-2 mb-2">
+                <p className="text-sm font-medium">Question {index + 1}: {question.text}</p>
+              </div>
+              
+              {question.options && (
+                <div className="space-y-1 mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">Options:</p>
+                  {question.options.map((option, optIdx) => (
+                    <div key={optIdx} className={`text-xs pl-2 ${option.isCorrect ? 'text-green-600 font-medium' : ''}`}>
+                      {String.fromCharCode(65 + optIdx)}. {option.text}
+                      {option.isCorrect && " ✓"}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {question.answer && (
+                <div className="border-t pt-2 mt-2">
+                  <p className="text-xs font-medium text-muted-foreground">Correct Answer:</p>
+                  <p className="text-xs text-green-600 pl-2">{question.answer}</p>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                  {question.level}
+                </span>
+                {question.courseOutcome && (
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                    CO{question.courseOutcome}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                </span>
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                  {question.options ? "Multiple Choice" : "Theory"}
+                </span>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <Check className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Format theory question for display
+  const renderTheoryQuestion = (question: Question, index: number) => {
+    return (
+      <Card key={question.id || index} className="hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => handleSelectQuestion(question)}>
+        <CardContent className="p-3">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm">{question.text}</p>
+              
+              {question.answer && (
+                <div className="mt-2 pl-2 text-xs text-muted-foreground border-l-2 border-primary/30">
+                  <span className="font-medium">Answer: </span>
+                  {question.answer.length > 100 
+                    ? `${question.answer.substring(0, 100)}...` 
+                    : question.answer}
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                  {question.level}
+                </span>
+                {question.courseOutcome && (
+                  <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                    CO{question.courseOutcome}
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                </span>
+                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                  Theory
+                </span>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <Check className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -273,47 +373,9 @@ export function QuestionFetcher({
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-2">
                 {filteredQuestions.map((question, index) => (
-                  <Card key={question.id || index} className="hover:bg-accent/10 cursor-pointer transition-colors" onClick={() => handleSelectQuestion(question)}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm">{question.text}</p>
-                          
-                          {/* Display multiple choice options if available */}
-                          {question.options && (
-                            <div className="mt-2 space-y-1 pl-4 text-xs text-muted-foreground">
-                              {question.options.map((option, idx) => (
-                                <div key={idx} className={option.isCorrect ? 'text-green-600 font-medium' : ''}>
-                                  {String.fromCharCode(65 + idx)}. {option.text.length > 50 ? `${option.text.substring(0, 50)}...` : option.text}
-                                  {option.isCorrect && " ✓"}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                              {question.level}
-                            </span>
-                            {question.courseOutcome && (
-                              <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                                CO{question.courseOutcome}
-                              </span>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
-                            </span>
-                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                              {question.options ? "Multiple Choice" : "Theory"}
-                            </span>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  question.options && question.options.length > 0
+                    ? renderMultipleChoiceQuestion(question, index)
+                    : renderTheoryQuestion(question, index)
                 ))}
               </div>
             </ScrollArea>

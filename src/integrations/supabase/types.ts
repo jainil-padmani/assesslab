@@ -266,6 +266,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          question_mode: string
           questions: Json
           subject_id: string
           topic: string
@@ -274,6 +275,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          question_mode?: string
           questions: Json
           subject_id: string
           topic: string
@@ -282,6 +284,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          question_mode?: string
           questions?: Json
           subject_id?: string
           topic?: string
