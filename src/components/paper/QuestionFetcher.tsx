@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -141,7 +140,7 @@ export function QuestionFetcher({
               // Then check if it has all the required properties using type guards
               return (
                 'id' in q && 
-                'text' in q && 
+                ('text' in q || 'question' in q) && // Support both text and question field names
                 'type' in q && 
                 'marks' in q && 
                 'level' in q
@@ -150,15 +149,32 @@ export function QuestionFetcher({
             .map(q => {
               // Safely access properties with type assertion
               const question = q as Record<string, any>;
+              
+              // Support both formats: with 'text' field or with 'question' field
+              const questionText = 'text' in question ? question.text : question.question;
+              
               return {
                 id: String(question.id),
-                text: String(question.text),
+                text: questionText,
                 type: String(question.type),
                 marks: Number(question.marks),
                 level: String(question.level),
                 courseOutcome: 'courseOutcome' in question ? Number(question.courseOutcome) : undefined,
-                answer: 'answer' in question ? String(question.answer) : undefined,
-                options: 'options' in question ? question.options : undefined
+                answer: 'answer' in question ? String(question.answer) : 
+                         'correct_answer' in question ? String(question.correct_answer) : undefined,
+                options: 'options' in question ? 
+                  (Array.isArray(question.options) ? 
+                    // Handle different options formats
+                    (typeof question.options[0] === 'string' ? 
+                      // Format: ["Option 1", "Option 2", ...] with separate correct_answer field
+                      question.options.map((opt: string) => ({
+                        text: opt,
+                        isCorrect: opt === question.correct_answer
+                      })) :
+                      // Format: [{text: "Option 1", isCorrect: true}, ...]
+                      question.options
+                    ) : 
+                    undefined)
               };
             });
         }
@@ -238,7 +254,7 @@ export function QuestionFetcher({
                   {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
                 </span>
                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                  {question.options ? "Multiple Choice" : "Theory"}
+                  Multiple Choice
                 </span>
               </div>
             </div>

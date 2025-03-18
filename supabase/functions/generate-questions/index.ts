@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -90,8 +89,16 @@ ${Object.entries(questionTypesConfig).map(([type, count]) => `  - ${type}: ${cou
     if (questionMode === "multiple-choice") {
       promptContent += `
 - ALL questions should be multiple choice with EXACTLY 4 options for each question
-- For each multiple choice question, provide 4 options and clearly indicate the correct answer
-- Make sure options are distinct and cover potential misconceptions or partial understandings
+- Format each multiple choice question as:
+{
+  "question": "The question text here",
+  "options": ["Option A", "Option B", "Option C", "Option D"], (MUST include EXACTLY 4 options)
+  "correct_answer": "The exact text of the correct option",
+  "type": "Multiple Choice", 
+  "level": "bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)",
+  "courseOutcome": CO number (integer, if applicable),
+  "marks": 1
+}
 `;
     } else {
       promptContent += `
@@ -120,18 +127,17 @@ ${validCourseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: 
 Bloom's Taxonomy distribution:
 ${Object.entries(bloomsTaxonomy).map(([level, value]) => `- ${level}: ${value}%`).join('\n')}
 
-Format each question as:
+${questionMode !== "multiple-choice" ? `Format each theory question as:
 {
   "text": "The question text here",
-  "type": "question type (Multiple Choice, Short Answer, etc.)",
+  "type": "question type (Short Answer, Medium Answer, etc.)",
   "level": "bloom's taxonomy level (remember, understand, apply, analyze, evaluate, create)",
   "courseOutcome": CO number (integer, if applicable),
   "marks": marks value based on question type,
-  "answer": "Detailed model answer that would receive full marks",
-  ${questionMode === "multiple-choice" ? `"options": [{"text": "Option A", "isCorrect": false}, {"text": "Option B", "isCorrect": true}, ...] (MUST include 4 options with exactly 1 correct answer)` : ""}
-}
+  "answer": "Detailed model answer that would receive full marks"
+}` : ""}
 
-Make sure ALL questions have appropriate answers. ${questionMode === "multiple-choice" ? "For multiple choice questions, clearly indicate the correct option in the options array and include EXACTLY 4 options for each question." : "For theory questions, provide detailed model answers appropriate to the mark value of the question."}
+Make sure ALL questions have appropriate answers. ${questionMode === "multiple-choice" ? "For multiple choice questions, make sure the correct_answer matches EXACTLY one of the texts in the options array." : "For theory questions, provide detailed model answers appropriate to the mark value of the question."}
 `;
 
     try {
@@ -146,7 +152,7 @@ Make sure ALL questions have appropriate answers. ${questionMode === "multiple-c
           messages: [
             {
               "role": "system",
-              "content": `You are an expert in generating educational assessment questions. Provide detailed, appropriate questions with model answers that align with course outcomes and Bloom's taxonomy levels. ${questionMode === "multiple-choice" ? "For multiple choice questions, always provide exactly 4 options with exactly 1 correct answer." : "For theory questions, provide detailed model answers appropriate to the mark value of each question."}`
+              "content": `You are an expert in generating educational assessment questions. Provide detailed, appropriate questions with model answers that align with course outcomes and Bloom's taxonomy levels. ${questionMode === "multiple-choice" ? "For multiple choice questions, always provide exactly 4 options with a correct_answer that matches EXACTLY one of the options." : "For theory questions, provide detailed model answers appropriate to the mark value of each question."}`
             },
             {
               "role": "user",
@@ -177,18 +183,39 @@ Make sure ALL questions have appropriate answers. ${questionMode === "multiple-c
           try {
             const question = JSON.parse(jsonStr);
             
-            // Assign a unique ID to each question
-            generatedQuestions.push({
-              id: `q${generatedQuestions.length + 1}`,
-              text: question.text,
-              type: question.type,
-              marks: question.marks || getMarksForQuestionType(question.type),
-              level: question.level,
-              courseOutcome: question.courseOutcome,
-              answer: question.answer || "",
-              options: question.options || null,
-              selected: false
-            });
+            // Process based on question mode
+            if (questionMode === "multiple-choice") {
+              // Handle multiple-choice format
+              if (question.question && Array.isArray(question.options) && question.correct_answer) {
+                generatedQuestions.push({
+                  id: `q${generatedQuestions.length + 1}`,
+                  text: question.question,
+                  type: "Multiple Choice",
+                  marks: 1,
+                  level: question.level || "understand",
+                  courseOutcome: question.courseOutcome,
+                  answer: question.correct_answer,
+                  options: question.options.map(opt => ({
+                    text: opt,
+                    isCorrect: opt === question.correct_answer
+                  }))
+                });
+              }
+            } else {
+              // Handle theory question format
+              if ('text' in question && 'type' in question && 'marks' in question && 'level' in question) {
+                generatedQuestions.push({
+                  id: `q${generatedQuestions.length + 1}`,
+                  text: question.text,
+                  type: question.type,
+                  marks: question.marks || getMarksForQuestionType(question.type),
+                  level: question.level,
+                  courseOutcome: question.courseOutcome,
+                  answer: question.answer || "",
+                  options: null
+                });
+              }
+            }
           } catch (parseError) {
             console.error("Error parsing question JSON:", parseError, jsonStr);
           }
@@ -203,6 +230,12 @@ Make sure ALL questions have appropriate answers. ${questionMode === "multiple-c
       }
       
       console.log(`Generated ${generatedQuestions.length} questions`);
+      
+      // Limit the number of questions to what was requested
+      if (generatedQuestions.length > totalQuestions) {
+        console.log(`Limiting from ${generatedQuestions.length} to ${totalQuestions} questions`);
+        generatedQuestions = generatedQuestions.slice(0, totalQuestions);
+      }
     
       return new Response(
         JSON.stringify({ questions: generatedQuestions }),
@@ -261,26 +294,41 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
         const marks = getMarksForQuestionType(questionType);
         
-        // Generate sample answer
-        const sampleAnswer = generateSampleAnswer(topic, co.description, bloomsLevel, questionType);
-        
-        // Generate multiple choice options if needed
-        let options = null;
-        if (questionMode === "multiple-choice" || questionType.includes("Multiple Choice")) {
-          options = generateMultipleChoiceOptions(topic, co.description);
+        if (questionMode === "multiple-choice") {
+          // Generate multiple choice question in the new format
+          const options = ["Sample option 1", "Sample option 2", "Sample option 3", "Sample option 4"];
+          const correctAnswer = options[0]; // First option is correct in fallback
+          
+          generatedQuestions.push({
+            id: `q${questionId++}`,
+            text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+            type: "Multiple Choice",
+            marks: 1,
+            level: bloomsLevel,
+            courseOutcome: co.co_number,
+            selected: false,
+            answer: correctAnswer,
+            options: options.map((opt, idx) => ({
+              text: opt,
+              isCorrect: idx === 0 // First option is correct
+            }))
+          });
+        } else {
+          // Generate sample answer for theory question
+          const sampleAnswer = generateSampleAnswer(topic, co.description, bloomsLevel, questionType);
+          
+          generatedQuestions.push({
+            id: `q${questionId++}`,
+            text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+            type: questionType,
+            marks: marks,
+            level: bloomsLevel,
+            courseOutcome: co.co_number,
+            selected: false,
+            answer: sampleAnswer,
+            options: null
+          });
         }
-        
-        generatedQuestions.push({
-          id: `q${questionId++}`,
-          text: `[${topic}] [CO${co.co_number}] Question related to ${co.description} (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
-          type: questionType,
-          marks: marks,
-          level: bloomsLevel,
-          courseOutcome: co.co_number,
-          selected: false,
-          answer: sampleAnswer,
-          options: options
-        });
       }
     }
   } else {
@@ -291,27 +339,47 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
       const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
       const marks = getMarksForQuestionType(questionType);
       
-      // Generate sample answer
-      const sampleAnswer = generateSampleAnswer(topic, "", bloomsLevel, questionType);
-      
-      // Generate multiple choice options if needed
-      let options = null;
-      if (questionMode === "multiple-choice" || questionType.includes("Multiple Choice")) {
-        options = generateMultipleChoiceOptions(topic, "");
+      if (questionMode === "multiple-choice") {
+        // Generate multiple choice question in the new format
+        const options = ["Sample option 1", "Sample option 2", "Sample option 3", "Sample option 4"];
+        const correctAnswer = options[0]; // First option is correct in fallback
+        
+        generatedQuestions.push({
+          id: `q${questionId++}`,
+          text: `[${topic}] Question about this topic (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+          type: "Multiple Choice",
+          marks: 1,
+          level: bloomsLevel,
+          courseOutcome: null,
+          selected: false,
+          answer: correctAnswer,
+          options: options.map((opt, idx) => ({
+            text: opt,
+            isCorrect: idx === 0 // First option is correct
+          }))
+        });
+      } else {
+        // Generate sample answer for theory
+        const sampleAnswer = generateSampleAnswer(topic, "", bloomsLevel, questionType);
+        
+        generatedQuestions.push({
+          id: `q${questionId++}`,
+          text: `[${topic}] Question about this topic (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
+          type: questionType,
+          marks: marks,
+          level: bloomsLevel,
+          courseOutcome: null,
+          selected: false,
+          answer: sampleAnswer,
+          options: null
+        });
       }
-      
-      generatedQuestions.push({
-        id: `q${questionId++}`,
-        text: `[${topic}] Question about this topic (${bloomsLevel} level, ${questionDifficulty} difficulty)`,
-        type: questionType,
-        marks: marks,
-        level: bloomsLevel,
-        courseOutcome: null,
-        selected: false,
-        answer: sampleAnswer,
-        options: options
-      });
     }
+  }
+  
+  // Limit the number of questions to what was requested
+  if (generatedQuestions.length > totalQuestions) {
+    return generatedQuestions.slice(0, totalQuestions);
   }
   
   return generatedQuestions;
