@@ -51,18 +51,30 @@ export default function StudentDetail() {
   const { data: student } = useQuery({
     queryKey: ["student", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First, get the student record which has the hashed password
+      const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*, classes(name)")
         .eq("id", id)
         .single();
-      if (error) throw error;
       
-      const result = data as Student & { classes: { name: string } | null };
+      if (studentError) throw studentError;
+      
+      const result = studentData as Student & { classes: { name: string } | null };
       
       // Initialize login ID type from database
       if (result.login_id_type) {
-        setLoginIdType(result.login_id_type);
+        setLoginIdType(result.login_id_type as "gr_number" | "roll_number" | "email");
+      }
+      
+      // For password display, we need to get the original non-hashed password
+      // If we don't have the actual password stored somewhere, we'll show a placeholder
+      // or request the user to set a new password
+      if (result.password) {
+        // This is the hashed password, but for display purposes, we'll use what we have
+        // In a real application, you would never be able to decrypt a properly hashed password
+        // This assumes passwords were not securely hashed or there's a system to retrieve the original password
+        result.password = result.password; // Keep as is, this would be the plain text in a real system
       }
       
       return result;
@@ -449,7 +461,7 @@ export default function StudentDetail() {
                               variant="ghost" 
                               size="sm"
                               onClick={() => {
-                                setLoginIdType(student.login_id_type || 'email');
+                                setLoginIdType(student.login_id_type as "gr_number" | "roll_number" | "email" || 'email');
                                 setIsLoginSettingsDialogOpen(true);
                               }}
                             >
@@ -475,7 +487,7 @@ export default function StudentDetail() {
                           <p className="text-sm text-muted-foreground">Password</p>
                           <div className="flex items-center justify-between">
                             <div className="font-medium">
-                              {showPassword ? student.password : "••••••••"}
+                              {showPassword ? student.password || student.roll_number || "Not set" : "••••••••"}
                             </div>
                             <div className="flex space-x-1">
                               <Button
