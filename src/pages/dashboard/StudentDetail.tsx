@@ -29,8 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Shield, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function StudentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +41,8 @@ export default function StudentDetail() {
   const [isAddSubjectDialogOpen, setIsAddSubjectDialogOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [grade, setGrade] = useState<string>("");
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
 
   // Fetch student details
   const { data: student } = useQuery({
@@ -148,6 +152,44 @@ export default function StudentDetail() {
     },
   });
 
+  // Toggle student login mutation
+  const toggleLoginMutation = useMutation({
+    mutationFn: async (loginEnabled: boolean) => {
+      const { error } = await supabase
+        .from("students")
+        .update({ login_enabled: loginEnabled })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, loginEnabled) => {
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      toast.success(`Student login ${loginEnabled ? 'enabled' : 'disabled'} successfully`);
+    },
+    onError: (error) => {
+      toast.error("Failed to update login status: " + error.message);
+    },
+  });
+
+  // Update student password mutation
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const { error } = await supabase
+        .from("students")
+        .update({ password })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      setIsPasswordDialogOpen(false);
+      setNewPassword("");
+      toast.success("Password updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update password: " + error.message);
+    },
+  });
+
   const handleAddSubject = () => {
     if (!selectedSubject || !grade) {
       toast.error("Please select a subject and enter a grade");
@@ -161,9 +203,25 @@ export default function StudentDetail() {
     });
   };
 
+  const handleUpdatePassword = () => {
+    if (!newPassword) {
+      toast.error("Please enter a new password");
+      return;
+    }
+
+    updatePasswordMutation.mutate(newPassword);
+  };
+
   if (!student) {
     return <div>Loading...</div>;
   }
+
+  const getLoginIdValue = () => {
+    const idType = student.login_id_type || 'gr_number';
+    if (idType === 'email') return student.email;
+    if (idType === 'roll_number') return student.roll_number;
+    return student.gr_number;
+  };
 
   return (
     <div className="container mx-auto px-4">
@@ -233,31 +291,132 @@ export default function StudentDetail() {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <p className="text-sm text-muted-foreground">GR Number</p>
-            <p className="font-medium">{student.gr_number}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Roll Number</p>
-            <p className="font-medium">{student.roll_number}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Year</p>
-            <p className="font-medium">{student.year}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Class</p>
-            <p className="font-medium">{student.classes?.name || student.class || "-"}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Department</p>
-            <p className="font-medium">{student.department}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Overall Percentage</p>
-            <p className="font-medium">{student.overall_percentage}%</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Basic Info Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">GR Number</p>
+                  <p className="font-medium">{student.gr_number}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Roll Number</p>
+                  <p className="font-medium">{student.roll_number || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Year</p>
+                  <p className="font-medium">{student.year || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Class</p>
+                  <p className="font-medium">{student.classes?.name || student.class || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Department</p>
+                  <p className="font-medium">{student.department}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Overall Percentage</p>
+                  <p className="font-medium">{student.overall_percentage ? `${student.overall_percentage}%` : "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{student.email || "-"}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Login Credentials Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Login Credentials</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {student.login_enabled ? (
+                      <ShieldCheck className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <ShieldX className="h-5 w-5 text-gray-400" />
+                    )}
+                    <span>Login Status</span>
+                  </div>
+                  <Badge variant={student.login_enabled ? "success" : "secondary"}>
+                    {student.login_enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => toggleLoginMutation.mutate(!student.login_enabled)}
+                  >
+                    {student.login_enabled ? "Disable" : "Enable"} Login
+                  </Button>
+                </div>
+
+                {student.login_enabled && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label>Login ID Type</Label>
+                        <Badge variant="outline">{student.login_id_type || "GR Number"}</Badge>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <Label>Login ID</Label>
+                        <span className="font-medium">{getLoginIdValue()}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="w-full">
+                            <Shield className="w-4 h-4 mr-2" />
+                            Change Password
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Change Student Password</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="new-password">New Password</Label>
+                              <Input
+                                id="new-password"
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password"
+                              />
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setIsPasswordDialogOpen(false);
+                                  setNewPassword("");
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button onClick={handleUpdatePassword}>Update Password</Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="border rounded-lg">
