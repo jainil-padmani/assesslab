@@ -10,12 +10,20 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question, Json } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check } from "lucide-react";
+import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check, Plus, Minus } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+
+interface CourseOutcome {
+  id: string;
+  co_number: number;
+  description: string;
+  questionCount: number;
+  selected: boolean;
+}
 
 export default function PaperGeneration() {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -45,7 +53,7 @@ export default function PaperGeneration() {
     create: 15
   });
   
-  // New state for question types
+  // New state for question types with direct input
   const [questionTypes, setQuestionTypes] = useState<{[key: string]: number}>({
     "Multiple Choice (1 mark)": 5,
     "Short Answer (1 mark)": 5,
@@ -54,7 +62,11 @@ export default function PaperGeneration() {
     "Long Answer (8 marks)": 1
   });
   
-  // New state for editing answers
+  // New state for course outcomes
+  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
+  const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
+  
+  // State for editing answers
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [editedAnswer, setEditedAnswer] = useState<string>("");
 
@@ -69,6 +81,15 @@ export default function PaperGeneration() {
   useEffect(() => {
     fetchPapers();
   }, []);
+  
+  // Add effect to fetch course outcomes when subject is selected
+  useEffect(() => {
+    if (selectedSubject) {
+      fetchCourseOutcomes(selectedSubject);
+    } else {
+      setCourseOutcomes([]);
+    }
+  }, [selectedSubject]);
 
   const fetchPapers = async () => {
     try {
@@ -107,6 +128,41 @@ export default function PaperGeneration() {
       setFilteredPapers([]);
     } finally {
       setIsHistoryLoading(false);
+    }
+  };
+  
+  // Add function to fetch course outcomes
+  const fetchCourseOutcomes = async (subjectId: string) => {
+    try {
+      setIsLoadingCourseOutcomes(true);
+      
+      const { data, error } = await supabase
+        .from('course_outcomes')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('co_number', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data) {
+        const mappedOutcomes = data.map(co => ({
+          id: co.id,
+          co_number: co.co_number,
+          description: co.description,
+          questionCount: 2, // Default count
+          selected: true // Default to selected
+        }));
+        
+        setCourseOutcomes(mappedOutcomes);
+      } else {
+        setCourseOutcomes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching course outcomes:", error);
+      toast.error("Failed to load course outcomes");
+      setCourseOutcomes([]);
+    } finally {
+      setIsLoadingCourseOutcomes(false);
     }
   };
 
@@ -183,10 +239,8 @@ export default function PaperGeneration() {
     toast.info("Generating questions, this may take a moment...");
     
     try {
-      // Create a default array for course outcomes if none are provided
-      const defaultCourseOutcomes = [
-        { co_number: 1, description: "General understanding", selected: true, questionCount: 10 }
-      ];
+      // Filter selected course outcomes
+      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
       
       const response = await supabase.functions.invoke('generate-questions', {
         body: {
@@ -194,7 +248,7 @@ export default function PaperGeneration() {
           content: extractedContent || "No content provided",
           bloomsTaxonomy,
           difficulty,
-          courseOutcomes: [], // Send empty array by default
+          courseOutcomes: selectedCourseOutcomes.length > 0 ? selectedCourseOutcomes : undefined,
           questionTypes // Send the question types configuration
         }
       });
@@ -213,10 +267,20 @@ export default function PaperGeneration() {
       }
       
       try {
-        // Convert Question[] to a JSON-compatible object before storing in Supabase
-        const questionsJson = response.data.questions as any;
+        // Save generated questions to Supabase
+        const { error: saveQuestionsError } = await supabase.from('generated_questions').insert({
+          subject_id: selectedSubject,
+          topic: topicName,
+          questions: response.data.questions as Json,
+          user_id: (await supabase.auth.getUser()).data.user?.id || ''
+        });
         
-        await supabase.from('generated_papers').insert({
+        if (saveQuestionsError) throw saveQuestionsError;
+        
+        // Convert Question[] to a JSON-compatible object before storing in Supabase
+        const questionsJson = response.data.questions as Json;
+        
+        const { error: savePaperError } = await supabase.from('generated_papers').insert({
           subject_id: selectedSubject,
           topic: topicName,
           paper_url: "",
@@ -224,6 +288,8 @@ export default function PaperGeneration() {
           content_url: contentUrl || null,
           user_id: (await supabase.auth.getUser()).data.user?.id || ''
         });
+        
+        if (savePaperError) throw savePaperError;
         
         toast.success("Questions generated and saved successfully");
         fetchPapers();
@@ -246,11 +312,40 @@ export default function PaperGeneration() {
     }));
   };
 
+  // Updated to handle direct input for question types
   const handleQuestionTypeChange = (type: string, value: number) => {
     setQuestionTypes(prev => ({
       ...prev,
       [type]: value
     }));
+  };
+  
+  const handleQuestionTypeInputChange = (type: string, value: string) => {
+    const numValue = parseInt(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      setQuestionTypes(prev => ({
+        ...prev,
+        [type]: numValue
+      }));
+    }
+  };
+  
+  // Handle course outcome selection
+  const toggleCourseOutcome = (id: string) => {
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === id ? { ...co, selected: !co.selected } : co
+      )
+    );
+  };
+  
+  // Handle course outcome question count change
+  const handleCourseOutcomeCountChange = (id: string, count: number) => {
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === id ? { ...co, questionCount: Math.max(1, count) } : co
+      )
+    );
   };
 
   const handleViewPaperDetails = (paper: GeneratedPaper) => {
@@ -288,8 +383,8 @@ export default function PaperGeneration() {
     }
   };
 
-  const viewFullHistory = () => {
-    navigate("/dashboard/paper-generation/history");
+  const viewQuestionsHistory = () => {
+    navigate("/dashboard/paper-generation/questions-history");
   };
 
   const handleEditAnswer = (question: Question) => {
@@ -322,7 +417,7 @@ export default function PaperGeneration() {
         // Update in the database
         const { error } = await supabase
           .from('generated_papers')
-          .update({ questions: updatedQuestions })
+          .update({ questions: updatedQuestions as Json })
           .eq('id', selectedPaper.id);
           
         if (error) throw error;
@@ -352,11 +447,11 @@ export default function PaperGeneration() {
         <h1 className="text-3xl font-bold">Questions Generation</h1>
         <Button
           variant="outline"
-          onClick={viewFullHistory}
+          onClick={viewQuestionsHistory}
           className="flex items-center gap-2"
         >
           <History className="h-4 w-4" />
-          View History
+          View Question History
         </Button>
       </div>
       
@@ -462,7 +557,6 @@ export default function PaperGeneration() {
                 <div key={type} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label>{type}</Label>
-                    <span className="text-sm font-medium">{count}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button 
@@ -471,23 +565,23 @@ export default function PaperGeneration() {
                       className="h-8 w-8 p-0"
                       onClick={() => handleQuestionTypeChange(type, Math.max(0, count - 1))}
                     >
-                      -
+                      <Minus className="h-4 w-4" />
                     </Button>
-                    <Slider
-                      value={[count]}
+                    <Input
+                      type="number"
                       min={0}
-                      max={10}
-                      step={1}
-                      className="flex-1"
-                      onValueChange={(value) => handleQuestionTypeChange(type, value[0])}
+                      max={20}
+                      value={count}
+                      onChange={(e) => handleQuestionTypeInputChange(type, e.target.value)}
+                      className="h-8 text-center"
                     />
                     <Button 
                       size="sm" 
                       variant="outline" 
                       className="h-8 w-8 p-0"
-                      onClick={() => handleQuestionTypeChange(type, Math.min(10, count + 1))}
+                      onClick={() => handleQuestionTypeChange(type, Math.min(20, count + 1))}
                     >
-                      +
+                      <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -538,6 +632,60 @@ export default function PaperGeneration() {
                   </div>
                 ))}
               </div>
+              
+              {/* Course Outcomes Section */}
+              {courseOutcomes.length > 0 && (
+                <div className="space-y-3 border p-3 rounded-md">
+                  <Label>Course Outcomes Mapping</Label>
+                  {courseOutcomes.map((co) => (
+                    <div key={co.id} className="flex items-start gap-3 border-b pb-2">
+                      <Checkbox 
+                        id={`co-${co.id}`}
+                        checked={co.selected}
+                        onCheckedChange={() => toggleCourseOutcome(co.id)}
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor={`co-${co.id}`} className="text-sm">
+                          CO{co.co_number}: {co.description}
+                        </Label>
+                        {co.selected && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Label className="text-xs">Questions:</Label>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleCourseOutcomeCountChange(co.id, co.questionCount - 1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={co.questionCount}
+                              onChange={(e) => {
+                                const count = parseInt(e.target.value);
+                                if (!isNaN(count) && count >= 1) {
+                                  handleCourseOutcomeCountChange(co.id, count);
+                                }
+                              }}
+                              className="h-7 w-12 text-center"
+                            />
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleCourseOutcomeCountChange(co.id, co.questionCount + 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               
               <Button 
                 className="w-full" 

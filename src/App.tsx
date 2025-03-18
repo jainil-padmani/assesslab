@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,6 +29,7 @@ import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
 import QuestionPaperBuilder from "./pages/dashboard/QuestionPaperBuilder";
 import CreatePaperFormat from "./pages/dashboard/CreatePaperFormat";
+import GeneratedQuestionsHistory from "./pages/dashboard/GeneratedQuestionsHistory";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +64,7 @@ function App() {
                 <Route path="paper-generation" element={<PaperGeneration />} />
                 <Route path="paper-generation/create" element={<PaperCreation />} />
                 <Route path="paper-generation/history" element={<PaperHistory />} />
+                <Route path="/dashboard/paper-generation/questions-history" element={<GeneratedQuestionsHistory />} />
                 {/* Question Paper Builder routes */}
                 <Route path="question-paper-builder" element={<QuestionPaperBuilder />} />
                 <Route path="question-paper-builder/create" element={<CreatePaperFormat />} />
