@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 
 interface StudentFormFieldsProps {
   student: Student | null;
@@ -43,6 +44,8 @@ export default function StudentFormFields({
   const filteredClasses = selectedYear && classes
     ? classes.filter((cls) => cls.year === parseInt(selectedYear))
     : classes;
+
+  const [loginEnabled, setLoginEnabled] = useState(student?.login_enabled || false);
 
   return (
     <Tabs defaultValue="basic">
@@ -147,64 +150,66 @@ export default function StudentFormFields({
               defaultValue={student?.overall_percentage || ""}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={student?.email || ""}
+            />
+          </div>
         </div>
       </TabsContent>
       
       <TabsContent value="login">
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="login_enabled" className="flex items-center space-x-2">
-              <Checkbox 
-                id="login_enabled" 
-                name="login_enabled"
-                defaultChecked={student?.login_enabled || false} 
-              />
-              <span>Enable login for this student</span>
-            </Label>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="login_id">Login ID</Label>
-            <div className="text-sm text-muted-foreground mb-1">
-              By default, students will use their GR Number or Roll Number as login ID
-            </div>
-            <Select name="login_id_type" defaultValue={student?.login_id_type || "gr_number"}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select login ID type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gr_number">GR Number</SelectItem>
-                <SelectItem value="roll_number">Roll Number</SelectItem>
-                <SelectItem value="email">Email</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="student_email">Email</Label>
-            <Input
-              id="student_email"
-              name="email"
-              type="email"
-              defaultValue={student?.email || ""}
-              placeholder="Student's email address"
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="login_enabled" 
+              name="login_enabled"
+              checked={loginEnabled}
+              onCheckedChange={setLoginEnabled}
+              defaultChecked={student?.login_enabled || false} 
             />
+            <Label htmlFor="login_enabled">Enable login for this student</Label>
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="student_password">Password</Label>
-            <Input
-              id="student_password"
-              name="password"
-              type="password"
-              placeholder={student ? "Leave blank to keep current password" : "Set a password for the student"}
-            />
-            {student && (
-              <div className="text-sm text-muted-foreground mt-1">
-                Only enter a value if you want to change the student's password
+          {loginEnabled && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="login_id_type">Login ID Type</Label>
+                <div className="text-sm text-muted-foreground mb-1">
+                  Select which identifier the student will use to log in
+                </div>
+                <Select name="login_id_type" defaultValue={student?.login_id_type || "gr_number"}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select login ID type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gr_number">GR Number</SelectItem>
+                    <SelectItem value="roll_number">Roll Number</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder={student ? "Leave blank to keep current password" : "Set a password for the student"}
+                />
+                {student && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Only enter a value if you want to change the student's password
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </TabsContent>
     </Tabs>

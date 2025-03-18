@@ -1,3 +1,4 @@
+
 export type Subject = {
   id: string;
   created_at?: string;
