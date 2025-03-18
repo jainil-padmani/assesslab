@@ -19,15 +19,25 @@ export const useCreateStudent = () => {
           throw new Error("A student with this GR number already exists in your account. Please use a different GR number.");
         }
         
+        // Set default login ID type to email if not specified
+        const loginIdType = studentData.login_id_type || 'email';
+        
+        // Set default password to roll number if login is enabled and no password provided
+        let password = studentData.password;
+        if (studentData.login_enabled && !password && studentData.roll_number) {
+          password = studentData.roll_number;
+        }
+        
         // Strip out the password field before inserting into students table
-        const { password, login_enabled, login_id_type, ...studentRecord } = studentData;
+        const { password: passwordField, ...studentRecord } = studentData;
         
         const { data, error } = await supabase
           .from("students")
           .insert({ 
             ...studentRecord, 
-            login_enabled: login_enabled || false,
-            login_id_type: login_id_type || 'gr_number',
+            login_enabled: studentData.login_enabled || false,
+            login_id_type: loginIdType,
+            password: password, // This will be hashed by DB trigger
             user_id: (await supabase.auth.getUser()).data.user.id
           })
           .select();
@@ -39,21 +49,6 @@ export const useCreateStudent = () => {
         
         if (!data || data.length === 0) {
           throw new Error("Failed to create student: No data returned");
-        }
-        
-        // If login is enabled and password is provided, create student credentials
-        if (login_enabled && password) {
-          // Determine login ID based on the selected type
-          const loginId = login_id_type === 'email' && studentData.email 
-            ? studentData.email 
-            : login_id_type === 'roll_number' && studentData.roll_number
-              ? studentData.roll_number
-              : studentData.gr_number;
-          
-          // TODO: Implement actual student account creation using your preferred method
-          // For now, we'll just log a success message
-          console.log(`Student login credentials would be created for ${loginId}`);
-          toast.success("Student login credentials created successfully");
         }
         
         return data[0] as Student;

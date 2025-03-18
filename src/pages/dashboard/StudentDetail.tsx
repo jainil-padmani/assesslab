@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +42,8 @@ export default function StudentDetail() {
   const [grade, setGrade] = useState<string>("");
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
+  const [isLoginSettingsDialogOpen, setIsLoginSettingsDialogOpen] = useState(false);
+  const [loginIdType, setLoginIdType] = useState<"gr_number" | "roll_number" | "email">("gr_number");
 
   // Fetch student details
   const { data: student } = useQuery({
@@ -54,7 +55,15 @@ export default function StudentDetail() {
         .eq("id", id)
         .single();
       if (error) throw error;
-      return data as Student & { classes: { name: string } | null };
+      
+      const result = data as Student & { classes: { name: string } | null };
+      
+      // Initialize login ID type from database
+      if (result.login_id_type) {
+        setLoginIdType(result.login_id_type);
+      }
+      
+      return result;
     },
   });
 
@@ -155,9 +164,15 @@ export default function StudentDetail() {
   // Toggle student login mutation
   const toggleLoginMutation = useMutation({
     mutationFn: async (loginEnabled: boolean) => {
+      let updateData: any = { login_enabled: loginEnabled };
+      
+      if (loginEnabled && !student?.password && student?.roll_number) {
+        updateData.password = student.roll_number;
+      }
+      
       const { error } = await supabase
         .from("students")
-        .update({ login_enabled: loginEnabled })
+        .update(updateData)
         .eq("id", id);
       if (error) throw error;
     },
@@ -167,6 +182,25 @@ export default function StudentDetail() {
     },
     onError: (error) => {
       toast.error("Failed to update login status: " + error.message);
+    },
+  });
+
+  // Update student login settings mutation
+  const updateLoginSettingsMutation = useMutation({
+    mutationFn: async (data: { login_id_type: 'gr_number' | 'roll_number' | 'email' }) => {
+      const { error } = await supabase
+        .from("students")
+        .update(data)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      setIsLoginSettingsDialogOpen(false);
+      toast.success("Login settings updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update login settings: " + error.message);
     },
   });
 
@@ -211,13 +245,19 @@ export default function StudentDetail() {
 
     updatePasswordMutation.mutate(newPassword);
   };
+  
+  const handleUpdateLoginSettings = () => {
+    updateLoginSettingsMutation.mutate({
+      login_id_type: loginIdType,
+    });
+  };
 
   if (!student) {
     return <div>Loading...</div>;
   }
 
   const getLoginIdValue = () => {
-    const idType = student.login_id_type || 'gr_number';
+    const idType = student.login_id_type || 'email';
     if (idType === 'email') return student.email;
     if (idType === 'roll_number') return student.roll_number;
     return student.gr_number;
@@ -362,9 +402,21 @@ export default function StudentDetail() {
                 {student.login_enabled && (
                   <>
                     <div className="space-y-2">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <Label>Login ID Type</Label>
-                        <Badge variant="outline">{student.login_id_type || "GR Number"}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{student.login_id_type || "Email"}</Badge>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setLoginIdType(student.login_id_type || 'email');
+                              setIsLoginSettingsDialogOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <Label>Login ID</Label>
@@ -407,6 +459,45 @@ export default function StudentDetail() {
                                 Cancel
                               </Button>
                               <Button onClick={handleUpdatePassword}>Update Password</Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      
+                      <Dialog open={isLoginSettingsDialogOpen} onOpenChange={setIsLoginSettingsDialogOpen}>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Edit Login ID Type</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="login_id_type">Login ID Type</Label>
+                              <Select
+                                value={loginIdType}
+                                onValueChange={(value: 'gr_number' | 'roll_number' | 'email') => setLoginIdType(value)}
+                              >
+                                <SelectTrigger id="login_id_type">
+                                  <SelectValue placeholder="Select login ID type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="email">Email</SelectItem>
+                                  <SelectItem value="gr_number">GR Number</SelectItem>
+                                  <SelectItem value="roll_number">Roll Number</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                This determines what identifier the student will use to log in
+                              </p>
+                            </div>
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsLoginSettingsDialogOpen(false)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button onClick={handleUpdateLoginSettings}>Save Changes</Button>
                             </div>
                           </div>
                         </DialogContent>
@@ -515,3 +606,4 @@ export default function StudentDetail() {
     </div>
   );
 }
+

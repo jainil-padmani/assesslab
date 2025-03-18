@@ -23,12 +23,46 @@ export const useUpdateStudent = () => {
           }
         }
         
-        // Strip out the password field before updating the students table
-        const { password, ...studentRecord } = studentData;
+        // If student login is being enabled for the first time and no password is provided,
+        // set the default password to the roll number
+        let updateData = { ...studentData };
+        
+        if (studentData.login_enabled && !studentData.password) {
+          // Get the current student data to check if we need to set a default password
+          const { data: existingStudent } = await supabase
+            .from("students")
+            .select("password, roll_number, login_enabled")
+            .eq("id", studentData.id)
+            .single();
+            
+          // If this is the first time enabling login (it wasn't enabled before)
+          // and there's no existing password, set a default one
+          if (existingStudent && 
+              !existingStudent.login_enabled && 
+              !existingStudent.password &&
+              studentData.roll_number) {
+            updateData.password = studentData.roll_number;
+          } else if (existingStudent && 
+                    !existingStudent.login_enabled && 
+                    !existingStudent.password &&
+                    existingStudent.roll_number) {
+            updateData.password = existingStudent.roll_number;
+          }
+        }
+        
+        // Set default login ID type to email if enabling login and no type is set
+        if (studentData.login_enabled && !studentData.login_id_type) {
+          updateData.login_id_type = 'email';
+        }
+        
+        // Strip out the password field if it's empty
+        if (updateData.password === '') {
+          delete updateData.password;
+        }
         
         const { data, error } = await supabase
           .from("students")
-          .update(studentRecord)
+          .update(updateData)
           .eq("id", studentData.id)
           .select();
 
@@ -36,22 +70,6 @@ export const useUpdateStudent = () => {
         
         if (!data || data.length === 0) {
           throw new Error("Failed to update student: No data returned");
-        }
-        
-        // If password is provided, update student credentials
-        if (password && studentData.login_enabled) {
-          // Determine login ID based on the selected type
-          const loginIdType = studentData.login_id_type || data[0].login_id_type || 'gr_number';
-          const loginId = loginIdType === 'email' && studentData.email 
-            ? studentData.email 
-            : loginIdType === 'roll_number' && studentData.roll_number
-              ? studentData.roll_number
-              : studentData.gr_number;
-          
-          // TODO: Implement actual password update using your preferred method
-          // For now, we'll just log a success message
-          console.log(`Password would be updated for student ${loginId}`);
-          toast.success("Student password updated successfully");
         }
         
         return data[0] as Student;

@@ -182,14 +182,14 @@ export default function StudentFormFields({
                 <div className="text-sm text-muted-foreground mb-1">
                   Select which identifier the student will use to log in
                 </div>
-                <Select name="login_id_type" defaultValue={student?.login_id_type || "gr_number"}>
+                <Select name="login_id_type" defaultValue={student?.login_id_type || "email"}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select login ID type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="gr_number">GR Number</SelectItem>
                     <SelectItem value="roll_number">Roll Number</SelectItem>
-                    <SelectItem value="email">Email</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -200,11 +200,15 @@ export default function StudentFormFields({
                   id="password"
                   name="password"
                   type="password"
-                  placeholder={student ? "Leave blank to keep current password" : "Set a password for the student"}
+                  placeholder={student ? "Leave blank to keep current password" : "Set a password (defaults to roll number if left blank)"}
                 />
-                {student && (
+                {student ? (
                   <div className="text-sm text-muted-foreground mt-1">
                     Only enter a value if you want to change the student's password
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    If left blank, the roll number will be used as the default password
                   </div>
                 )}
               </div>
