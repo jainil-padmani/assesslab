@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,20 +122,11 @@ const Auth = () => {
             throw new Error("Student not found");
           }
           
-          const student = studentData.find(s => {
-            if (!s.login_enabled) {
-              return false;
-            }
-            
-            return s.password === password;
-          });
+          // Find a student with matching password
+          const student = studentData.find(s => s.password === password);
           
           if (!student) {
-            if (studentData.some(s => !s.login_enabled)) {
-              throw new Error("Student login is not enabled. Please contact your teacher.");
-            } else {
-              throw new Error("Invalid password");
-            }
+            throw new Error("Invalid password");
           }
           
           localStorage.setItem('studentUser', JSON.stringify({
@@ -327,6 +319,6 @@ const Auth = () => {
       </Card>
     </div>
   );
-};
+}
 
 export default Auth;

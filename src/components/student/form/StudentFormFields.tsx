@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { Student } from "@/types/dashboard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 
 interface StudentFormFieldsProps {
   student: Student | null;
@@ -44,8 +41,6 @@ export default function StudentFormFields({
   const filteredClasses = selectedYear && classes
     ? classes.filter((cls) => cls.year === parseInt(selectedYear))
     : classes;
-
-  const [loginEnabled, setLoginEnabled] = useState(student?.login_enabled || false);
 
   return (
     <Tabs defaultValue="basic">
@@ -164,56 +159,48 @@ export default function StudentFormFields({
       
       <TabsContent value="login">
         <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Switch 
-              id="login_enabled" 
-              name="login_enabled"
-              checked={loginEnabled}
-              onCheckedChange={setLoginEnabled}
-              defaultChecked={student?.login_enabled || false} 
-            />
-            <Label htmlFor="login_enabled">Enable login for this student</Label>
+          <div className="bg-gray-50 p-4 rounded-md border mb-4">
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-primary">Student Login Is Enabled By Default</p>
+              <p>All students have login capabilities. Set the login ID type and password below.</p>
+            </div>
           </div>
           
-          {loginEnabled && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="login_id_type">Login ID Type</Label>
-                <div className="text-sm text-muted-foreground mb-1">
-                  Select which identifier the student will use to log in
-                </div>
-                <Select name="login_id_type" defaultValue={student?.login_id_type || "email"}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select login ID type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="gr_number">GR Number</SelectItem>
-                    <SelectItem value="roll_number">Roll Number</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="space-y-2">
+            <Label htmlFor="login_id_type">Login ID Type</Label>
+            <div className="text-sm text-muted-foreground mb-1">
+              Select which identifier the student will use to log in
+            </div>
+            <Select name="login_id_type" defaultValue={student?.login_id_type || "email"}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select login ID type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="gr_number">GR Number</SelectItem>
+                <SelectItem value="roll_number">Roll Number</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              placeholder={student ? "Leave blank to keep current password" : "Set a password (defaults to roll number if left blank)"}
+            />
+            {student ? (
+              <div className="text-sm text-muted-foreground mt-1">
+                Only enter a value if you want to change the student's password
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder={student ? "Leave blank to keep current password" : "Set a password (defaults to roll number if left blank)"}
-                />
-                {student ? (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Only enter a value if you want to change the student's password
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    If left blank, the roll number will be used as the default password
-                  </div>
-                )}
+            ) : (
+              <div className="text-sm text-muted-foreground mt-1">
+                If left blank, the roll number will be used as the default password
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </TabsContent>
     </Tabs>

@@ -23,35 +23,35 @@ export const useUpdateStudent = () => {
           }
         }
         
-        // If student login is being enabled for the first time and no password is provided,
-        // set the default password to the roll number
-        let updateData = { ...studentData };
+        // Always ensure login is enabled
+        let updateData = { 
+          ...studentData,
+          login_enabled: true
+        };
         
-        if (studentData.login_enabled && !studentData.password) {
+        // If no password is provided and there's a roll number, set default password to roll number
+        if (!updateData.password) {
           // Get the current student data to check if we need to set a default password
           const { data: existingStudent } = await supabase
             .from("students")
-            .select("password, roll_number, login_enabled")
+            .select("password, roll_number")
             .eq("id", studentData.id)
             .single();
             
-          // If this is the first time enabling login (it wasn't enabled before)
-          // and there's no existing password, set a default one
+          // If there's no existing password, set a default one
           if (existingStudent && 
-              !existingStudent.login_enabled && 
               !existingStudent.password &&
               studentData.roll_number) {
             updateData.password = studentData.roll_number;
           } else if (existingStudent && 
-                    !existingStudent.login_enabled && 
                     !existingStudent.password &&
                     existingStudent.roll_number) {
             updateData.password = existingStudent.roll_number;
           }
         }
         
-        // Set default login ID type to email if enabling login and no type is set
-        if (studentData.login_enabled && !studentData.login_id_type) {
+        // Set default login ID type to email if no type is set
+        if (!updateData.login_id_type) {
           updateData.login_id_type = 'email';
         }
         

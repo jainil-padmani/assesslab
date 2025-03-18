@@ -95,27 +95,15 @@ export function useStudentDetail() {
     },
   });
 
-  // Toggle student login mutation
+  // This is a placeholder for the toggleLoginMutation that we're keeping
+  // for compatibility but it will not be used in the UI anymore
   const toggleLoginMutation = useMutation({
-    mutationFn: async (loginEnabled: boolean) => {
-      let updateData: any = { login_enabled: loginEnabled };
-      
-      if (loginEnabled && !student?.password && student?.roll_number) {
-        updateData.password = student.roll_number;
-      }
-      
-      const { error } = await supabase
-        .from("students")
-        .update(updateData)
-        .eq("id", id);
-      if (error) throw error;
+    mutationFn: async () => {
+      // This function now does nothing as login is always enabled
+      return;
     },
-    onSuccess: (_, loginEnabled) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student", id] });
-      toast.success(`Student login ${loginEnabled ? 'enabled' : 'disabled'} successfully`);
-    },
-    onError: (error) => {
-      toast.error("Failed to update login status: " + error.message);
     },
   });
 

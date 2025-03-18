@@ -22,18 +22,19 @@ export const useCreateStudent = () => {
         // Set default login ID type to email if not specified
         const loginIdType = studentData.login_id_type || 'email';
         
-        // Set default password to roll number if login is enabled and no password provided
+        // Set default password to roll number if no password provided
         let password = studentData.password;
-        if (studentData.login_enabled && !password && studentData.roll_number) {
+        if (!password && studentData.roll_number) {
           password = studentData.roll_number;
         }
         
         // Store the student record with the plain text password
+        // Always set login_enabled to true
         const { data, error } = await supabase
           .from("students")
           .insert({ 
             ...studentData, 
-            login_enabled: studentData.login_enabled || false,
+            login_enabled: true, // Always enable login
             login_id_type: loginIdType,
             password: password, // This stores the password as plain text
             user_id: (await supabase.auth.getUser()).data.user.id
