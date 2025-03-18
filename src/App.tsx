@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,7 +65,7 @@ function App() {
                 <Route path="paper-generation" element={<PaperGeneration />} />
                 <Route path="paper-generation/create" element={<PaperCreation />} />
                 <Route path="paper-generation/history" element={<PaperHistory />} />
-                <Route path="/dashboard/paper-generation/questions-history" element={<GeneratedQuestionsHistory />} />
+                <Route path="paper-generation/questions-history" element={<GeneratedQuestionsHistory />} />
                 {/* Question Paper Builder routes */}
                 <Route path="question-paper-builder" element={<QuestionPaperBuilder />} />
                 <Route path="question-paper-builder/create" element={<CreatePaperFormat />} />

@@ -451,7 +451,7 @@ export default function PaperGeneration() {
           className="flex items-center gap-2"
         >
           <History className="h-4 w-4" />
-          View Question History
+          View Questions History
         </Button>
       </div>
       
