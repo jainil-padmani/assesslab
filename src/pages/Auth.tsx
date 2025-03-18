@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,20 +113,26 @@ const Auth = () => {
           
           const { data: studentData, error: studentError } = await query;
           
+          console.log("Student query results:", studentData);
+          
           if (studentError) {
+            console.error("Student query error:", studentError);
             throw studentError;
           }
           
           if (!studentData || studentData.length === 0) {
-            throw new Error("Student not found");
+            console.error("No student found with provided credentials");
+            throw new Error("Student not found. Please check your login details and try again.");
           }
           
-          // Find a student with matching password
           const student = studentData.find(s => s.password === password);
           
           if (!student) {
-            throw new Error("Invalid password");
+            console.error("Invalid password for student");
+            throw new Error("Invalid password. Please check your password and try again.");
           }
+          
+          console.log("Student authenticated successfully:", student.name);
           
           localStorage.setItem('studentUser', JSON.stringify({
             id: student.id,
