@@ -57,6 +57,12 @@ export function LoginCredentialsCard({
     </Badge>
   );
 
+  // Function to get the actual password to display
+  const getPasswordToDisplay = () => {
+    // Show actual password or roll number as fallback
+    return student.password || student.roll_number || "Not set";
+  };
+
   return (
     <Card className="relative">
       <CardHeader>
@@ -69,7 +75,7 @@ export function LoginCredentialsCard({
               className="ml-auto"
               onClick={() => {
                 const loginId = getLoginIdValue();
-                const password = student.password || student.roll_number || '';
+                const password = getPasswordToDisplay(); 
                 copyToClipboard(
                   `Username: ${loginId}\nPassword: ${password}`,
                   "Login credentials copied to clipboard"
@@ -144,7 +150,7 @@ export function LoginCredentialsCard({
                     <p className="text-sm text-muted-foreground">Password</p>
                     <div className="flex items-center justify-between">
                       <div className="font-medium">
-                        {showPassword ? student.password || student.roll_number || "Not set" : "••••••••"}
+                        {showPassword ? getPasswordToDisplay() : "••••••••"}
                       </div>
                       <div className="flex space-x-1">
                         <Button
@@ -159,7 +165,7 @@ export function LoginCredentialsCard({
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6"
-                          onClick={() => copyToClipboard(student.password || student.roll_number || '', "Password copied to clipboard")}
+                          onClick={() => copyToClipboard(getPasswordToDisplay(), "Password copied to clipboard")}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </Button>

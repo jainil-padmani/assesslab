@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +18,7 @@ export function useStudentDetail() {
   const { data: student } = useQuery({
     queryKey: ["student", id],
     queryFn: async () => {
-      // First, get the student record which has the hashed password
+      // First, get the student record
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*, classes(name)")
@@ -35,15 +34,9 @@ export function useStudentDetail() {
         setLoginIdType(result.login_id_type as "gr_number" | "roll_number" | "email");
       }
       
-      // For password display, we need to get the original non-hashed password
-      // If we don't have the actual password stored somewhere, we'll show a placeholder
-      // or request the user to set a new password
-      if (result.password) {
-        // This is the hashed password, but for display purposes, we'll use what we have
-        // In a real application, you would never be able to decrypt a properly hashed password
-        // This assumes passwords were not securely hashed or there's a system to retrieve the original password
-        result.password = result.password; // Keep as is, this would be the plain text in a real system
-      }
+      // For password display, we're using the raw stored password (or roll number as fallback)
+      // In this system, we're storing actual passwords to allow viewing them
+      // Note: In production systems, this would be a security concern
       
       return result;
     },
