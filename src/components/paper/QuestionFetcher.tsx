@@ -10,6 +10,7 @@ import { Search, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface QuestionFetcherProps {
   open: boolean;
@@ -36,6 +37,7 @@ export function QuestionFetcher({
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [questionMode, setQuestionMode] = useState<"all" | "multiple-choice" | "theory">("all");
 
   // Fetch available topics for the subject
   useEffect(() => {
@@ -79,17 +81,36 @@ export function QuestionFetcher({
     }
   }, [selectedTopic]);
 
-  // Filter questions based on search query
+  // Filter questions based on search query and mode
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredQuestions(questions);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredQuestions(
-        questions.filter(q => q.text.toLowerCase().includes(query))
-      );
+    if (questions.length === 0) {
+      setFilteredQuestions([]);
+      return;
     }
-  }, [questions, searchQuery]);
+    
+    let filtered = questions;
+    
+    // Apply question mode filter
+    if (questionMode !== "all") {
+      if (questionMode === "multiple-choice") {
+        filtered = filtered.filter(q => 
+          q.type.toLowerCase().includes("multiple choice") || (q.options && q.options.length > 0)
+        );
+      } else if (questionMode === "theory") {
+        filtered = filtered.filter(q => 
+          !q.type.toLowerCase().includes("multiple choice") && (!q.options || q.options.length === 0)
+        );
+      }
+    }
+    
+    // Apply search filter
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(q => q.text.toLowerCase().includes(query));
+    }
+    
+    setFilteredQuestions(filtered);
+  }, [questions, searchQuery, questionMode]);
 
   const fetchQuestions = async () => {
     try {
@@ -135,8 +156,9 @@ export function QuestionFetcher({
                 type: String(question.type),
                 marks: Number(question.marks),
                 level: String(question.level),
-                // Handle optional courseOutcome property
-                courseOutcome: 'courseOutcome' in question ? Number(question.courseOutcome) : undefined
+                courseOutcome: 'courseOutcome' in question ? Number(question.courseOutcome) : undefined,
+                answer: 'answer' in question ? String(question.answer) : undefined,
+                options: 'options' in question ? question.options : undefined
               };
             });
         }
@@ -149,7 +171,10 @@ export function QuestionFetcher({
         });
         
         setQuestions(filteredByAttributes);
-        setFilteredQuestions(filteredByAttributes);
+        
+        // Initially set filtered questions to match the filtered questions
+        // (actual filtering will happen in the useEffect)
+        setFilteredQuestions(filteredByAttributes); 
       } else {
         setQuestions([]);
         setFilteredQuestions([]);
@@ -213,11 +238,22 @@ export function QuestionFetcher({
             </div>
           </div>
           
+          <Tabs defaultValue="all" onValueChange={(value) => setQuestionMode(value as "all" | "multiple-choice" | "theory")}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="all">All Questions</TabsTrigger>
+              <TabsTrigger value="multiple-choice">Multiple Choice</TabsTrigger>
+              <TabsTrigger value="theory">Theory Questions</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
           <div className="bg-muted/30 rounded-md p-2 text-sm">
             <span className="font-medium">Filters:</span>
             <span className="ml-2">Level: {level.charAt(0).toUpperCase() + level.slice(1)}</span>
             {courseOutcome && <span className="ml-2">• CO{courseOutcome}</span>}
             <span className="ml-2">• {marks} marks</span>
+            {questionMode !== "all" && (
+              <span className="ml-2">• Type: {questionMode === "multiple-choice" ? "Multiple Choice" : "Theory"}</span>
+            )}
           </div>
           
           {loading ? (
@@ -242,6 +278,19 @@ export function QuestionFetcher({
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
                           <p className="text-sm">{question.text}</p>
+                          
+                          {/* Display multiple choice options if available */}
+                          {question.options && (
+                            <div className="mt-2 space-y-1 pl-4 text-xs text-muted-foreground">
+                              {question.options.map((option, idx) => (
+                                <div key={idx} className={option.isCorrect ? 'text-green-600 font-medium' : ''}>
+                                  {String.fromCharCode(65 + idx)}. {option.text.length > 50 ? `${option.text.substring(0, 50)}...` : option.text}
+                                  {option.isCorrect && " ✓"}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs bg-muted px-2 py-0.5 rounded">
                               {question.level}
@@ -253,6 +302,9 @@ export function QuestionFetcher({
                             )}
                             <span className="text-xs text-muted-foreground">
                               {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                            </span>
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                              {question.options ? "Multiple Choice" : "Theory"}
                             </span>
                           </div>
                         </div>

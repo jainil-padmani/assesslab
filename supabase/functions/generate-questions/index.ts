@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
@@ -13,7 +14,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { topic, content, bloomsTaxonomy, difficulty, courseOutcomes, questionTypes } = await req.json();
+    const { topic, content, bloomsTaxonomy, difficulty, courseOutcomes, questionTypes, questionMode } = await req.json();
     
     if (!topic || !content) {
       return new Response(
@@ -25,7 +26,7 @@ serve(async (req: Request) => {
     // Make course outcomes optional
     const validCourseOutcomes = courseOutcomes || [];
     
-    console.log(`Generating questions for ${topic} with difficulty ${difficulty}%`);
+    console.log(`Generating questions for ${topic} with difficulty ${difficulty}% in ${questionMode || 'standard'} mode`);
     console.log("Course outcomes:", validCourseOutcomes);
     console.log("Question types:", questionTypes);
     
@@ -39,14 +40,20 @@ serve(async (req: Request) => {
       totalQuestions = Object.values(questionTypes).reduce((sum: number, count: any) => sum + (count as number), 0);
     } else {
       // Default question types configuration
-      questionTypesConfig = {
-        "Multiple Choice (1 mark)": 5,
-        "Short Answer (1 mark)": 5,
-        "Short Answer (2 marks)": 3,
-        "Medium Answer (4 marks)": 2,
-        "Long Answer (8 marks)": 1
-      };
-      totalQuestions = 16; // Default total from above
+      if (questionMode === "multiple-choice") {
+        questionTypesConfig = {
+          "Multiple Choice (1 mark)": 10
+        };
+        totalQuestions = 10;
+      } else {
+        questionTypesConfig = {
+          "Short Answer (1 mark)": 5,
+          "Short Answer (2 marks)": 3,
+          "Medium Answer (4 marks)": 2,
+          "Long Answer (8 marks)": 1
+        };
+        totalQuestions = 11; // Default total from above
+      }
     }
     
     // If no questions would be generated, set a minimum
@@ -65,7 +72,7 @@ serve(async (req: Request) => {
     }
 
     // Generate actual questions using OpenAI API
-    const promptContent = `
+    let promptContent = `
 Generate ${totalQuestions} exam questions with answers for the topic: ${topic}.
 
 Course Content:
@@ -77,15 +84,39 @@ Requirements:
 ${Object.entries(questionTypesConfig).map(([type, count]) => `  - ${type}: ${count} questions`).join('\n')}
 - Questions should be aligned with the specified course outcomes and Bloom's taxonomy levels
 - Difficulty level should be approximately ${difficulty}% on a scale of 0-100
-- For multiple choice questions, provide 4 options and clearly indicate the correct answer
-- For all question types, provide a model answer that would receive full marks
+`;
 
-${validCourseOutcomes.length > 0 ? `Course Outcomes:
+    // Add specific requirements based on question mode
+    if (questionMode === "multiple-choice") {
+      promptContent += `
+- ALL questions should be multiple choice with EXACTLY 4 options for each question
+- For each multiple choice question, provide 4 options and clearly indicate the correct answer
+- Make sure options are distinct and cover potential misconceptions or partial understandings
+`;
+    } else {
+      promptContent += `
+- All questions should be theory questions that require written answers
+- For all question types, provide a detailed model answer that would receive full marks
+- Shorter answer questions (1-2 marks) should focus on definitions, brief explanations, or simple applications
+- Medium answer questions (4 marks) should involve more extensive explanations, analyses, or applications
+- Long answer questions (8 marks) should require comprehensive explanations, critical analysis, or extended problem-solving
+`;
+    }
+
+    // Add course outcomes section if available
+    if (validCourseOutcomes.length > 0) {
+      promptContent += `
+Course Outcomes:
 ${validCourseOutcomes.filter(co => co.selected).map(co => `CO${co.co_number}: ${co.description}`).join('\n')}
 
 Question Distribution:
-${validCourseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: ${co.questionCount} questions`).join('\n')}` : 'No specific course outcomes provided.'}
+${validCourseOutcomes.filter(co => co.selected).map(co => `- CO${co.co_number}: ${co.questionCount} questions`).join('\n')}`;
+    } else {
+      promptContent += '\nNo specific course outcomes provided.';
+    }
 
+    // Add Blooms taxonomy section
+    promptContent += `
 Bloom's Taxonomy distribution:
 ${Object.entries(bloomsTaxonomy).map(([level, value]) => `- ${level}: ${value}%`).join('\n')}
 
@@ -97,10 +128,10 @@ Format each question as:
   "courseOutcome": CO number (integer, if applicable),
   "marks": marks value based on question type,
   "answer": "Detailed model answer that would receive full marks",
-  "options": [{"text": "Option A", "isCorrect": false}, {"text": "Option B", "isCorrect": true}, ...] (for multiple choice only)
+  ${questionMode === "multiple-choice" ? `"options": [{"text": "Option A", "isCorrect": false}, {"text": "Option B", "isCorrect": true}, ...] (MUST include 4 options with exactly 1 correct answer)` : ""}
 }
 
-Make sure ALL questions have appropriate answers. For multiple choice questions, clearly indicate the correct option in the options array.
+Make sure ALL questions have appropriate answers. ${questionMode === "multiple-choice" ? "For multiple choice questions, clearly indicate the correct option in the options array and include EXACTLY 4 options for each question." : "For theory questions, provide detailed model answers appropriate to the mark value of the question."}
 `;
 
     try {
@@ -115,7 +146,7 @@ Make sure ALL questions have appropriate answers. For multiple choice questions,
           messages: [
             {
               "role": "system",
-              "content": "You are an expert in generating educational assessment questions. Provide detailed, appropriate questions with model answers that align with course outcomes and Bloom's taxonomy levels."
+              "content": `You are an expert in generating educational assessment questions. Provide detailed, appropriate questions with model answers that align with course outcomes and Bloom's taxonomy levels. ${questionMode === "multiple-choice" ? "For multiple choice questions, always provide exactly 4 options with exactly 1 correct answer." : "For theory questions, provide detailed model answers appropriate to the mark value of each question."}`
             },
             {
               "role": "user",
@@ -168,7 +199,7 @@ Make sure ALL questions have appropriate answers. For multiple choice questions,
       
       // If we couldn't extract questions from the JSON format, fallback to generating them
       if (generatedQuestions.length === 0) {
-        generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig);
+        generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig, questionMode);
       }
       
       console.log(`Generated ${generatedQuestions.length} questions`);
@@ -181,7 +212,7 @@ Make sure ALL questions have appropriate answers. For multiple choice questions,
       console.error("Error calling OpenAI API:", apiError);
       
       // Fallback to local question generation
-      const generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig);
+      const generatedQuestions = generateFallbackQuestions(totalQuestions, validCourseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig, questionMode);
       
       return new Response(
         JSON.stringify({ 
@@ -200,7 +231,7 @@ Make sure ALL questions have appropriate answers. For multiple choice questions,
   }
 });
 
-function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig) {
+function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonomy, difficulty, topic, questionTypesConfig, questionMode = "multiple-choice") {
   const generatedQuestions = [];
   let questionId = 1;
   
@@ -224,7 +255,7 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         
         // Get question type for this iteration
         const typeIndex = Math.min(questionTypesList.length - 1, generatedQuestions.length);
-        const questionType = questionTypesList[typeIndex] || "Short Answer (1 mark)";
+        const questionType = questionTypesList[typeIndex] || (questionMode === "multiple-choice" ? "Multiple Choice (1 mark)" : "Short Answer (1 mark)");
         
         // Generate question based on difficulty
         const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
@@ -235,7 +266,7 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
         
         // Generate multiple choice options if needed
         let options = null;
-        if (questionType.includes("Multiple Choice")) {
+        if (questionMode === "multiple-choice" || questionType.includes("Multiple Choice")) {
           options = generateMultipleChoiceOptions(topic, co.description);
         }
         
@@ -255,7 +286,7 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
   } else {
     // If no course outcomes, generate default questions
     for (let i = 0; i < questionTypesList.length; i++) {
-      const questionType = questionTypesList[i];
+      const questionType = questionTypesList[i] || (questionMode === "multiple-choice" ? "Multiple Choice (1 mark)" : "Short Answer (1 mark)");
       let bloomsLevel = getRandomBloomsLevel(bloomsTaxonomy);
       const questionDifficulty = calculateQuestionDifficulty(difficulty, bloomsLevel);
       const marks = getMarksForQuestionType(questionType);
@@ -265,7 +296,7 @@ function generateFallbackQuestions(totalQuestions, courseOutcomes, bloomsTaxonom
       
       // Generate multiple choice options if needed
       let options = null;
-      if (questionType.includes("Multiple Choice")) {
+      if (questionMode === "multiple-choice" || questionType.includes("Multiple Choice")) {
         options = generateMultipleChoiceOptions(topic, "");
       }
       
