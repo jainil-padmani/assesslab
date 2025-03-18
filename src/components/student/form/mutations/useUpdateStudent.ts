@@ -55,7 +55,7 @@ export const useUpdateStudent = () => {
           updateData.login_id_type = 'email';
         }
         
-        // Strip out the password field if it's empty
+        // Remove empty password to avoid overwriting existing password with empty string
         if (updateData.password === '') {
           delete updateData.password;
         }

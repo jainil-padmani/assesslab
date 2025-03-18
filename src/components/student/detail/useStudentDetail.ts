@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +18,7 @@ export function useStudentDetail() {
   const { data: student } = useQuery({
     queryKey: ["student", id],
     queryFn: async () => {
-      // First, get the student record (now with plain text password)
+      // Get the student record with plain text password
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*, classes(name)")
@@ -34,9 +33,6 @@ export function useStudentDetail() {
       if (result.login_id_type) {
         setLoginIdType(result.login_id_type as "gr_number" | "roll_number" | "email");
       }
-      
-      // Now we have the actual plain text password
-      // No need to do any special handling anymore
       
       return result;
     },

@@ -1,5 +1,3 @@
-
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +57,7 @@ export function LoginCredentialsCard({
 
   // Function to get the actual password to display
   const getPasswordToDisplay = () => {
-    // Show actual password or roll number as fallback
+    // Show the actual plain text password or roll number as fallback
     return student.password || student.roll_number || "Not set";
   };
 
