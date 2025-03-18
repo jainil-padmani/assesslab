@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,6 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  // Check if user is already logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -30,7 +28,6 @@ const Auth = () => {
     
     checkUser();
     
-    // Check if teacher mode is requested via URL parameter
     const mode = searchParams.get("mode");
     if (mode === "teacher") {
       setIsTeacherMode(true);
@@ -63,7 +60,6 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        // Only allow signup in teacher mode
         if (!isTeacherMode) {
           toast.error("Student accounts can only be created by teachers");
           setIsLoading(false);
@@ -72,14 +68,13 @@ const Auth = () => {
         
         console.log("Starting signup process with name:", name);
         
-        // Include name in user_metadata during signup
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              name: name, // This matches the name field in our profiles table trigger
-              role: "teacher" // Always set role to teacher since only teachers can sign up
+              name: name,
+              role: "teacher"
             }
           }
         });
@@ -94,57 +89,54 @@ const Auth = () => {
         if (data.user) {
           toast.success("Account created successfully! Please check your email for verification.");
           
-          // Check if email confirmation is required
           if (!data.user.email_confirmed_at) {
             toast.info("Please check your email to confirm your account before signing in.");
           } else {
-            // If email confirmation is not required or already confirmed
             navigate("/dashboard");
           }
         }
       } else {
-        // Student login handling
         if (!isTeacherMode) {
           console.log("Attempting student login with:", email, password);
           
-          // First, try to find the student by login ID type
           let query = supabase.from("students").select("*");
           
-          // Check if login credential is an email
           if (email.includes('@')) {
             query = query.eq("email", email);
           } 
-          // Check if it's a GR number (typically starts with specific patterns or is numeric)
           else if (/^\d+$/.test(email)) {
             query = query.or(`gr_number.eq.${email},roll_number.eq.${email}`);
           } 
-          // Fallback to checking all ID types
           else {
             query = query.or(`gr_number.eq.${email},roll_number.eq.${email},email.eq.${email}`);
           }
           
-          const { data: studentData, error: studentError } = await query.eq("login_enabled", true);
-          
-          console.log("Student query result:", studentData, studentError);
+          const { data: studentData, error: studentError } = await query;
           
           if (studentError) {
             throw studentError;
           }
           
           if (!studentData || studentData.length === 0) {
-            throw new Error("Student not found or login not enabled");
+            throw new Error("Student not found");
           }
           
-          // Find student with matching password (plain text comparison)
-          const student = studentData.find(s => s.password === password);
+          const student = studentData.find(s => {
+            if (!s.login_enabled) {
+              return false;
+            }
+            
+            return s.password === password;
+          });
           
           if (!student) {
-            throw new Error("Invalid login credentials");
+            if (studentData.some(s => !s.login_enabled)) {
+              throw new Error("Student login is not enabled. Please contact your teacher.");
+            } else {
+              throw new Error("Invalid password");
+            }
           }
           
-          // Student login successful
-          // Since our system doesn't have actual auth entries for students, 
-          // we'll create a local session
           localStorage.setItem('studentUser', JSON.stringify({
             id: student.id,
             name: student.name,
@@ -156,7 +148,6 @@ const Auth = () => {
           toast.success(`Welcome, ${student.name}!`);
           navigate("/dashboard/student");
         } else {
-          // Regular teacher login through Supabase Auth
           const { error } = await supabase.auth.signInWithPassword({
             email,
             password,
