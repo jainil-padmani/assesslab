@@ -26,16 +26,7 @@ export function useClassStudents(selectedClass: string) {
         .order('name');
       
       if (error) throw error;
-      
-      if (data) {
-        // Cast the login_id_type to the correct type
-        const typedData = data.map(student => ({
-          ...student,
-          login_id_type: (student.login_id_type || 'email') as 'gr_number' | 'roll_number' | 'email'
-        }));
-        
-        setClassStudents(typedData);
-      }
+      if (data) setClassStudents(data);
     } catch (error: any) {
       toast.error('Failed to fetch students');
       console.error('Error fetching students:', error);

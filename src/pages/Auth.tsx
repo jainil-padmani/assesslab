@@ -1,11 +1,12 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, Loader2, GraduationCap, BookOpen } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -14,10 +15,9 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [isTeacherMode, setIsTeacherMode] = useState(false);
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
+  // Check if user is already logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -27,12 +27,7 @@ const Auth = () => {
     };
     
     checkUser();
-    
-    const mode = searchParams.get("mode");
-    if (mode === "teacher") {
-      setIsTeacherMode(true);
-    }
-  }, [navigate, searchParams]);
+  }, [navigate]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,21 +55,15 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
-        if (!isTeacherMode) {
-          toast.error("Student accounts can only be created by teachers");
-          setIsLoading(false);
-          return;
-        }
-        
         console.log("Starting signup process with name:", name);
         
+        // Include name in user_metadata during signup
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              name: name,
-              role: "teacher"
+              name: name // This matches the name field in our profiles table trigger
             }
           }
         });
@@ -89,70 +78,22 @@ const Auth = () => {
         if (data.user) {
           toast.success("Account created successfully! Please check your email for verification.");
           
+          // Check if email confirmation is required
           if (!data.user.email_confirmed_at) {
             toast.info("Please check your email to confirm your account before signing in.");
           } else {
+            // If email confirmation is not required or already confirmed
             navigate("/dashboard");
           }
         }
       } else {
-        if (!isTeacherMode) {
-          console.log("Attempting student login with:", email, password);
-          
-          let query = supabase.from("students").select("*");
-          
-          if (email.includes('@')) {
-            query = query.eq("email", email);
-          } 
-          else if (/^\d+$/.test(email)) {
-            query = query.or(`gr_number.eq.${email},roll_number.eq.${email}`);
-          } 
-          else {
-            query = query.or(`gr_number.eq.${email},roll_number.eq.${email},email.eq.${email}`);
-          }
-          
-          const { data: studentData, error: studentError } = await query;
-          
-          console.log("Student query results:", studentData);
-          
-          if (studentError) {
-            console.error("Student query error:", studentError);
-            throw studentError;
-          }
-          
-          if (!studentData || studentData.length === 0) {
-            console.error("No student found with provided credentials");
-            throw new Error("Student not found. Please check your login details and try again.");
-          }
-          
-          const student = studentData.find(s => s.password === password);
-          
-          if (!student) {
-            console.error("Invalid password for student");
-            throw new Error("Invalid password. Please check your password and try again.");
-          }
-          
-          console.log("Student authenticated successfully:", student.name);
-          
-          localStorage.setItem('studentUser', JSON.stringify({
-            id: student.id,
-            name: student.name,
-            email: student.email,
-            gr_number: student.gr_number,
-            role: 'student'
-          }));
-          
-          toast.success(`Welcome, ${student.name}!`);
-          navigate("/dashboard/student");
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (error) throw error;
-          toast.success("Successfully signed in!");
-          navigate("/dashboard");
-        }
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        toast.success("Successfully signed in!");
+        navigate("/dashboard");
       }
     } catch (error: any) {
       console.error("Auth error:", error);
@@ -215,22 +156,13 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-2">
-            {isTeacherMode ? (
-              <BookOpen className="h-10 w-10 text-primary" />
-            ) : (
-              <GraduationCap className="h-10 w-10 text-primary" />
-            )}
-          </div>
           <CardTitle className="text-2xl text-center font-bold">
-            {isSignUp 
-              ? "Create a Teacher Account" 
-              : `Sign in to Testara${isTeacherMode ? " (Teacher)" : " (Student)"}`}
+            {isSignUp ? "Create an account" : "Sign in to TeachLab"}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
-            {isSignUp && isTeacherMode && (
+            {isSignUp && (
               <div className="space-y-2">
                 <Input
                   id="name"
@@ -245,8 +177,8 @@ const Auth = () => {
             <div className="space-y-2">
               <Input
                 id="email"
-                type="text"
-                placeholder={isTeacherMode ? "Email address" : "Email, GR Number or Roll Number"}
+                type="email"
+                placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -277,38 +209,15 @@ const Auth = () => {
               )}
             </Button>
             <div className="flex flex-col space-y-2 text-center">
-              {isTeacherMode && (
-                <Button
-                  variant="link"
-                  onClick={() => setIsSignUp(!isSignUp)}
-                  className="text-sm text-gray-600 hover:text-accent"
-                >
-                  {isSignUp
-                    ? "Already have an account? Sign in"
-                    : "Need an account? Sign up"}
-                </Button>
-              )}
-              
-              {!isTeacherMode && !isSignUp && (
-                <Button
-                  variant="link"
-                  onClick={() => navigate('/auth?mode=teacher')}
-                  className="text-sm text-gray-600 hover:text-accent"
-                >
-                  Teacher Login
-                </Button>
-              )}
-              
-              {isTeacherMode && !isSignUp && (
-                <Button
-                  variant="link"
-                  onClick={() => navigate('/auth')}
-                  className="text-sm text-gray-600 hover:text-accent"
-                >
-                  Student Login
-                </Button>
-              )}
-              
+              <Button
+                variant="link"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-sm text-gray-600 hover:text-accent"
+              >
+                {isSignUp
+                  ? "Already have an account? Sign in"
+                  : "Need an account? Sign up"}
+              </Button>
               {!isSignUp && (
                 <Button
                   variant="link"
@@ -324,6 +233,6 @@ const Auth = () => {
       </Card>
     </div>
   );
-}
+};
 
 export default Auth;

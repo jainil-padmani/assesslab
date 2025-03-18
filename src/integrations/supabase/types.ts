@@ -486,13 +486,10 @@ export type Database = {
           email: string | null
           gr_number: string
           id: string
-          login_enabled: boolean | null
-          login_id_type: string | null
           name: string
           overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
-          password: string | null
           roll_number: string | null
           user_id: string | null
           year: number | null
@@ -505,13 +502,10 @@ export type Database = {
           email?: string | null
           gr_number: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -524,13 +518,10 @@ export type Database = {
           email?: string | null
           gr_number?: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name?: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null

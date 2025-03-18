@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { Student } from "@/types/dashboard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface StudentFormFieldsProps {
   student: Student | null;
@@ -43,166 +43,103 @@ export default function StudentFormFields({
     : classes;
 
   return (
-    <Tabs defaultValue="basic">
-      <TabsList className="mb-4">
-        <TabsTrigger value="basic">Basic Info</TabsTrigger>
-        <TabsTrigger value="login">Login Credentials</TabsTrigger>
-      </TabsList>
-      
-      <TabsContent value="basic">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              name="name"
-              required
-              defaultValue={student?.name || ""}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="gr_number">GR Number *</Label>
-            <Input
-              id="gr_number"
-              name="gr_number"
-              required
-              defaultValue={student?.gr_number || ""}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="roll_number">Roll Number</Label>
-            <Input
-              id="roll_number"
-              name="roll_number"
-              defaultValue={student?.roll_number || ""}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="year">Year</Label>
-            <Select 
-              name="year" 
-              value={selectedYear} 
-              onValueChange={setSelectedYear}
-            >
-              <SelectTrigger id="year">
-                <SelectValue placeholder="Select year" />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map(year => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="class_id">Class</Label>
-            <Select
-              name="class_id"
-              defaultValue={student?.class_id || undefined}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a class" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No class assigned</SelectItem>
-                {filteredClasses?.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id}>
-                    {cls.name} {cls.year ? `- Year ${cls.year}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="department">Department *</Label>
-            <Select 
-              name="department" 
-              value={selectedDepartment} 
-              onValueChange={setSelectedDepartment} 
-              required
-            >
-              <SelectTrigger id="department">
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map(dept => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="overall_percentage">Overall Percentage</Label>
-            <Input
-              id="overall_percentage"
-              name="overall_percentage"
-              type="number"
-              step="0.01"
-              defaultValue={student?.overall_percentage || ""}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={student?.email || ""}
-            />
-          </div>
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Name *</Label>
+          <Input
+            id="name"
+            name="name"
+            required
+            defaultValue={student?.name || ""}
+          />
         </div>
-      </TabsContent>
-      
-      <TabsContent value="login">
-        <div className="space-y-4">
-          <div className="bg-gray-50 p-4 rounded-md border mb-4">
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium text-primary">Student Login Is Enabled By Default</p>
-              <p>All students have login capabilities. Set the login ID type and password below.</p>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="login_id_type">Login ID Type</Label>
-            <div className="text-sm text-muted-foreground mb-1">
-              Select which identifier the student will use to log in
-            </div>
-            <Select name="login_id_type" defaultValue={student?.login_id_type || "email"}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select login ID type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="gr_number">GR Number</SelectItem>
-                <SelectItem value="roll_number">Roll Number</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder={student ? "Leave blank to keep current password" : "Set a password (defaults to roll number if left blank)"}
-            />
-            {student ? (
-              <div className="text-sm text-muted-foreground mt-1">
-                Only enter a value if you want to change the student's password
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground mt-1">
-                If left blank, the roll number will be used as the default password
-              </div>
-            )}
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="gr_number">GR Number *</Label>
+          <Input
+            id="gr_number"
+            name="gr_number"
+            required
+            defaultValue={student?.gr_number || ""}
+          />
         </div>
-      </TabsContent>
-    </Tabs>
+        <div className="space-y-2">
+          <Label htmlFor="roll_number">Roll Number</Label>
+          <Input
+            id="roll_number"
+            name="roll_number"
+            defaultValue={student?.roll_number || ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="year">Year</Label>
+          <Select 
+            name="year" 
+            value={selectedYear} 
+            onValueChange={setSelectedYear}
+          >
+            <SelectTrigger id="year">
+              <SelectValue placeholder="Select year" />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map(year => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="class_id">Class</Label>
+          <Select
+            name="class_id"
+            defaultValue={student?.class_id || undefined}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No class assigned</SelectItem>
+              {filteredClasses?.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name} {cls.year ? `- Year ${cls.year}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="department">Department *</Label>
+          <Select 
+            name="department" 
+            value={selectedDepartment} 
+            onValueChange={setSelectedDepartment} 
+            required
+          >
+            <SelectTrigger id="department">
+              <SelectValue placeholder="Select department" />
+            </SelectTrigger>
+            <SelectContent>
+              {departments.map(dept => (
+                <SelectItem key={dept} value={dept}>
+                  {dept}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="overall_percentage">Overall Percentage</Label>
+          <Input
+            id="overall_percentage"
+            name="overall_percentage"
+            type="number"
+            step="0.01"
+            defaultValue={student?.overall_percentage || ""}
+          />
+        </div>
+      </div>
+    </>
   );
 }
