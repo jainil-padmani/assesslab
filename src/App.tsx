@@ -28,8 +28,6 @@ import TestDetail from "./pages/dashboard/TestDetail";
 import PaperGeneration from "./pages/dashboard/PaperGeneration";
 import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
-import QuestionPaperBuilder from "./pages/dashboard/QuestionPaperBuilder";
-import CreatePaperFormat from "./pages/dashboard/CreatePaperFormat";
 import GeneratedQuestionsHistory from "./pages/dashboard/GeneratedQuestionsHistory";
 
 const queryClient = new QueryClient();
@@ -66,11 +64,6 @@ function App() {
                 <Route path="paper-generation/create" element={<PaperCreation />} />
                 <Route path="paper-generation/history" element={<PaperHistory />} />
                 <Route path="paper-generation/questions-history" element={<GeneratedQuestionsHistory />} />
-                {/* Question Paper Builder routes */}
-                <Route path="question-paper-builder" element={<QuestionPaperBuilder />} />
-                <Route path="question-paper-builder/create" element={<CreatePaperFormat />} />
-                <Route path="question-paper-builder/edit/:id" element={<CreatePaperFormat />} />
-                <Route path="question-paper-builder/history" element={<PaperHistory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
