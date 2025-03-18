@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Shield, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
+import { ArrowLeft, Plus, Shield, ShieldAlert, ShieldCheck, ShieldX, Copy, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,7 @@ export default function StudentDetail() {
   const [newPassword, setNewPassword] = useState("");
   const [isLoginSettingsDialogOpen, setIsLoginSettingsDialogOpen] = useState(false);
   const [loginIdType, setLoginIdType] = useState<"gr_number" | "roll_number" | "email">("gr_number");
+  const [showPassword, setShowPassword] = useState(false);
 
   // Fetch student details
   const { data: student } = useQuery({
@@ -252,6 +254,12 @@ export default function StudentDetail() {
     });
   };
 
+  const copyToClipboard = (text: string, message: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success(message))
+      .catch(err => toast.error("Failed to copy: " + err));
+  };
+
   if (!student) {
     return <div>Loading...</div>;
   }
@@ -381,9 +389,29 @@ export default function StudentDetail() {
           </Card>
 
           {/* Login Credentials Card */}
-          <Card>
+          <Card className="relative">
             <CardHeader>
-              <CardTitle>Login Credentials</CardTitle>
+              <CardTitle className="flex items-center">
+                Login Credentials
+                {student.login_enabled && (
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                    onClick={() => {
+                      const loginId = getLoginIdValue();
+                      const password = student.password || student.roll_number || '';
+                      copyToClipboard(
+                        `Username: ${loginId}\nPassword: ${password}`,
+                        "Login credentials copied to clipboard"
+                      );
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Credentials
+                  </Button>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -408,108 +436,154 @@ export default function StudentDetail() {
 
                 {student.login_enabled && (
                   <>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label>Login ID Type</Label>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{student.login_id_type || "Email"}</Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => {
-                              setLoginIdType(student.login_id_type || 'email');
-                              setIsLoginSettingsDialogOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
+                    <div className="space-y-4 bg-gray-50 p-4 rounded-md border">
+                      <h3 className="font-medium text-gray-900">Student Login Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Login ID Type</p>
+                          <div className="flex items-center">
+                            <Badge variant="outline" className="mr-2">
+                              {student.login_id_type || "email"}
+                            </Badge>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setLoginIdType(student.login_id_type || 'email');
+                                setIsLoginSettingsDialogOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Login Username</p>
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{getLoginIdValue()}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6"
+                              onClick={() => copyToClipboard(getLoginIdValue() || '', "Username copied to clipboard")}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-sm text-muted-foreground">Password</p>
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">
+                              {showPassword ? student.password : "••••••••"}
+                            </div>
+                            <div className="flex space-x-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => setShowPassword(!showPassword)}
+                              >
+                                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => copyToClipboard(student.password || student.roll_number || '', "Password copied to clipboard")}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <Label>Login ID</Label>
-                        <span className="font-medium">{getLoginIdValue()}</span>
+                      <div className="pt-2">
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => setIsPasswordDialogOpen(true)}
+                        >
+                          <Shield className="w-4 h-4 mr-2" />
+                          Change Password
+                        </Button>
+                      </div>
+                      <div className="pt-2 text-xs text-muted-foreground border-t">
+                        <p>Student Login URL: <span className="font-medium">{window.location.origin}/auth</span></p>
                       </div>
                     </div>
 
-                    <div className="pt-2">
-                      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" className="w-full">
-                            <Shield className="w-4 h-4 mr-2" />
-                            Change Password
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Change Student Password</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="new-password">New Password</Label>
-                              <Input
-                                id="new-password"
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter new password"
-                              />
-                            </div>
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                  setIsPasswordDialogOpen(false);
-                                  setNewPassword("");
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                              <Button onClick={handleUpdatePassword}>Update Password</Button>
-                            </div>
+                    <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Change Student Password</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="new-password">New Password</Label>
+                            <Input
+                              id="new-password"
+                              type="text"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="Enter new password"
+                            />
                           </div>
-                        </DialogContent>
-                      </Dialog>
-                      
-                      <Dialog open={isLoginSettingsDialogOpen} onOpenChange={setIsLoginSettingsDialogOpen}>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Edit Login ID Type</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="login_id_type">Login ID Type</Label>
-                              <Select
-                                value={loginIdType}
-                                onValueChange={(value: 'gr_number' | 'roll_number' | 'email') => setLoginIdType(value)}
-                              >
-                                <SelectTrigger id="login_id_type">
-                                  <SelectValue placeholder="Select login ID type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="email">Email</SelectItem>
-                                  <SelectItem value="gr_number">GR Number</SelectItem>
-                                  <SelectItem value="roll_number">Roll Number</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                This determines what identifier the student will use to log in
-                              </p>
-                            </div>
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsLoginSettingsDialogOpen(false)}
-                              >
-                                Cancel
-                              </Button>
-                              <Button onClick={handleUpdateLoginSettings}>Save Changes</Button>
-                            </div>
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setIsPasswordDialogOpen(false);
+                                setNewPassword("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button onClick={handleUpdatePassword}>Update Password</Button>
                           </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    <Dialog open={isLoginSettingsDialogOpen} onOpenChange={setIsLoginSettingsDialogOpen}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Edit Login ID Type</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="login_id_type">Login ID Type</Label>
+                            <Select
+                              value={loginIdType}
+                              onValueChange={(value: 'gr_number' | 'roll_number' | 'email') => setLoginIdType(value)}
+                            >
+                              <SelectTrigger id="login_id_type">
+                                <SelectValue placeholder="Select login ID type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="email">Email</SelectItem>
+                                <SelectItem value="gr_number">GR Number</SelectItem>
+                                <SelectItem value="roll_number">Roll Number</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              This determines what identifier the student will use to log in
+                            </p>
+                          </div>
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsLoginSettingsDialogOpen(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button onClick={handleUpdateLoginSettings}>Save Changes</Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </>
                 )}
               </div>

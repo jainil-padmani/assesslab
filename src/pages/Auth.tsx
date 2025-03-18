@@ -63,6 +63,13 @@ const Auth = () => {
 
     try {
       if (isSignUp) {
+        // Only allow signup in teacher mode
+        if (!isTeacherMode) {
+          toast.error("Student accounts can only be created by teachers");
+          setIsLoading(false);
+          return;
+        }
+        
         console.log("Starting signup process with name:", name);
         
         // Include name in user_metadata during signup
@@ -72,7 +79,7 @@ const Auth = () => {
           options: {
             data: {
               name: name, // This matches the name field in our profiles table trigger
-              role: isTeacherMode ? "teacher" : "student"
+              role: "teacher" // Always set role to teacher since only teachers can sign up
             }
           }
         });
@@ -174,13 +181,13 @@ const Auth = () => {
           </div>
           <CardTitle className="text-2xl text-center font-bold">
             {isSignUp 
-              ? `Create a${isTeacherMode ? " Teacher" : " Student"} Account` 
-              : `Sign in to Testara${isTeacherMode ? " (Teacher)" : ""}`}
+              ? "Create a Teacher Account" 
+              : `Sign in to Testara${isTeacherMode ? " (Teacher)" : " (Student)"}`}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
-            {isSignUp && (
+            {isSignUp && isTeacherMode && (
               <div className="space-y-2">
                 <Input
                   id="name"
@@ -227,15 +234,17 @@ const Auth = () => {
               )}
             </Button>
             <div className="flex flex-col space-y-2 text-center">
-              <Button
-                variant="link"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm text-gray-600 hover:text-accent"
-              >
-                {isSignUp
-                  ? "Already have an account? Sign in"
-                  : "Need an account? Sign up"}
-              </Button>
+              {isTeacherMode && (
+                <Button
+                  variant="link"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  className="text-sm text-gray-600 hover:text-accent"
+                >
+                  {isSignUp
+                    ? "Already have an account? Sign in"
+                    : "Need an account? Sign up"}
+                </Button>
+              )}
               
               {!isTeacherMode && !isSignUp && (
                 <Button
@@ -257,7 +266,7 @@ const Auth = () => {
                 </Button>
               )}
               
-              {!isSignUp && isTeacherMode && (
+              {!isSignUp && (
                 <Button
                   variant="link"
                   onClick={() => setIsForgotPassword(true)}
