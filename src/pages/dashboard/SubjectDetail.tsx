@@ -45,7 +45,14 @@ export default function SubjectDetail() {
         .order('name');
 
       if (studentsError) throw studentsError;
-      if (studentsData) setStudents(studentsData);
+      if (studentsData) {
+        // Properly cast the login_id_type to the expected type
+        const typedStudents = studentsData.map(student => ({
+          ...student,
+          login_id_type: (student.login_id_type || 'email') as 'gr_number' | 'roll_number' | 'email'
+        }));
+        setStudents(typedStudents);
+      }
 
       const { data: answerKeyData, error: answerKeyError } = await supabase
         .from('answer_keys')

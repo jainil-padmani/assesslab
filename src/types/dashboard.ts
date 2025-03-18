@@ -77,4 +77,5 @@ export type AnalysisResult = {
   analysis: any;
   created_at: string;
   user_id: string;
+  expectedBloomsTaxonomy?: BloomsTaxonomy; // Adding this property that was missing
 };
