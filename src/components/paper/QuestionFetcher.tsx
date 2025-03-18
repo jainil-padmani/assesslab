@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -170,7 +171,7 @@ export function QuestionFetcher({
                       question.options.map((opt: string) => ({
                         text: opt,
                         isCorrect: opt === question.correct_answer
-                      })) :
+                      })) : 
                       // Format: [{text: "Option 1", isCorrect: true}, ...]
                       question.options
                     ) : 
