@@ -32,6 +32,13 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
     const formData = new FormData(form);
     
     const yearValue = formData.get("year") as string;
+    
+    // Get login related fields
+    const loginEnabled = formData.get("login_enabled") === "on";
+    const loginIdType = formData.get("login_id_type") as "gr_number" | "roll_number" | "email" || "gr_number";
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    
     const studentData = {
       name: formData.get("name") as string,
       gr_number: formData.get("gr_number") as string,
@@ -40,6 +47,10 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       department: formData.get("department") as string,
       overall_percentage: parseFloat(formData.get("overall_percentage") as string) || null,
       class_id: formData.get("class_id") as string || null,
+      login_enabled: loginEnabled,
+      login_id_type: loginIdType,
+      email: email || null,
+      password: password || undefined,
     };
 
     try {

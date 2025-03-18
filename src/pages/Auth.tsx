@@ -3,10 +3,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, Loader2 } from "lucide-react";
+import { Mail, Loader2, GraduationCap, BookOpen } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -15,6 +15,8 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isTeacherMode, setIsTeacherMode] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
   // Check if user is already logged in
@@ -27,7 +29,13 @@ const Auth = () => {
     };
     
     checkUser();
-  }, [navigate]);
+    
+    // Check if teacher mode is requested via URL parameter
+    const mode = searchParams.get("mode");
+    if (mode === "teacher") {
+      setIsTeacherMode(true);
+    }
+  }, [navigate, searchParams]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +71,8 @@ const Auth = () => {
           password,
           options: {
             data: {
-              name: name // This matches the name field in our profiles table trigger
+              name: name, // This matches the name field in our profiles table trigger
+              role: isTeacherMode ? "teacher" : "student"
             }
           }
         });
@@ -156,8 +165,17 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <div className="flex justify-center mb-2">
+            {isTeacherMode ? (
+              <BookOpen className="h-10 w-10 text-primary" />
+            ) : (
+              <GraduationCap className="h-10 w-10 text-primary" />
+            )}
+          </div>
           <CardTitle className="text-2xl text-center font-bold">
-            {isSignUp ? "Create an account" : "Sign in to TeachLab"}
+            {isSignUp 
+              ? `Create a${isTeacherMode ? " Teacher" : " Student"} Account` 
+              : `Sign in to Testara${isTeacherMode ? " (Teacher)" : ""}`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -218,7 +236,28 @@ const Auth = () => {
                   ? "Already have an account? Sign in"
                   : "Need an account? Sign up"}
               </Button>
-              {!isSignUp && (
+              
+              {!isTeacherMode && !isSignUp && (
+                <Button
+                  variant="link"
+                  onClick={() => navigate('/auth?mode=teacher')}
+                  className="text-sm text-gray-600 hover:text-accent"
+                >
+                  Teacher Login
+                </Button>
+              )}
+              
+              {isTeacherMode && !isSignUp && (
+                <Button
+                  variant="link"
+                  onClick={() => navigate('/auth')}
+                  className="text-sm text-gray-600 hover:text-accent"
+                >
+                  Student Login
+                </Button>
+              )}
+              
+              {!isSignUp && isTeacherMode && (
                 <Button
                   variant="link"
                   onClick={() => setIsForgotPassword(true)}
