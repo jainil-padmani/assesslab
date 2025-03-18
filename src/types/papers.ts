@@ -89,5 +89,5 @@ export interface PaperFormat {
   pdfUrl?: string; // URL to the generated PDF
 }
 
-// Re-export Json type from Supabase
-export { Json };
+// Re-export Json type from Supabase - must use 'export type' with isolatedModules
+export type { Json };
