@@ -263,6 +263,15 @@ export default function StudentDetail() {
     return student.gr_number;
   };
 
+  const loginStatusBadge = (
+    <Badge 
+      variant={student.login_enabled ? "secondary" : "outline"}
+      className={student.login_enabled ? "bg-green-100 text-green-800 hover:bg-green-200" : ""}
+    >
+      {student.login_enabled ? "Enabled" : "Disabled"}
+    </Badge>
+  );
+
   return (
     <div className="container mx-auto px-4">
       <Button
@@ -386,10 +395,8 @@ export default function StudentDetail() {
                       <ShieldX className="h-5 w-5 text-gray-400" />
                     )}
                     <span>Login Status</span>
+                    {loginStatusBadge}
                   </div>
-                  <Badge variant={student.login_enabled ? "success" : "secondary"}>
-                    {student.login_enabled ? "Enabled" : "Disabled"}
-                  </Badge>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -606,4 +613,3 @@ export default function StudentDetail() {
     </div>
   );
 }
-

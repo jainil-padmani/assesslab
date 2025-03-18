@@ -7,8 +7,10 @@ export function useQuestionFetching() {
   
   // Function to fetch questions for a subject
   const fetchSubjectQuestions = async (subjectId: string) => {
+    // The subject_questions table doesn't exist in the database schema
+    // Let's use a valid table instead
     const { data, error } = await supabase
-      .from("subject_questions")
+      .from("generated_questions")
       .select("*")
       .eq("subject_id", subjectId);
     
@@ -18,8 +20,9 @@ export function useQuestionFetching() {
   
   // Function to add a question
   const addQuestion = async (questionData: any) => {
+    // Use generated_questions table instead of subject_questions
     const { data, error } = await supabase
-      .from("subject_questions")
+      .from("generated_questions")
       .insert(questionData)
       .select();
     

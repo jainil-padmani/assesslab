@@ -35,14 +35,16 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
     
     // Get login related fields
     const loginEnabled = formData.get("login_enabled") === "on";
-    const loginIdType = formData.get("login_id_type") as "gr_number" | "roll_number" | "email" || "gr_number";
+    const loginIdType = (formData.get("login_id_type") as "gr_number" | "roll_number" | "email") || "email";
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    
+    const rollNumber = formData.get("roll_number") as string || null;
     
     const studentData = {
       name: formData.get("name") as string,
       gr_number: formData.get("gr_number") as string,
-      roll_number: formData.get("roll_number") as string || null,
+      roll_number: rollNumber,
       year: yearValue ? parseInt(yearValue) : null,
       department: formData.get("department") as string,
       overall_percentage: parseFloat(formData.get("overall_percentage") as string) || null,
@@ -50,7 +52,7 @@ export default function StudentForm({ student, onClose, classes, isClassesLoadin
       login_enabled: loginEnabled,
       login_id_type: loginIdType,
       email: email || null,
-      password: password || undefined,
+      password: password || (loginEnabled ? rollNumber : undefined),
     };
 
     try {
