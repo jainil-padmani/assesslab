@@ -28,16 +28,15 @@ export const useCreateStudent = () => {
           password = studentData.roll_number;
         }
         
-        // Strip out the password field before inserting into students table
-        const { password: passwordField, ...studentRecord } = studentData;
-        
+        // Store the student record with the plain text password
+        // No more stripping out the password field - we store it directly now
         const { data, error } = await supabase
           .from("students")
           .insert({ 
-            ...studentRecord, 
+            ...studentData, 
             login_enabled: studentData.login_enabled || false,
             login_id_type: loginIdType,
-            password: password, // This will be hashed by DB trigger
+            password: password, // This will now be stored as plain text
             user_id: (await supabase.auth.getUser()).data.user.id
           })
           .select();

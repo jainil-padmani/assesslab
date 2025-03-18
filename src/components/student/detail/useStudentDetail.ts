@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +19,7 @@ export function useStudentDetail() {
   const { data: student } = useQuery({
     queryKey: ["student", id],
     queryFn: async () => {
-      // First, get the student record
+      // First, get the student record (now with plain text password)
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*, classes(name)")
@@ -34,9 +35,8 @@ export function useStudentDetail() {
         setLoginIdType(result.login_id_type as "gr_number" | "roll_number" | "email");
       }
       
-      // For password display, we're using the raw stored password (or roll number as fallback)
-      // In this system, we're storing actual passwords to allow viewing them
-      // Note: In production systems, this would be a security concern
+      // Now we have the actual plain text password
+      // No need to do any special handling anymore
       
       return result;
     },
@@ -142,7 +142,7 @@ export function useStudentDetail() {
     },
   });
 
-  // Update student password mutation
+  // Update student password mutation - now storing plain text password
   const updatePasswordMutation = useMutation({
     mutationFn: async (password: string) => {
       const { error } = await supabase

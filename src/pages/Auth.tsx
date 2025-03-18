@@ -103,13 +103,68 @@ const Auth = () => {
           }
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        toast.success("Successfully signed in!");
-        navigate("/dashboard");
+        // Student login handling
+        if (!isTeacherMode) {
+          console.log("Attempting student login with:", email, password);
+          
+          // First, try to find the student by login ID type
+          let query = supabase.from("students").select("*");
+          
+          // Check if login credential is an email
+          if (email.includes('@')) {
+            query = query.eq("email", email);
+          } 
+          // Check if it's a GR number (typically starts with specific patterns or is numeric)
+          else if (/^\d+$/.test(email)) {
+            query = query.or(`gr_number.eq.${email},roll_number.eq.${email}`);
+          } 
+          // Fallback to checking all ID types
+          else {
+            query = query.or(`gr_number.eq.${email},roll_number.eq.${email},email.eq.${email}`);
+          }
+          
+          const { data: studentData, error: studentError } = await query.eq("login_enabled", true);
+          
+          console.log("Student query result:", studentData, studentError);
+          
+          if (studentError) {
+            throw studentError;
+          }
+          
+          if (!studentData || studentData.length === 0) {
+            throw new Error("Student not found or login not enabled");
+          }
+          
+          // Find student with matching password (plain text comparison)
+          const student = studentData.find(s => s.password === password);
+          
+          if (!student) {
+            throw new Error("Invalid login credentials");
+          }
+          
+          // Student login successful
+          // Since our system doesn't have actual auth entries for students, 
+          // we'll create a local session
+          localStorage.setItem('studentUser', JSON.stringify({
+            id: student.id,
+            name: student.name,
+            email: student.email,
+            gr_number: student.gr_number,
+            role: 'student'
+          }));
+          
+          toast.success(`Welcome, ${student.name}!`);
+          navigate("/dashboard/student");
+        } else {
+          // Regular teacher login through Supabase Auth
+          const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (error) throw error;
+          toast.success("Successfully signed in!");
+          navigate("/dashboard");
+        }
       }
     } catch (error: any) {
       console.error("Auth error:", error);
@@ -202,8 +257,8 @@ const Auth = () => {
             <div className="space-y-2">
               <Input
                 id="email"
-                type="email"
-                placeholder="Email address"
+                type="text"
+                placeholder={isTeacherMode ? "Email address" : "Email, GR Number or Roll Number"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
