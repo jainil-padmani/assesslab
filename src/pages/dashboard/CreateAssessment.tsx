@@ -39,6 +39,7 @@ export default function CreateAssessment() {
   const [hideCorrectAnswersAt, setHideCorrectAnswersAt] = useState<Date | undefined>(undefined);
   const [oneQuestionAtTime, setOneQuestionAtTime] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [requireAccessCode, setRequireAccessCode] = useState(false);
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [availableFrom, setAvailableFrom] = useState<Date | undefined>(undefined);
   const [availableUntil, setAvailableUntil] = useState<Date | undefined>(undefined);
@@ -92,7 +93,7 @@ export default function CreateAssessment() {
           show_correct_answers_at: showCorrectAnswersAt?.toISOString(),
           hide_correct_answers_at: hideCorrectAnswersAt?.toISOString(),
           one_question_at_time: oneQuestionAtTime,
-          access_code: accessCode || null,
+          access_code: requireAccessCode ? accessCode : null,
           due_date: dueDate?.toISOString(),
           available_from: availableFrom?.toISOString(),
           available_until: availableUntil?.toISOString(),
@@ -147,6 +148,14 @@ export default function CreateAssessment() {
 
   const handleSave = (publish: boolean = false) => {
     createAssessmentMutation.mutate({ status: publish ? 'published' : 'draft' });
+  };
+
+  // Handle access code toggle
+  const handleAccessCodeToggle = (checked: boolean) => {
+    setRequireAccessCode(checked);
+    if (!checked) {
+      setAccessCode('');
+    }
   };
 
   return (
@@ -371,19 +380,18 @@ export default function CreateAssessment() {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="accessCode">Require an access code</Label>
                   <Switch 
-                    checked={!!accessCode} 
-                    onCheckedChange={(checked) => {
-                      if (!checked) setAccessCode('');
-                    }} 
+                    checked={requireAccessCode}
+                    onCheckedChange={handleAccessCodeToggle}
                   />
                 </div>
                 
-                {accessCode !== '' && (
+                {requireAccessCode && (
                   <Input 
                     id="accessCode" 
                     value={accessCode} 
                     onChange={(e) => setAccessCode(e.target.value)}
                     placeholder="ex: Password85"
+                    className="mt-2"
                   />
                 )}
               </div>
