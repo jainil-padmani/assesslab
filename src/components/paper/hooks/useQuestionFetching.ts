@@ -109,7 +109,7 @@ export function useQuestionFetching({ subjectId, level, courseOutcome, open }: U
                 level: String(question.level),
                 courseOutcome: 'courseOutcome' in question ? Number(question.courseOutcome) : undefined,
                 answer: 'answer' in question ? String(question.answer) : 
-                         'correct_answer' in question ? String(question.correct_answer) : undefined,
+                       'correct_answer' in question ? String(question.correct_answer) : undefined,
                 options: 'options' in question ? 
                   (Array.isArray(question.options) ? 
                     // Handle different options formats
