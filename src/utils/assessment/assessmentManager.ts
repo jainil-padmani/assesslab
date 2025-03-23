@@ -45,6 +45,8 @@ export const fetchExistingAssessments = async (
   subjectId: string,
   testId?: string
 ) => {
+  console.log("Fetching assessments for:", { studentId, subjectId, testId });
+  
   let query = supabase
     .from('assessments')
     .select('id, answer_sheet_url, text_content, zip_url');
@@ -62,6 +64,7 @@ export const fetchExistingAssessments = async (
     throw error;
   }
   
+  console.log("Found assessments:", data);
   return data || [];
 };
 
@@ -72,12 +75,17 @@ export const updateAssessment = async (
   assessmentId: string,
   assessmentData: AssessmentData
 ) => {
+  console.log("Updating assessment:", { assessmentId, assessmentData });
+  
   const { error } = await supabase
     .from('assessments')
     .update(assessmentData)
     .eq('id', assessmentId);
     
-  if (error) throw error;
+  if (error) {
+    console.error("Error updating assessment:", error);
+    throw error;
+  }
   
   toast.success('Answer sheet updated successfully');
 };
@@ -86,60 +94,125 @@ export const updateAssessment = async (
  * Creates a new assessment
  */
 export const createAssessment = async (assessmentData: AssessmentData) => {
-  const { error } = await supabase
+  console.log("Creating assessment with data:", assessmentData);
+  
+  const { data, error } = await supabase
     .from('assessments')
     .insert({
       ...assessmentData,
       created_at: new Date().toISOString()
-    });
+    })
+    .select();
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error creating assessment:", error);
+    throw error;
+  }
+  
+  console.log("Assessment created:", data);
   toast.success('Answer sheet uploaded successfully');
+  
+  return data[0];
 };
 
 /**
  * Creates a new online assessment with questions
  */
 export const createOnlineAssessment = async (data: CreateOnlineAssessmentData) => {
+  console.log("Creating online assessment with data:", data);
   const { questions, ...assessmentData } = data;
   
-  // Create assessment
-  const { data: createdAssessment, error } = await supabase
-    .from("assessments")
-    .insert(assessmentData)
-    .select()
-    .single();
-    
-  if (error) {
-    console.error("Assessment creation error:", error);
-    throw new Error(`Database error: ${error.message}`);
-  }
-  
-  // Add questions if any
-  if (questions && questions.length > 0 && createdAssessment) {
-    const formattedQuestions = questions.map((q, index) => ({
-      assessment_id: createdAssessment.id,
-      question_text: q.question_text,
-      question_type: q.question_type,
-      options: q.options,
-      correct_answer: q.correct_answer,
-      marks: q.marks,
-      order_number: index + 1,
-      source_question_id: q.source_question_id
-    }));
-    
-    const { error: questionsError } = await supabase
-      .from("assessment_questions")
-      .insert(formattedQuestions);
+  try {
+    // Create assessment
+    const { data: createdAssessment, error } = await supabase
+      .from("assessments")
+      .insert(assessmentData)
+      .select()
+      .single();
       
-    if (questionsError) {
-      console.error("Questions insert error:", questionsError);
-      // Don't throw here since assessment was created successfully
-      toast.error(`Warning: Questions could not be added: ${questionsError.message}`);
+    if (error) {
+      console.error("Assessment creation error:", error);
+      throw new Error(`Database error: ${error.message}`);
     }
+    
+    console.log("Assessment created successfully:", createdAssessment);
+    
+    // Add questions if any
+    if (questions && questions.length > 0 && createdAssessment) {
+      const formattedQuestions = questions.map((q, index) => ({
+        assessment_id: createdAssessment.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        marks: q.marks,
+        order_number: index + 1,
+        source_question_id: q.source_question_id
+      }));
+      
+      console.log("Adding questions to assessment:", formattedQuestions);
+      
+      const { data: questionData, error: questionsError } = await supabase
+        .from("assessment_questions")
+        .insert(formattedQuestions)
+        .select();
+        
+      if (questionsError) {
+        console.error("Questions insert error:", questionsError);
+        // Don't throw here since assessment was created successfully
+        toast.error(`Warning: Questions could not be added: ${questionsError.message}`);
+      } else {
+        console.log("Questions added successfully:", questionData);
+      }
+    }
+    
+    return createdAssessment;
+  } catch (error: any) {
+    console.error("Complete error creating assessment:", error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch assessment details by ID
+ */
+export const fetchAssessmentById = async (assessmentId: string) => {
+  console.log("Fetching assessment by ID:", assessmentId);
+  
+  const { data, error } = await supabase
+    .from("assessments")
+    .select("*, subjects(*)")
+    .eq("id", assessmentId)
+    .single();
+  
+  if (error) {
+    console.error("Error fetching assessment:", error);
+    throw error;
   }
   
-  return createdAssessment;
+  console.log("Assessment details:", data);
+  return data;
+};
+
+/**
+ * Fetch assessment questions
+ */
+export const fetchAssessmentQuestions = async (assessmentId: string) => {
+  console.log("Fetching questions for assessment:", assessmentId);
+  
+  const { data, error } = await supabase
+    .from("assessment_questions")
+    .select("*")
+    .eq("assessment_id", assessmentId)
+    .order("order_number");
+  
+  if (error) {
+    console.error("Error fetching assessment questions:", error);
+    throw error;
+  }
+  
+  console.log("Assessment questions:", data);
+  return data || [];
 };
 
 /**

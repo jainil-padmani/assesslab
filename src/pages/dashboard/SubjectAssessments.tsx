@@ -29,11 +29,14 @@ export default function SubjectAssessments() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const navigate = useNavigate();
 
-  const { data: subject } = useQuery({
+  console.log("Current subjectId:", subjectId);
+
+  const { data: subject, isLoading: isSubjectLoading } = useQuery({
     queryKey: ["subject", subjectId],
     queryFn: async () => {
       if (!subjectId) return null;
       
+      console.log("Fetching subject details for:", subjectId);
       const { data, error } = await supabase
         .from("subjects")
         .select("*")
@@ -41,20 +44,23 @@ export default function SubjectAssessments() {
         .single();
       
       if (error) {
+        console.error("Error fetching subject:", error);
         toast.error("Failed to load subject details");
         throw error;
       }
       
+      console.log("Subject details:", data);
       return data;
     },
     enabled: !!subjectId,
   });
 
-  const { data: assessments, isLoading } = useQuery({
+  const { data: assessments, isLoading: isAssessmentsLoading } = useQuery({
     queryKey: ["subjectAssessments", subjectId],
     queryFn: async () => {
       if (!subjectId) return [];
       
+      console.log("Fetching assessments for subject:", subjectId);
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -69,17 +75,33 @@ export default function SubjectAssessments() {
         .order("created_at", { ascending: false });
       
       if (error) {
+        console.error("Error fetching assessments:", error);
         toast.error("Failed to load assessments");
         throw error;
       }
       
+      console.log("Assessments found:", data);
       return data as Assessment[];
     },
     enabled: !!subjectId,
   });
 
-  if (isLoading) {
+  if (isSubjectLoading || isAssessmentsLoading) {
     return <div className="container mx-auto mt-8">Loading...</div>;
+  }
+
+  if (!subject) {
+    return (
+      <div className="container mx-auto mt-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-4">Subject Not Found</h2>
+          <p className="mb-6">The subject you're looking for doesn't exist or you don't have access to it.</p>
+          <Button onClick={() => navigate("/dashboard/assessments")}>
+            Back to Subjects
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -133,7 +155,7 @@ export default function SubjectAssessments() {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => navigate(`/dashboard/assessments/detail/${assessment.id}`)}
                   >
-                    <TableCell className="font-medium">{assessment.title}</TableCell>
+                    <TableCell className="font-medium">{assessment.title || "Untitled Assessment"}</TableCell>
                     <TableCell>
                       <Badge variant={assessment.status === 'published' ? 'success' : 'secondary'}>
                         {assessment.status === 'published' ? 'Published' : 'Draft'}

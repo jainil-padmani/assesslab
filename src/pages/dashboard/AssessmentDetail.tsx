@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,26 +22,36 @@ export default function AssessmentDetail() {
   const tabFromQuery = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(tabFromQuery || "details");
   
+  console.log("Current assessmentId:", assessmentId);
+  
   // Fetch assessment details
-  const { data: assessment, isLoading: isAssessmentLoading } = useQuery({
+  const { data: assessment, isLoading: isAssessmentLoading, error: assessmentError } = useQuery({
     queryKey: ["assessment", assessmentId],
     queryFn: async () => {
       if (!assessmentId) return null;
       
-      const { data, error } = await supabase
-        .from("assessments")
-        .select("*, subjects(*)")
-        .eq("id", assessmentId)
-        .single();
-      
-      if (error) {
-        toast.error("Failed to load assessment details");
+      console.log("Fetching assessment details for:", assessmentId);
+      try {
+        const { data, error } = await supabase
+          .from("assessments")
+          .select("*, subjects(*)")
+          .eq("id", assessmentId)
+          .single();
+        
+        if (error) {
+          console.error("Error fetching assessment details:", error);
+          throw error;
+        }
+        
+        console.log("Assessment details found:", data);
+        return data as Assessment & { subjects: { name: string, subject_code: string } };
+      } catch (error) {
+        console.error("Failed to load assessment details:", error);
         throw error;
       }
-      
-      return data as Assessment & { subjects: { name: string, subject_code: string } };
     },
-    enabled: !!assessmentId
+    enabled: !!assessmentId,
+    retry: 1,
   });
   
   // Fetch assessment questions
@@ -133,8 +142,18 @@ export default function AssessmentDetail() {
     return <div className="container mx-auto mt-8">Loading assessment details...</div>;
   }
   
-  if (!assessment) {
-    return <div className="container mx-auto mt-8">Assessment not found</div>;
+  if (assessmentError || !assessment) {
+    return (
+      <div className="container mx-auto mt-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-4">Assessment Not Found</h2>
+          <p className="mb-6">The assessment you're looking for doesn't exist or you don't have access to it.</p>
+          <Button onClick={() => navigate("/dashboard/assessments")}>
+            Back to Assessments
+          </Button>
+        </div>
+      </div>
+    );
   }
   
   const assessmentLink = assessment.link_code 
