@@ -29,6 +29,11 @@ import PaperGeneration from "./pages/dashboard/PaperGeneration";
 import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
 import GeneratedQuestionsHistory from "./pages/dashboard/GeneratedQuestionsHistory";
+import Assessments from "./pages/dashboard/Assessments";
+import SubjectAssessments from "./pages/dashboard/SubjectAssessments";
+import CreateAssessment from "./pages/dashboard/CreateAssessment";
+import AssessmentDetail from "./pages/dashboard/AssessmentDetail";
+import TakeAssessment from "./pages/TakeAssessment";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +48,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/take-assessment/:linkCode" element={<TakeAssessment />} />
               <Route path="/dashboard" element={<DashboardLayout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="students" element={<Students />} />
@@ -54,6 +60,11 @@ function App() {
                 <Route path="tests" element={<Tests />} />
                 <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
                 <Route path="tests/detail/:testId" element={<TestDetail />} />
+                <Route path="assessments" element={<Assessments />} />
+                <Route path="assessments/subject/:subjectId" element={<SubjectAssessments />} />
+                <Route path="assessments/create" element={<CreateAssessment />} />
+                <Route path="assessments/create/:subjectId" element={<CreateAssessment />} />
+                <Route path="assessments/detail/:assessmentId" element={<AssessmentDetail />} />
                 <Route path="analysis" element={<Analysis />} />
                 <Route path="analysis-result" element={<AnalysisResult />} />
                 <Route path="analysis-history" element={<AnalysisHistory />} />

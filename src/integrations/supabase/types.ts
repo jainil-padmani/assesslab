@@ -438,6 +438,48 @@ export type Database = {
         }
         Relationships: []
       }
+      student_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          student_id: string
+          test_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          student_id: string
+          test_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          student_id?: string
+          test_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_notifications_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_subjects: {
         Row: {
           created_at: string
@@ -486,10 +528,13 @@ export type Database = {
           email: string | null
           gr_number: string
           id: string
+          login_enabled: boolean | null
+          login_id_type: string | null
           name: string
           overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
+          password: string | null
           roll_number: string | null
           user_id: string | null
           year: number | null
@@ -502,10 +547,13 @@ export type Database = {
           email?: string | null
           gr_number: string
           id?: string
+          login_enabled?: boolean | null
+          login_id_type?: string | null
           name: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -518,10 +566,13 @@ export type Database = {
           email?: string | null
           gr_number?: string
           id?: string
+          login_enabled?: boolean | null
+          login_id_type?: string | null
           name?: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
