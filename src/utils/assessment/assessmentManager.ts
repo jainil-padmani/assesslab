@@ -123,6 +123,19 @@ export const createOnlineAssessment = async (data: CreateOnlineAssessmentData) =
   const { questions, ...assessmentData } = data;
   
   try {
+    // Check if the assessment_questions table exists
+    const { error: tableCheckError } = await supabase
+      .from("assessment_questions")
+      .select("id")
+      .limit(1);
+      
+    if (tableCheckError && tableCheckError.code === "42P01") {
+      // Table doesn't exist, log the error
+      console.error("assessment_questions table does not exist:", tableCheckError);
+      toast.error("Error: Database schema is missing required tables. Please contact support.");
+      throw new Error("Database schema is missing required tables");
+    }
+    
     // Create assessment
     const { data: createdAssessment, error } = await supabase
       .from("assessments")
@@ -169,6 +182,7 @@ export const createOnlineAssessment = async (data: CreateOnlineAssessmentData) =
     return createdAssessment;
   } catch (error: any) {
     console.error("Complete error creating assessment:", error);
+    toast.error(`Error creating assessment: ${error.message}`);
     throw error;
   }
 };
@@ -179,19 +193,35 @@ export const createOnlineAssessment = async (data: CreateOnlineAssessmentData) =
 export const fetchAssessmentById = async (assessmentId: string) => {
   console.log("Fetching assessment by ID:", assessmentId);
   
-  const { data, error } = await supabase
-    .from("assessments")
-    .select("*, subjects(*)")
-    .eq("id", assessmentId)
-    .single();
-  
-  if (error) {
-    console.error("Error fetching assessment:", error);
+  try {
+    const { data, error } = await supabase
+      .from("assessments")
+      .select("*, subjects(*)")
+      .eq("id", assessmentId)
+      .single();
+    
+    if (error) {
+      console.error("Error fetching assessment:", error);
+      if (error.code === "PGRST116") {
+        toast.error("Assessment not found");
+      } else {
+        toast.error(`Error fetching assessment: ${error.message}`);
+      }
+      throw error;
+    }
+    
+    if (!data) {
+      console.error("Assessment not found with ID:", assessmentId);
+      toast.error("Assessment not found");
+      throw new Error("Assessment not found");
+    }
+    
+    console.log("Assessment details:", data);
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch assessment:", error);
     throw error;
   }
-  
-  console.log("Assessment details:", data);
-  return data;
 };
 
 /**
@@ -200,19 +230,38 @@ export const fetchAssessmentById = async (assessmentId: string) => {
 export const fetchAssessmentQuestions = async (assessmentId: string) => {
   console.log("Fetching questions for assessment:", assessmentId);
   
-  const { data, error } = await supabase
-    .from("assessment_questions")
-    .select("*")
-    .eq("assessment_id", assessmentId)
-    .order("order_number");
-  
-  if (error) {
-    console.error("Error fetching assessment questions:", error);
+  try {
+    // Check if the assessment_questions table exists
+    const { error: tableCheckError } = await supabase
+      .from("assessment_questions")
+      .select("id")
+      .limit(1);
+      
+    if (tableCheckError && tableCheckError.code === "42P01") {
+      // Table doesn't exist, log the error
+      console.error("assessment_questions table does not exist:", tableCheckError);
+      toast.error("Error: Database schema is missing required tables for questions");
+      return [];
+    }
+    
+    const { data, error } = await supabase
+      .from("assessment_questions")
+      .select("*")
+      .eq("assessment_id", assessmentId)
+      .order("order_number");
+    
+    if (error) {
+      console.error("Error fetching assessment questions:", error);
+      toast.error(`Failed to load assessment questions: ${error.message}`);
+      throw error;
+    }
+    
+    console.log("Assessment questions:", data);
+    return data || [];
+  } catch (error) {
+    console.error("Error in fetchAssessmentQuestions:", error);
     throw error;
   }
-  
-  console.log("Assessment questions:", data);
-  return data || [];
 };
 
 /**

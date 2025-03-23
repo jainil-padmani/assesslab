@@ -56,3 +56,13 @@ export interface StudentAssessmentAttempt {
   answers?: Record<string, any>;
   created_at: string;
 }
+
+export interface StudentAssessmentAnswer {
+  id?: string;
+  attempt_id: string;
+  question_id: string;
+  student_answer: string;
+  is_correct?: boolean | null;
+  marks_awarded?: number | null;
+  created_at?: string;
+}

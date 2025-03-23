@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Student } from "@/types/dashboard";
+import { fetchAssessmentById, fetchAssessmentQuestions } from "@/utils/assessment/assessmentManager";
 
 export default function AssessmentDetail() {
   const { assessmentId } = useParams<{ assessmentId: string }>();
@@ -30,20 +31,8 @@ export default function AssessmentDetail() {
     queryFn: async () => {
       if (!assessmentId) return null;
       
-      console.log("Fetching assessment details for:", assessmentId);
       try {
-        const { data, error } = await supabase
-          .from("assessments")
-          .select("*, subjects(*)")
-          .eq("id", assessmentId)
-          .single();
-        
-        if (error) {
-          console.error("Error fetching assessment details:", error);
-          throw error;
-        }
-        
-        console.log("Assessment details found:", data);
+        const data = await fetchAssessmentById(assessmentId);
         return data as Assessment & { subjects: { name: string, subject_code: string } };
       } catch (error) {
         console.error("Failed to load assessment details:", error);
@@ -60,20 +49,15 @@ export default function AssessmentDetail() {
     queryFn: async () => {
       if (!assessmentId) return [];
       
-      const { data, error } = await supabase
-        .from("assessment_questions")
-        .select("*")
-        .eq("assessment_id", assessmentId)
-        .order("order_number");
-      
-      if (error) {
-        toast.error("Failed to load assessment questions");
+      try {
+        return await fetchAssessmentQuestions(assessmentId);
+      } catch (error) {
+        console.error("Error in questions query:", error);
         throw error;
       }
-      
-      return data as AssessmentQuestion[];
     },
-    enabled: !!assessmentId
+    enabled: !!assessmentId && !!assessment,
+    retry: 1
   });
   
   // Fetch student attempts
@@ -82,20 +66,38 @@ export default function AssessmentDetail() {
     queryFn: async () => {
       if (!assessmentId) return [];
       
-      const { data, error } = await supabase
-        .from("student_assessment_attempts")
-        .select("*, students(*)")
-        .eq("assessment_id", assessmentId)
-        .order("created_at", { ascending: false });
-      
-      if (error) {
-        toast.error("Failed to load student attempts");
-        throw error;
+      try {
+        // Check if the student_assessment_attempts table exists
+        const { error: tableCheckError } = await supabase
+          .from("student_assessment_attempts")
+          .select("id")
+          .limit(1);
+          
+        if (tableCheckError && tableCheckError.code === "42P01") {
+          // Table doesn't exist
+          console.error("student_assessment_attempts table does not exist:", tableCheckError);
+          return [];
+        }
+        
+        const { data, error } = await supabase
+          .from("student_assessment_attempts")
+          .select("*, students(*)")
+          .eq("assessment_id", assessmentId)
+          .order("created_at", { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching student attempts:", error);
+          toast.error("Failed to load student attempts");
+          throw error;
+        }
+        
+        return data as (StudentAssessmentAttempt & { students: Student })[];
+      } catch (error) {
+        console.error("Error in attempts query:", error);
+        return [];
       }
-      
-      return data as (StudentAssessmentAttempt & { students: Student })[];
     },
-    enabled: !!assessmentId
+    enabled: !!assessmentId && !!assessment
   });
   
   const copyAssessmentLink = () => {
