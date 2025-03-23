@@ -18,13 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 
 export default function TestDetail() {
   const { testId } = useParams<{ testId: string }>();
   const [searchParams] = useSearchParams();
   const [notificationMessage, setNotificationMessage] = useState<string>("");
   const [isNotifyDialogOpen, setIsNotifyDialogOpen] = useState(false);
+  const [notifyAllStudents, setNotifyAllStudents] = useState(true);
   
   // Get student ID from URL if present
   const studentId = searchParams.get('student');
@@ -44,7 +47,14 @@ export default function TestDetail() {
   } = useTestDetail(testId);
 
   // Use the hook to get class students and the notify function
-  const { notifyStudents } = useClassStudents(test?.class_id || "");
+  const { 
+    classStudents, 
+    notifyStudents, 
+    selectedStudents,
+    toggleStudentSelection,
+    selectAllStudents,
+    clearStudentSelection
+  } = useClassStudents(test?.class_id || "");
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Loading...</div>;
@@ -66,11 +76,24 @@ export default function TestDetail() {
     }
     
     const message = notificationMessage.trim();
-    const success = await notifyStudents(testId, message);
+    const success = await notifyStudents(
+      testId, 
+      message, 
+      notifyAllStudents ? undefined : selectedStudents
+    );
     
     if (success) {
       setNotificationMessage("");
       setIsNotifyDialogOpen(false);
+    }
+  };
+
+  const handleToggleAll = () => {
+    if (notifyAllStudents) {
+      setNotifyAllStudents(false);
+      clearStudentSelection();
+    } else {
+      setNotifyAllStudents(true);
     }
   };
 
@@ -85,17 +108,76 @@ export default function TestDetail() {
               Notify Students
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Notify Students About Test Changes</DialogTitle>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 space-y-4">
               <Textarea
                 placeholder="Enter notification message for students..."
                 value={notificationMessage}
                 onChange={(e) => setNotificationMessage(e.target.value)}
                 className="min-h-[100px]"
               />
+              
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="notify-all" 
+                    checked={notifyAllStudents}
+                    onCheckedChange={handleToggleAll}
+                  />
+                  <label 
+                    htmlFor="notify-all" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Notify all students in this class
+                  </label>
+                </div>
+                
+                {!notifyAllStudents && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-medium">Select students to notify:</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={selectedStudents.length === classStudents.length ? clearStudentSelection : selectAllStudents}
+                      >
+                        {selectedStudents.length === classStudents.length ? "Clear All" : "Select All"}
+                      </Button>
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto border rounded-md p-2">
+                      {classStudents.map(student => (
+                        <div 
+                          key={student.id} 
+                          className="flex items-center py-1 px-2 hover:bg-gray-100 rounded cursor-pointer"
+                          onClick={() => toggleStudentSelection(student.id)}
+                        >
+                          <Checkbox 
+                            id={`student-${student.id}`}
+                            checked={selectedStudents.includes(student.id)}
+                            className="mr-2"
+                            onCheckedChange={() => toggleStudentSelection(student.id)}
+                          />
+                          <label 
+                            htmlFor={`student-${student.id}`} 
+                            className="text-sm cursor-pointer flex-1"
+                          >
+                            {student.name} ({student.gr_number})
+                          </label>
+                        </div>
+                      ))}
+                      {classStudents.length === 0 && (
+                        <p className="text-sm text-gray-500 py-2 text-center">No students found</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {selectedStudents.length} of {classStudents.length} students selected
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsNotifyDialogOpen(false)}>

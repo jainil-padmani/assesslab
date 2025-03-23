@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -6,12 +7,14 @@ import type { Student } from "@/types/dashboard";
 export function useClassStudents(selectedClass: string) {
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
   useEffect(() => {
     if (selectedClass) {
       fetchClassStudents();
     } else {
       setClassStudents([]);
+      setSelectedStudents([]);
     }
   }, [selectedClass]);
 
@@ -34,6 +37,25 @@ export function useClassStudents(selectedClass: string) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to toggle student selection
+  const toggleStudentSelection = (studentId: string) => {
+    setSelectedStudents(prev => 
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  // Function to select all students
+  const selectAllStudents = () => {
+    setSelectedStudents(classStudents.map(student => student.id));
+  };
+
+  // Function to clear all selections
+  const clearStudentSelection = () => {
+    setSelectedStudents([]);
   };
 
   // Function to notify students about test changes
@@ -75,6 +97,10 @@ export function useClassStudents(selectedClass: string) {
   return { 
     classStudents,
     isLoading,
-    notifyStudents
+    notifyStudents,
+    selectedStudents,
+    toggleStudentSelection,
+    selectAllStudents,
+    clearStudentSelection
   };
 }
