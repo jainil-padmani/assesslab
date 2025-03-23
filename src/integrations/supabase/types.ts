@@ -62,48 +62,93 @@ export type Database = {
       }
       assessments: {
         Row: {
+          access_code: string | null
+          allow_multiple_attempts: boolean | null
           answer_key_id: string | null
           answer_sheet_url: string | null
+          available_from: string | null
+          available_until: string | null
           co_analysis: Json | null
           created_at: string
           id: string
+          instructions: string | null
+          ip_addresses: string[] | null
+          link_code: string | null
+          one_question_at_time: boolean | null
           score: number | null
+          show_correct_answers: boolean | null
+          show_responses: boolean | null
+          show_responses_timing: string | null
+          shuffle_answers: boolean | null
           status: string | null
           student_id: string | null
           subject_id: string | null
           test_id: string | null
           text_content: string | null
+          time_limit: number | null
+          title: string | null
           updated_at: string | null
+          user_id: string | null
           zip_url: string | null
         }
         Insert: {
+          access_code?: string | null
+          allow_multiple_attempts?: boolean | null
           answer_key_id?: string | null
           answer_sheet_url?: string | null
+          available_from?: string | null
+          available_until?: string | null
           co_analysis?: Json | null
           created_at?: string
           id?: string
+          instructions?: string | null
+          ip_addresses?: string[] | null
+          link_code?: string | null
+          one_question_at_time?: boolean | null
           score?: number | null
+          show_correct_answers?: boolean | null
+          show_responses?: boolean | null
+          show_responses_timing?: string | null
+          shuffle_answers?: boolean | null
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
           text_content?: string | null
+          time_limit?: number | null
+          title?: string | null
           updated_at?: string | null
+          user_id?: string | null
           zip_url?: string | null
         }
         Update: {
+          access_code?: string | null
+          allow_multiple_attempts?: boolean | null
           answer_key_id?: string | null
           answer_sheet_url?: string | null
+          available_from?: string | null
+          available_until?: string | null
           co_analysis?: Json | null
           created_at?: string
           id?: string
+          instructions?: string | null
+          ip_addresses?: string[] | null
+          link_code?: string | null
+          one_question_at_time?: boolean | null
           score?: number | null
+          show_correct_answers?: boolean | null
+          show_responses?: boolean | null
+          show_responses_timing?: string | null
+          shuffle_answers?: boolean | null
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
           text_content?: string | null
+          time_limit?: number | null
+          title?: string | null
           updated_at?: string | null
+          user_id?: string | null
           zip_url?: string | null
         }
         Relationships: [

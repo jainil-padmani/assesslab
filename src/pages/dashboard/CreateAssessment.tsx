@@ -76,6 +76,28 @@ export default function CreateAssessment() {
         throw new Error("You must be logged in to create an assessment");
       }
       
+      console.log("Creating assessment with data:", {
+        title,
+        instructions,
+        subject_id: selectedSubject,
+        user_id: user.id,
+        shuffle_answers: shuffleAnswers,
+        time_limit: timeLimit,
+        allow_multiple_attempts: allowMultipleAttempts,
+        show_responses: showResponses,
+        show_responses_timing: showResponsesTiming,
+        show_correct_answers: showCorrectAnswers,
+        show_correct_answers_at: showCorrectAnswersAt?.toISOString(),
+        hide_correct_answers_at: hideCorrectAnswersAt?.toISOString(),
+        one_question_at_time: oneQuestionAtTime,
+        access_code: requireAccessCode ? accessCode : null,
+        due_date: dueDate?.toISOString(),
+        available_from: availableFrom?.toISOString(),
+        available_until: availableUntil?.toISOString(),
+        status,
+        link_code: status === 'published' ? generateLinkCode() : null
+      });
+      
       // Create assessment
       const { data: assessmentData, error: assessmentError } = await supabase
         .from("assessments")
@@ -103,14 +125,17 @@ export default function CreateAssessment() {
         .select();
         
       if (assessmentError) {
-        throw assessmentError;
+        console.error("Assessment creation error:", assessmentError);
+        throw new Error(`Database error: ${assessmentError.message}`);
       }
       
       if (!assessmentData || assessmentData.length === 0) {
-        throw new Error("Failed to create assessment");
+        console.error("No assessment data returned");
+        throw new Error("Failed to create assessment: No data returned");
       }
       
       const assessment = assessmentData[0];
+      console.log("Assessment created:", assessment);
       
       // Add questions if any
       if (questions.length > 0) {
@@ -125,12 +150,21 @@ export default function CreateAssessment() {
           source_question_id: q.source_question_id
         }));
         
-        const { error: questionsError } = await supabase
-          .from("assessment_questions")
-          .insert(formattedQuestions);
-          
-        if (questionsError) {
-          throw questionsError;
+        console.log("Adding questions:", formattedQuestions);
+        try {
+          const { error: questionsError } = await supabase
+            .from("assessment_questions")
+            .insert(formattedQuestions);
+            
+          if (questionsError) {
+            console.error("Questions insert error:", questionsError);
+            // Don't throw here, we'll just log the error and continue
+            // The assessment was already created successfully
+            toast.error(`Warning: Questions could not be added: ${questionsError.message}`);
+          }
+        } catch (err) {
+          console.error("Error adding questions:", err);
+          toast.error("Questions could not be added, but assessment was created");
         }
       }
       
@@ -142,7 +176,9 @@ export default function CreateAssessment() {
       navigate(`/dashboard/assessments/detail/${data.id}`);
     },
     onError: (error: any) => {
-      toast.error(`Error creating assessment: ${error.message}`);
+      const errorMessage = error?.message || "Unknown error occurred";
+      console.error("Create assessment error:", error);
+      toast.error(`Error creating assessment: ${errorMessage}`);
     }
   });
 
