@@ -106,3 +106,9 @@ export interface PaperEvaluation {
   created_at: string;
   updated_at: string;
 }
+
+// Helper type for getting answer sheet response
+export interface AnswerSheetResponse {
+  answerSheetUrl?: string;
+  textContent?: string;
+}

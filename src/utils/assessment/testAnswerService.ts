@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { resetEvaluations } from "./evaluationReset";
 import { checkTableExists } from "./rpcFunctions";
+import { AnswerSheetResponse } from "@/types/assessments";
 
 /**
  * Save an uploaded answer sheet
@@ -123,30 +124,25 @@ export async function getAnswerSheet(
   studentId: string,
   testId: string,
   subjectId: string
-): Promise<{ answerSheetUrl?: string; textContent?: string } | null> {
+): Promise<AnswerSheetResponse | null> {
   try {
     // First check if test_answers table exists
     const tableExists = await checkTableExists('test_answers');
     
     if (tableExists) {
-      // Get data from the custom RPC function or direct query depending on availability
-      try {
-        // Try direct query first
-        const { data, error } = await supabase
-          .from('test_answers')
-          .select('answer_sheet_url, text_content')
-          .eq('student_id', studentId)
-          .eq('test_id', testId)
-          .maybeSingle();
-        
-        if (!error && data) {
-          return {
-            answerSheetUrl: data.answer_sheet_url,
-            textContent: data.text_content
-          };
-        }
-      } catch (err) {
-        console.error("Error querying test_answers directly:", err);
+      // Get data from test_answers table
+      const { data, error } = await supabase
+        .from('test_answers')
+        .select('answer_sheet_url, text_content')
+        .eq('student_id', studentId)
+        .eq('test_id', testId)
+        .maybeSingle();
+      
+      if (!error && data) {
+        return {
+          answerSheetUrl: data.answer_sheet_url,
+          textContent: data.text_content
+        };
       }
     }
     
@@ -165,13 +161,14 @@ export async function getAnswerSheet(
     }
     
     if (data && data.options) {
-      // Safely access properties
       const options = typeof data.options === 'object' ? data.options : {};
       
-      return {
-        answerSheetUrl: options.answerSheetUrl,
-        textContent: options.textContent
-      };
+      if (options.answerSheetUrl || options.textContent) {
+        return {
+          answerSheetUrl: options.answerSheetUrl as string,
+          textContent: options.textContent as string
+        };
+      }
     }
     
     return null;

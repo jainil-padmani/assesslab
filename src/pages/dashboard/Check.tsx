@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useClasses } from "@/hooks/useClasses";
@@ -99,15 +99,26 @@ export default function Check() {
     }
   };
 
-  const handleBatchEvaluate = async (students: Student[]) => {
+  const handleBatchEvaluate = async () => {
+    if (!selectedTest || !selectedSubject || studentsByClass.length === 0) {
+      toast.error("Please select a class, subject, and test first");
+      return;
+    }
+    
     setIsBatchEvaluating(true);
     try {
-      // Implement batch evaluation logic here
-      // This is a placeholder for the actual implementation
-      toast.success(`Batch evaluation started for ${students.length} students`);
+      let processedCount = 0;
+      
+      for (const student of studentsByClass) {
+        await handleEvaluate(student.id);
+        processedCount++;
+        toast.success(`Processed ${processedCount}/${studentsByClass.length} students`);
+      }
+      
+      toast.success(`Batch evaluation completed for ${processedCount} students`);
     } catch (error) {
       console.error("Error during batch evaluation:", error);
-      toast.error("Failed to start batch evaluation");
+      toast.error("Failed to complete batch evaluation");
     } finally {
       setIsBatchEvaluating(false);
     }
@@ -166,7 +177,7 @@ export default function Check() {
                   <SelectItem value="" disabled>Loading...</SelectItem>
                 ) : (
                   tests?.map((test) => (
-                    <SelectItem key={test.id} value={test.id}>{test.title}</SelectItem>
+                    <SelectItem key={test.id} value={test.id}>{test.name}</SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -220,8 +231,9 @@ export default function Check() {
             </Table>
             <Button
               variant="secondary"
-              onClick={() => handleBatchEvaluate(studentsByClass)}
-              disabled={isBatchEvaluating || isLoading || isStudentsLoading}
+              onClick={handleBatchEvaluate}
+              disabled={isBatchEvaluating || isLoading || isStudentsLoading || !selectedTest}
+              className="mt-4"
             >
               {isBatchEvaluating ? "Evaluating..." : "Evaluate All"}
             </Button>

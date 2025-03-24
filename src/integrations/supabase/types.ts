@@ -788,6 +788,36 @@ export type Database = {
         }
         Relationships: []
       }
+      test_answers: {
+        Row: {
+          answer_sheet_url: string | null
+          created_at: string
+          id: string
+          student_id: string
+          subject_id: string
+          test_id: string
+          text_content: string | null
+        }
+        Insert: {
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          student_id: string
+          subject_id: string
+          test_id: string
+          text_content?: string | null
+        }
+        Update: {
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          student_id?: string
+          subject_id?: string
+          test_id?: string
+          text_content?: string | null
+        }
+        Relationships: []
+      }
       test_grades: {
         Row: {
           created_at: string
@@ -883,7 +913,41 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_column: {
+        Args: {
+          table_name_param: string
+          column_name_param: string
+          column_type_param: string
+        }
+        Returns: undefined
+      }
+      check_column_exists: {
+        Args: {
+          table_name_param: string
+          column_name_param: string
+        }
+        Returns: boolean
+      }
+      check_table_exists: {
+        Args: {
+          table_name_param: string
+        }
+        Returns: boolean
+      }
+      select_all_test_answers_for_test: {
+        Args: {
+          test_id_param: string
+        }
+        Returns: {
+          answer_sheet_url: string | null
+          created_at: string
+          id: string
+          student_id: string
+          subject_id: string
+          test_id: string
+          text_content: string | null
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

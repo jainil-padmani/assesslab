@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getAnswerSheet } from "@/utils/assessment/testAnswerService";
 import { FileText, Download } from "lucide-react";
+import { AnswerSheetResponse } from "@/types/assessments";
 
 interface StudentEvaluationDetailsProps {
   studentId: string;
@@ -17,7 +18,7 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
   testId,
   subjectId
 }) => {
-  const [answerSheet, setAnswerSheet] = useState<{ answerSheetUrl?: string; textContent?: string } | null>(null);
+  const [answerSheet, setAnswerSheet] = useState<AnswerSheetResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {

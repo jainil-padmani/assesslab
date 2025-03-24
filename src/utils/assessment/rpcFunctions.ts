@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { TestAnswer } from "@/types/assessments";
 
 /**
  * Check if a table exists in the database
@@ -58,7 +59,7 @@ export async function checkColumnExists(
  * Select all test answers for a specific test
  * @param testId The test ID
  */
-export async function selectAllTestAnswersForTest(testId: string): Promise<any[]> {
+export async function selectAllTestAnswersForTest(testId: string): Promise<TestAnswer[]> {
   try {
     const { data, error } = await supabase.rpc(
       'select_all_test_answers_for_test',
