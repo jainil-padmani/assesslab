@@ -18,6 +18,7 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
 
   const checkExistingAnswerSheet = async () => {
     try {
+      // Use assessments table
       const { data, error } = await supabase
         .from('assessments')
         .select('answer_sheet_url')
@@ -31,7 +32,7 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
         return;
       }
       
-      if (data?.answer_sheet_url) {
+      if (data && data.answer_sheet_url) {
         setAnswerSheetUrl(data.answer_sheet_url);
         setHasAnswerSheet(true);
       } else {
@@ -80,7 +81,7 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
       
       const url = urlData.publicUrl;
       
-      // Check for existing assessment
+      // Check for existing assessment using the new assessments table
       const { data: existingData, error: checkError } = await supabase
         .from('assessments')
         .select('id')

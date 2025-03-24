@@ -9,7 +9,8 @@ export type StudentUpdateData = Omit<Partial<Student>, 'created_at'> & { id: str
 export const useStudentMutations = () => {
   const { isLoading: isCreating, createStudentMutation } = useCreateStudent();
   const { isLoading: isUpdating, updateStudentMutation } = useUpdateStudent();
-  const { isLoading: isDeleting, deleteStudentMutation } = useDeleteStudent();
+  const deleteStudent = useDeleteStudent();
+  const isDeleting = deleteStudent.isPending;
 
   const isLoading = isCreating || isUpdating || isDeleting;
 
@@ -17,7 +18,7 @@ export const useStudentMutations = () => {
     isLoading,
     createStudentMutation,
     updateStudentMutation,
-    deleteStudentMutation,
+    deleteStudentMutation: deleteStudent.mutate,
   };
 };
 

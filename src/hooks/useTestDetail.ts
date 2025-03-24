@@ -17,6 +17,18 @@ export interface PaperEvaluation {
   updated_at: string;
 }
 
+export interface Assessment {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  test_id?: string;
+  answer_sheet_url?: string;
+  text_content?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export function useTestDetail(testId: string | undefined) {
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editMarks, setEditMarks] = useState<number>(0);
@@ -71,15 +83,19 @@ export function useTestDetail(testId: string | undefined) {
 
       try {
         // Get assessments (uploaded answer sheets) for students in this test
-        const { data: assessments, error: assessmentsError } = await supabase
-          .from("assessments")
-          .select("*")
-          .eq("subject_id", test.subject_id)
-          .eq("test_id", testId); // This ensures we get test-specific answer sheets
-          
-        if (assessmentsError && assessmentsError.code !== 'PGRST116') {
-          toast.error("Failed to load assessments");
-          throw assessmentsError;
+        let assessments: Assessment[] = [];
+        try {
+          const { data: assessmentData, error: assessmentsError } = await supabase
+            .from("assessments")
+            .select("*")
+            .eq("subject_id", test.subject_id)
+            .eq("test_id", testId); // This ensures we get test-specific answer sheets
+            
+          if (!assessmentsError) {
+            assessments = assessmentData as Assessment[];
+          }
+        } catch (error) {
+          console.error("Error fetching assessments:", error);
         }
         
         // Get evaluation data for this test
@@ -99,9 +115,9 @@ export function useTestDetail(testId: string | undefined) {
           );
           
           // Find assessment for this student if it exists
-          const studentAssessment = assessments ? assessments.find(
-            (assessment: any) => assessment.student_id === student.id
-          ) : null;
+          const studentAssessment = assessments.find(
+            assessment => assessment.student_id === student.id
+          );
           
           // Find evaluation for this student if it exists
           const studentEvaluation = evaluations ? evaluations.find(

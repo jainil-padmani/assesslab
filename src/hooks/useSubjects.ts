@@ -17,11 +17,8 @@ export function useSubjects(classId?: string) {
       try {
         let query = supabase.from('subjects').select('*');
         
-        // If classId is provided, filter subjects by class
-        if (classId) {
-          // For now, return all subjects as class_subjects may not exist
-          // We can add the filtering logic later when the table is created
-        }
+        // If classId is provided, we will implement class-specific filtering
+        // in the future when the subject_enrollments table is set up
         
         const { data, error } = await query.order('name');
         

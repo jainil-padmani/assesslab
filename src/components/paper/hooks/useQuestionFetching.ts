@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,7 +27,7 @@ export function useQuestionFetching({
   currentPage,
   questionsPerPage,
 }: UseQuestionFetchingProps) {
-  const [totalPages, setTotalPages] = useState<number | string>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
 
   const {
     data: paginatedQuestions,
@@ -64,14 +65,11 @@ export function useQuestionFetching({
         return { data: [], total: 0 };
       }
     },
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 
-  const isLastPage = (currentPage: number, totalPages: number | string) => {
-    if (typeof totalPages === 'string') {
-      return currentPage === parseInt(totalPages, 10);
-    }
-    return currentPage === totalPages;
+  const isLastPage = (currentPage: number, totalPages: number): boolean => {
+    return currentPage >= totalPages;
   };
 
   return {

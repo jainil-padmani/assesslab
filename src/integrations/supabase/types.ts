@@ -104,6 +104,67 @@ export type Database = {
           },
         ]
       }
+      assessments: {
+        Row: {
+          answer_sheet_url: string | null
+          created_at: string
+          id: string
+          status: string | null
+          student_id: string
+          subject_id: string
+          test_id: string | null
+          text_content: string | null
+          updated_at: string
+          zip_url: string | null
+        }
+        Insert: {
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          status?: string | null
+          student_id: string
+          subject_id: string
+          test_id?: string | null
+          text_content?: string | null
+          updated_at?: string
+          zip_url?: string | null
+        }
+        Update: {
+          answer_sheet_url?: string | null
+          created_at?: string
+          id?: string
+          status?: string | null
+          student_id?: string
+          subject_id?: string
+          test_id?: string | null
+          text_content?: string | null
+          updated_at?: string
+          zip_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessments_master: {
         Row: {
           assign_to: string[] | null
@@ -472,6 +533,33 @@ export type Database = {
           post?: string | null
           subject?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      questions: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          id: string
+          options: string[] | null
+          question_text: string
+          topic_id: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          id?: string
+          options?: string[] | null
+          question_text: string
+          topic_id: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          id?: string
+          options?: string[] | null
+          question_text?: string
+          topic_id?: string
         }
         Relationships: []
       }

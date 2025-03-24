@@ -1,248 +1,303 @@
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import type { Assessment, AssessmentQuestion } from '@/types/assessments';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Assessment, AssessmentQuestion } from "@/types/assessments";
 
-export function useAssessmentDetail(assessmentId?: string) {
-  const [error, setError] = useState<Error | null>(null);
+// Helper function to convert database record to Assessment type
+const mapToAssessment = (data: any): Assessment => {
+  return {
+    id: data.id,
+    title: data.title || "",
+    instructions: data.instructions || "",
+    options: data.options || {
+      shuffleAnswers: false,
+      timeLimit: { enabled: false, minutes: 60 },
+      allowMultipleAttempts: false,
+      showResponses: true,
+      showResponsesOnlyOnce: false,
+      showCorrectAnswers: true,
+      showCorrectAnswersAt: null,
+      hideCorrectAnswersAt: null,
+      showOneQuestionAtTime: false
+    },
+    restrictions: data.restrictions || {
+      requireAccessCode: false,
+      accessCode: null,
+      filterIpAddresses: false,
+      allowedIpAddresses: null
+    },
+    assignTo: data.assign_to || null,
+    dueDate: data.due_date || null,
+    availableFrom: data.available_from || null,
+    availableUntil: data.available_until || null,
+    status: data.status || "draft",
+    created_at: data.created_at || new Date().toISOString(),
+    updated_at: data.updated_at || new Date().toISOString()
+  };
+};
+
+// Helper function to convert database question to AssessmentQuestion type
+const mapToAssessmentQuestion = (data: any): AssessmentQuestion => {
+  return {
+    id: data.id,
+    assessmentId: data.assessment_id,
+    questionText: data.question_text,
+    questionType: data.question_type,
+    options: data.options || [],
+    correctAnswer: data.correct_answer || "",
+    points: data.points || 1,
+    questionOrder: data.question_order || 0,
+    created_at: data.created_at
+  };
+};
+
+// Helper function to convert Assessment type to database record
+const mapToDatabaseAssessment = (assessment: Partial<Assessment>): any => {
+  return {
+    title: assessment.title,
+    instructions: assessment.instructions,
+    options: assessment.options,
+    restrictions: assessment.restrictions,
+    assign_to: assessment.assignTo,
+    due_date: assessment.dueDate,
+    available_from: assessment.availableFrom,
+    available_until: assessment.availableUntil,
+    status: assessment.status
+  };
+};
+
+// Helper function to convert AssessmentQuestion type to database record
+const mapToDatabaseQuestion = (question: Partial<AssessmentQuestion>): any => {
+  return {
+    assessment_id: question.assessmentId,
+    question_text: question.questionText,
+    question_type: question.questionType,
+    options: question.options,
+    correct_answer: question.correctAnswer,
+    points: question.points,
+    question_order: question.questionOrder
+  };
+};
+
+export function useAssessmentDetail(assessmentId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  
   const queryClient = useQueryClient();
 
   // Fetch assessment details
-  const { 
-    data: assessment,
-    isLoading: assessmentLoading,
-    refetch: refetchAssessment
-  } = useQuery({
-    queryKey: ['assessment', assessmentId],
+  const { data: assessment, isLoading: isAssessmentLoading } = useQuery<Assessment>({
+    queryKey: ["assessment", assessmentId],
     queryFn: async () => {
-      if (!assessmentId) return null;
-      
       try {
+        if (!assessmentId) return null;
+        
         const { data, error } = await supabase
-          .from('assessments_master')
-          .select('*')
-          .eq('id', assessmentId)
+          .from("assessments_master")
+          .select("*")
+          .eq("id", assessmentId)
           .single();
         
-        if (error) throw error;
-        return data as unknown as Assessment;
+        if (error) {
+          throw new Error(`Failed to load assessment: ${error.message}`);
+        }
+        
+        return mapToAssessment(data);
       } catch (error: any) {
-        console.error('Error fetching assessment:', error);
-        setError(new Error(`Failed to fetch assessment: ${error.message}`));
-        return null;
+        setError(error);
+        throw error;
       }
     },
     enabled: !!assessmentId
   });
 
   // Fetch assessment questions
-  const {
-    data: questions,
-    isLoading: questionsLoading,
-    refetch: refetchQuestions
-  } = useQuery({
-    queryKey: ['assessment-questions', assessmentId],
+  const { data: questions, isLoading: isQuestionsLoading } = useQuery<AssessmentQuestion[]>({
+    queryKey: ["assessment-questions", assessmentId],
     queryFn: async () => {
-      if (!assessmentId) return [];
-      
       try {
+        if (!assessmentId) return [];
+        
         const { data, error } = await supabase
-          .from('assessment_questions')
-          .select('*')
-          .eq('assessment_id', assessmentId)
-          .order('question_order', { ascending: true });
+          .from("assessment_questions")
+          .select("*")
+          .eq("assessment_id", assessmentId)
+          .order("question_order", { ascending: true });
         
-        if (error) throw error;
+        if (error) {
+          throw new Error(`Failed to load assessment questions: ${error.message}`);
+        }
         
-        // Transform data to match AssessmentQuestion type
-        return data.map(q => ({
-          id: q.id,
-          assessmentId: q.assessment_id,
-          questionText: q.question_text,
-          questionType: q.question_type as 'multiple_choice' | 'short_answer' | 'essay' | 'true_false',
-          options: q.options || [],
-          correctAnswer: q.correct_answer || '',
-          points: q.points,
-          questionOrder: q.question_order,
-          created_at: q.created_at
-        })) as AssessmentQuestion[];
+        return (data || []).map(mapToAssessmentQuestion);
       } catch (error: any) {
-        console.error('Error fetching assessment questions:', error);
-        setError(new Error(`Failed to fetch assessment questions: ${error.message}`));
-        return [];
+        setError(error);
+        throw error;
       }
     },
     enabled: !!assessmentId
   });
 
-  // Update assessment
-  const updateAssessment = async (id: string, updateData: Partial<Assessment>) => {
+  // Mutation to update assessment
+  const updateAssessment = async (id: string, assessmentData: Partial<Assessment>) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      
       const { error } = await supabase
-        .from('assessments_master')
-        .update(updateData)
-        .eq('id', id);
+        .from("assessments_master")
+        .update(mapToDatabaseAssessment(assessmentData))
+        .eq("id", id);
       
-      if (error) throw error;
+      if (error) {
+        throw new Error(`Failed to update assessment: ${error.message}`);
+      }
       
-      // Refetch the assessment to update the UI
-      refetchAssessment();
-      return true;
-    } catch (error: any) {
-      console.error('Error updating assessment:', error);
-      setError(new Error(`Failed to update assessment: ${error.message}`));
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Delete assessment
-  const deleteAssessment = async (id: string) => {
-    try {
-      setIsLoading(true);
-      
-      // First delete all questions related to the assessment
-      const { error: questionsError } = await supabase
-        .from('assessment_questions')
-        .delete()
-        .eq('assessment_id', id);
-      
-      if (questionsError) throw questionsError;
-      
-      // Then delete the assessment
-      const { error } = await supabase
-        .from('assessments_master')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["assessment", id] });
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting assessment:', error);
-      setError(new Error(`Failed to delete assessment: ${error.message}`));
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Create a question
-  const createQuestion = async (questionData: Partial<AssessmentQuestion>) => {
-    try {
-      setIsLoading(true);
-      
-      // Transform to match database schema
-      const dbQuestionData = {
-        assessment_id: questionData.assessmentId,
-        question_text: questionData.questionText,
-        question_type: questionData.questionType,
-        options: questionData.options,
-        correct_answer: questionData.correctAnswer,
-        points: questionData.points,
-        question_order: questionData.questionOrder || 0
-      };
-      
-      const { data, error } = await supabase
-        .from('assessment_questions')
-        .insert(dbQuestionData)
-        .select();
-      
-      if (error) throw error;
-      
-      // Refetch questions to update the UI
-      refetchQuestions();
-      
-      // Transform back to frontend type
-      return {
-        id: data[0].id,
-        assessmentId: data[0].assessment_id,
-        questionText: data[0].question_text,
-        questionType: data[0].question_type,
-        options: data[0].options || [],
-        correctAnswer: data[0].correct_answer || '',
-        points: data[0].points,
-        questionOrder: data[0].question_order,
-        created_at: data[0].created_at
-      } as AssessmentQuestion;
-    } catch (error: any) {
-      console.error('Error creating question:', error);
-      setError(new Error(`Failed to create question: ${error.message}`));
+      setError(error);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Update a question
-  const updateQuestion = async (questionId: string, updateData: Partial<AssessmentQuestion>) => {
+  // Mutation to delete assessment
+  const deleteAssessment = async (id: string) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      // First delete all associated questions
+      const { error: questionError } = await supabase
+        .from("assessment_questions")
+        .delete()
+        .eq("assessment_id", id);
       
-      // Transform to match database schema
-      const dbUpdateData: any = {};
-      if (updateData.questionText) dbUpdateData.question_text = updateData.questionText;
-      if (updateData.questionType) dbUpdateData.question_type = updateData.questionType;
-      if (updateData.options) dbUpdateData.options = updateData.options;
-      if (updateData.correctAnswer) dbUpdateData.correct_answer = updateData.correctAnswer;
-      if (updateData.points !== undefined) dbUpdateData.points = updateData.points;
-      if (updateData.questionOrder !== undefined) dbUpdateData.question_order = updateData.questionOrder;
+      if (questionError) {
+        throw new Error(`Failed to delete assessment questions: ${questionError.message}`);
+      }
       
+      // Then delete the assessment
       const { error } = await supabase
-        .from('assessment_questions')
-        .update(dbUpdateData)
-        .eq('id', questionId);
+        .from("assessments_master")
+        .delete()
+        .eq("id", id);
       
-      if (error) throw error;
+      if (error) {
+        throw new Error(`Failed to delete assessment: ${error.message}`);
+      }
       
-      // Refetch questions to update the UI
-      refetchQuestions();
       return true;
     } catch (error: any) {
-      console.error('Error updating question:', error);
-      setError(new Error(`Failed to update question: ${error.message}`));
-      return false;
+      setError(error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Delete a question
-  const deleteQuestion = async (questionId: string) => {
+  // Mutation to create a question
+  const createQuestion = async (questionData: Partial<AssessmentQuestion>) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("assessment_questions")
+        .insert(mapToDatabaseQuestion(questionData))
+        .select();
       
-      const { error } = await supabase
-        .from('assessment_questions')
-        .delete()
-        .eq('id', questionId);
+      if (error) {
+        throw new Error(`Failed to create question: ${error.message}`);
+      }
       
-      if (error) throw error;
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["assessment-questions", assessmentId] });
       
-      // Refetch questions to update the UI
-      refetchQuestions();
-      return true;
+      return mapToAssessmentQuestion(data[0]);
     } catch (error: any) {
-      console.error('Error deleting question:', error);
-      setError(new Error(`Failed to delete question: ${error.message}`));
-      return false;
+      setError(error);
+      throw error;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Mutation to update a question
+  const updateQuestion = async (questionId: string, questionData: Partial<AssessmentQuestion>) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("assessment_questions")
+        .update(mapToDatabaseQuestion(questionData))
+        .eq("id", questionId);
+      
+      if (error) {
+        throw new Error(`Failed to update question: ${error.message}`);
+      }
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["assessment-questions", assessmentId] });
+      
+      return true;
+    } catch (error: any) {
+      setError(error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Mutation to delete a question
+  const deleteQuestion = async (questionId: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("assessment_questions")
+        .delete()
+        .eq("id", questionId);
+      
+      if (error) {
+        throw new Error(`Failed to delete question: ${error.message}`);
+      }
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["assessment-questions", assessmentId] });
+      
+      return true;
+    } catch (error: any) {
+      setError(error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch assessment
+  const fetchAssessment = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("assessments_master")
+        .select("*")
+        .eq("id", id)
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to load assessment: ${error.message}`);
+      }
+      
+      return mapToAssessment(data);
+    } catch (error: any) {
+      setError(error);
+      throw error;
     }
   };
 
   return {
     assessment,
     questions,
-    isLoading: isLoading || assessmentLoading || questionsLoading,
+    isLoading: isLoading || isAssessmentLoading || isQuestionsLoading,
     error,
-    fetchAssessment: refetchAssessment,
+    fetchAssessment,
     updateAssessment,
     deleteAssessment,
     createQuestion,

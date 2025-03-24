@@ -275,6 +275,7 @@ export function useEvaluations(
   // Get answer sheet URL specific to a subject
   const getStudentAnswerSheetUrl = async (studentId: string): Promise<string | null> => {
     try {
+      // Use 'assessments' table which we just created
       const { data, error } = await supabase
         .from('assessments')
         .select('answer_sheet_url')
@@ -283,7 +284,7 @@ export function useEvaluations(
         .eq('test_id', selectedTest)
         .maybeSingle();
       
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching answer sheet URL:', error);
         return null;
       }

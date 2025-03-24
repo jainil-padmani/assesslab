@@ -55,7 +55,7 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file...');
       
-      // Check for existing assessments
+      // Check for existing assessments - using newly created 'assessments' table
       const { data: existingData, error: existingError } = await supabase
         .from('assessments')
         .select('id, answer_sheet_url')
@@ -82,14 +82,14 @@ export function UploadAnswerSheet({
         status: 'pending',
         updated_at: new Date().toISOString(),
         text_content: 'Uploaded document'
-      };
+      } as any;
       
       if (testId) {
-        Object.assign(assessmentData, { test_id: testId });
+        assessmentData.test_id = testId;
       }
 
       // Update or create assessment
-      if (existingData) {
+      if (existingData?.id) {
         // Update existing assessment
         const { error: updateError } = await supabase
           .from('assessments')

@@ -34,8 +34,7 @@ export function StudentEvaluationRow({
     isUploading, 
     hasAnswerSheet, 
     answerSheetUrl, 
-    openFileUpload, 
-    handleFileSelected 
+    openFileUpload
   } = useUploadAssessment(student.id, selectedSubject, selectedTest);
 
   const renderStatus = () => {
@@ -82,7 +81,7 @@ export function StudentEvaluationRow({
             size="sm" 
             asChild
           >
-            <a href={answerSheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
+            <a href={answerSheetUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center">
               <File className="h-4 w-4 mr-2" />
               View Sheet
             </a>
