@@ -16,7 +16,7 @@ import {
   FileText,
   PenTool
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, NavigateFunction } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 const links = [
@@ -80,11 +80,22 @@ const links = [
 interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {
   onSignOut: () => void;
   closeMenu?: () => void;
+  navigate?: NavigateFunction; // Make navigate optional
 }
 
-export function DashboardNav({ className, onSignOut, closeMenu, ...props }: DashboardNavProps) {
+export function DashboardNav({ className, onSignOut, closeMenu, navigate: navigateProp, ...props }: DashboardNavProps) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const navigate = useNavigate();
+  // Only call useNavigate if we're inside a Router context
+  let routerNavigate: NavigateFunction | undefined;
+  try {
+    routerNavigate = useNavigate();
+  } catch (error) {
+    // If useNavigate throws an error, we'll use the prop instead
+    routerNavigate = undefined;
+  }
+  
+  // Use the prop if provided, otherwise use the hook result
+  const navigate = navigateProp || routerNavigate;
   
   useEffect(() => {
     const handleResize = () => {
@@ -99,7 +110,12 @@ export function DashboardNav({ className, onSignOut, closeMenu, ...props }: Dash
     if (isMobile && closeMenu) {
       closeMenu();
     }
-    navigate(href);
+    if (navigate) {
+      navigate(href);
+    } else {
+      // Fallback to window.location if navigate isn't available
+      window.location.href = href;
+    }
   };
   
   return (

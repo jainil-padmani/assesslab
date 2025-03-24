@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { processPdfToZip } from "./pdfProcessingUtils";
@@ -172,8 +173,12 @@ export const getAnswerSheetUrl = async (
       return null;
     }
     
-    // Safely access the property with proper type checking
-    return data && 'answer_sheet_url' in data ? data.answer_sheet_url : null;
+    // Type safety: explicitly check if property exists and is a string
+    if (data && typeof data === 'object' && 'answer_sheet_url' in data) {
+      return data.answer_sheet_url as string;
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error in getAnswerSheetUrl:', error);
     return null;
@@ -202,8 +207,12 @@ export const getAnswerSheetZipUrl = async (
       return null;
     }
     
-    // Safely access the property with proper type checking
-    return data && 'zip_url' in data ? data.zip_url : null;
+    // Type safety: explicitly check if property exists and is a string
+    if (data && typeof data === 'object' && 'zip_url' in data) {
+      return data.zip_url as string;
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error in getAnswerSheetZipUrl:', error);
     return null;
