@@ -853,6 +853,26 @@ export default function AssessmentDetail() {
                       onChange={(e) => handleUpdateQuestion(question.id, { questionOrder: Number(e.target.value) })}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor={`modelAnswer-${question.id}`}>
+                      Model Answer
+                    </Label>
+                    <Textarea
+                      id={`modelAnswer-${question.id}`}
+                      defaultValue={question.modelAnswer || ''}
+                      onChange={(e) => handleUpdateQuestion(question.id, { modelAnswer: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`explanation-${question.id}`}>
+                      Explanation
+                    </Label>
+                    <Textarea
+                      id={`explanation-${question.id}`}
+                      defaultValue={question.explanation || ''}
+                      onChange={(e) => handleUpdateQuestion(question.id, { explanation: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <div className="mt-4 flex justify-end">
                   <Button

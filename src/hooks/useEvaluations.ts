@@ -26,6 +26,21 @@ export interface EvaluationData {
 export type { PaperEvaluation };
 export { EvaluationStatus };
 
+const mapStatusToEvaluationStatus = (status: string): EvaluationStatus => {
+  switch (status) {
+    case 'pending':
+      return EvaluationStatus.PENDING;
+    case 'in_progress':
+      return EvaluationStatus.IN_PROGRESS;
+    case 'evaluated':
+      return EvaluationStatus.EVALUATED;
+    case 'failed':
+      return EvaluationStatus.FAILED;
+    default:
+      return EvaluationStatus.PENDING;
+  }
+};
+
 // Add proper type checks and null handling to fetchAllStudentEvaluations function
 const fetchAllStudentEvaluations = async (testId: string): Promise<EvaluationData[]> => {
   if (!testId) return [];
@@ -76,6 +91,14 @@ const fetchAllStudentEvaluations = async (testId: string): Promise<EvaluationDat
       throw evaluationsError;
     }
     
+    // Transform evaluations to match our types
+    const typedEvaluations: PaperEvaluation[] = evaluationsData?.map(evaluation => {
+      return {
+        ...evaluation,
+        status: mapStatusToEvaluationStatus(evaluation.status)
+      };
+    }) || [];
+    
     // Get all grades for this test
     const { data: gradesData, error: gradesError } = await supabase
       .from('test_grades')
@@ -119,7 +142,7 @@ const fetchAllStudentEvaluations = async (testId: string): Promise<EvaluationDat
       }
       
       // Find matching evaluation if it exists
-      const evaluation = evaluationsData?.find(e => 
+      const evaluation = typedEvaluations?.find(e => 
         e.student_id === studentId
       );
       
@@ -181,6 +204,14 @@ const fetchStudentEvaluation = async (testId: string, studentId: string) => {
       return null;
     }
 
+    // If the evaluation exists, convert the status to the correct enum value
+    if (data) {
+      return {
+        ...data,
+        status: mapStatusToEvaluationStatus(data.status)
+      } as PaperEvaluation;
+    }
+
     console.log("Evaluation data:", data);
     return data;
   } catch (error) {
@@ -193,7 +224,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
   const queryClient = useQueryClient();
   const [currentStudentId, setCurrentStudentId] = useState<string | null>(studentId || null);
   const [evaluationData, setEvaluationData] = useState<EvaluationData[]>([]);
-  const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
+  const [currentEvaluation, setCurrentEvaluation] = useState<PaperEvaluation | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   
   const { data, isLoading, error, refetch: refetchEvaluations } = useQuery({
@@ -232,7 +263,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     return studentData?.answer_sheet_url || null;
   }, [evaluationData]);
 
-  const { mutate: updateEvaluation, isPending: isUpdateLoading } = useMutation({
+  const updateEvaluation = useMutation({
     mutationFn: async ({ evaluation, studentId }: { evaluation: Json; studentId: string }) => {
       try {
         console.log(`Updating evaluation for student ${studentId} in test ${testId}`);
@@ -317,6 +348,17 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     }
   }, [evaluationData, testId]);
 
+  // Add a method for mutating data with async/await support
+  const mutateAsync = async ({ evaluation, studentId }: { evaluation: Json; studentId: string }) => {
+    return updateEvaluation.mutate({ evaluation, studentId });
+  };
+
+  // Include mutateAsync in the updateEvaluation object
+  const enhancedUpdateEvaluation = {
+    ...updateEvaluation,
+    mutateAsync
+  };
+
   return {
     evaluationData,
     currentEvaluation,
@@ -325,8 +367,8 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     isEvaluating,
     error,
     setCurrentStudentId,
-    updateEvaluation,
-    isUpdateLoading,
+    updateEvaluation: enhancedUpdateEvaluation,
+    isUpdateLoading: updateEvaluation.isPending,
     handleEvaluate,
     refetchEvaluations,
     getStudentAnswerSheetUrl

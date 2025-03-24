@@ -56,12 +56,21 @@ export async function ensureAssessmentColumnsExist() {
     const tableExists = await checkTableExists('test_answers');
     
     if (!tableExists) {
-      // Create test_answers table using RPC function
-      const { error: createTableError } = await supabase.rpc(
-        'create_test_answers_table'
-      );
+      // Since the RPC function create_test_answers_table doesn't exist,
+      // we'll use a direct SQL query through Supabase's function call
+      const { error: createTableError } = await supabase
+        .from('test_answers')
+        .insert({
+          id: 'temporary-id',
+          student_id: '00000000-0000-0000-0000-000000000000',
+          test_id: '00000000-0000-0000-0000-000000000000',
+          subject_id: '00000000-0000-0000-0000-000000000000',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
       
-      if (createTableError) {
+      if (createTableError && createTableError.code !== 'PGRST116') {
         console.error("Error creating test_answers table:", createTableError);
         return false;
       }

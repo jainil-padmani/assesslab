@@ -1,90 +1,86 @@
+
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { EvaluationStatus, PaperEvaluation } from '@/types/assessments';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { PaperEvaluation } from '@/types/assessments';
 
 interface EvaluationResultsCardProps {
   currentEvaluation: PaperEvaluation | null;
   onUpdateScore: (questionIndex: number, newScore: number) => void;
 }
 
-const EvaluationResultsCard: React.FC<EvaluationResultsCardProps> = ({ 
+export default function EvaluationResultsCard({ 
   currentEvaluation,
-  onUpdateScore
-}) => {
-  if (!currentEvaluation) {
+  onUpdateScore 
+}: EvaluationResultsCardProps) {
+  if (!currentEvaluation || !currentEvaluation.evaluation_data) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Evaluation Results</CardTitle>
-          <CardDescription>Select a student to view evaluation results</CardDescription>
         </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-center py-8">
+            Select a student to view evaluation results
+          </p>
+        </CardContent>
       </Card>
     );
   }
 
-  // Extract evaluation data
-  const evaluationData = currentEvaluation.evaluation_data;
-  
-  // Check if evaluation has been completed
-  const isEvaluated = currentEvaluation.status === EvaluationStatus.EVALUATED;
-
-  if (!evaluationData || !evaluationData.answers) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Evaluation Results</CardTitle>
-          <CardDescription>No evaluation data available</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
+  const { answers, summary } = currentEvaluation.evaluation_data;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Evaluation Results</CardTitle>
-        <CardDescription>
-          {isEvaluated ? 'Evaluation completed' : 'Evaluation in progress'}
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {evaluationData.answers.map((answer: any, index: number) => (
-          <div key={index} className="border rounded-md p-4">
-            <h4 className="text-sm font-medium">Question {index + 1}</h4>
-            <p className="text-muted-foreground">
-              Confidence Score: {answer.score ? answer.score[0] : 'N/A'} / {answer.score ? answer.score[1] : 'N/A'}
-            </p>
-            <div className="flex space-x-2">
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => onUpdateScore(index, Math.max(0, (answer.score ? answer.score[0] : 0) - 1))}
-              >
-                Decrease Score
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => onUpdateScore(index, Math.min(answer.score ? answer.score[1] : 100, (answer.score ? answer.score[0] : 0) + 1))}
-              >
-                Increase Score
-              </Button>
+      <CardContent>
+        {summary && (
+          <div className="mb-6 space-y-2">
+            <div className="flex justify-between items-center">
+              <span>Total Score:</span>
+              <span className="font-medium">
+                {summary.totalScore?.[0]}/{summary.totalScore?.[1]} ({summary.percentage}%)
+              </span>
             </div>
           </div>
-        ))}
-        <div className="border rounded-md p-4">
-          <h4 className="text-sm font-medium">Summary</h4>
-          <p className="text-muted-foreground">
-            Total Score: {evaluationData.summary?.totalScore?.[0]} / {evaluationData.summary?.totalScore?.[1]}
-          </p>
-          <p className="text-muted-foreground">
-            Percentage: {evaluationData.summary?.percentage}%
-          </p>
-        </div>
+        )}
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[50px]">Q#</TableHead>
+              <TableHead>Question</TableHead>
+              <TableHead>Student Answer</TableHead>
+              <TableHead className="w-[120px] text-right">Score</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {answers?.map((answer, index) => (
+              <TableRow key={index}>
+                <TableCell className="font-medium">{index + 1}</TableCell>
+                <TableCell>{answer.question}</TableCell>
+                <TableCell>{answer.answer}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end space-x-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max={answer.score[1]}
+                      value={answer.score[0]}
+                      onChange={(e) => onUpdateScore(index, Number(e.target.value))}
+                      className="w-16 text-right"
+                    />
+                    <span>/{answer.score[1]}</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );
-};
-
-export default EvaluationResultsCard;
+}
