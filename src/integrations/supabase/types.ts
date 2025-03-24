@@ -62,93 +62,48 @@ export type Database = {
       }
       assessments: {
         Row: {
-          access_code: string | null
-          allow_multiple_attempts: boolean | null
           answer_key_id: string | null
           answer_sheet_url: string | null
-          available_from: string | null
-          available_until: string | null
           co_analysis: Json | null
           created_at: string
           id: string
-          instructions: string | null
-          ip_addresses: string[] | null
-          link_code: string | null
-          one_question_at_time: boolean | null
           score: number | null
-          show_correct_answers: boolean | null
-          show_responses: boolean | null
-          show_responses_timing: string | null
-          shuffle_answers: boolean | null
           status: string | null
           student_id: string | null
           subject_id: string | null
           test_id: string | null
           text_content: string | null
-          time_limit: number | null
-          title: string | null
           updated_at: string | null
-          user_id: string | null
           zip_url: string | null
         }
         Insert: {
-          access_code?: string | null
-          allow_multiple_attempts?: boolean | null
           answer_key_id?: string | null
           answer_sheet_url?: string | null
-          available_from?: string | null
-          available_until?: string | null
           co_analysis?: Json | null
           created_at?: string
           id?: string
-          instructions?: string | null
-          ip_addresses?: string[] | null
-          link_code?: string | null
-          one_question_at_time?: boolean | null
           score?: number | null
-          show_correct_answers?: boolean | null
-          show_responses?: boolean | null
-          show_responses_timing?: string | null
-          shuffle_answers?: boolean | null
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
           text_content?: string | null
-          time_limit?: number | null
-          title?: string | null
           updated_at?: string | null
-          user_id?: string | null
           zip_url?: string | null
         }
         Update: {
-          access_code?: string | null
-          allow_multiple_attempts?: boolean | null
           answer_key_id?: string | null
           answer_sheet_url?: string | null
-          available_from?: string | null
-          available_until?: string | null
           co_analysis?: Json | null
           created_at?: string
           id?: string
-          instructions?: string | null
-          ip_addresses?: string[] | null
-          link_code?: string | null
-          one_question_at_time?: boolean | null
           score?: number | null
-          show_correct_answers?: boolean | null
-          show_responses?: boolean | null
-          show_responses_timing?: string | null
-          shuffle_answers?: boolean | null
           status?: string | null
           student_id?: string | null
           subject_id?: string | null
           test_id?: string | null
           text_content?: string | null
-          time_limit?: number | null
-          title?: string | null
           updated_at?: string | null
-          user_id?: string | null
           zip_url?: string | null
         }
         Relationships: [
@@ -483,48 +438,6 @@ export type Database = {
         }
         Relationships: []
       }
-      student_notifications: {
-        Row: {
-          created_at: string | null
-          id: string
-          message: string
-          read: boolean | null
-          student_id: string
-          test_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          message: string
-          read?: boolean | null
-          student_id: string
-          test_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          message?: string
-          read?: boolean | null
-          student_id?: string
-          test_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_notifications_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_notifications_test_id_fkey"
-            columns: ["test_id"]
-            isOneToOne: false
-            referencedRelation: "tests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       student_subjects: {
         Row: {
           created_at: string
@@ -573,13 +486,10 @@ export type Database = {
           email: string | null
           gr_number: string
           id: string
-          login_enabled: boolean | null
-          login_id_type: string | null
           name: string
           overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
-          password: string | null
           roll_number: string | null
           user_id: string | null
           year: number | null
@@ -592,13 +502,10 @@ export type Database = {
           email?: string | null
           gr_number: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -611,13 +518,10 @@ export type Database = {
           email?: string | null
           gr_number?: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name?: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null

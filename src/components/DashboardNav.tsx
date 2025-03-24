@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -13,8 +12,7 @@ import {
   Notebook,
   FileUp,
   School,
-  FileText,
-  FileQuestion
+  FileText
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -44,11 +42,6 @@ const links = [
     title: "Tests",
     icon: ClipboardList,
     href: "/dashboard/tests",
-  },
-  {
-    title: "Assessments",
-    icon: FileQuestion,
-    href: "/dashboard/assessments",
   },
   {
     title: "Questions Generation",
