@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { processPdfToZip } from "./pdfProcessingUtils";
@@ -173,7 +172,8 @@ export const getAnswerSheetUrl = async (
       return null;
     }
     
-    return data?.answer_sheet_url || null;
+    // Safely access the property with proper type checking
+    return data && 'answer_sheet_url' in data ? data.answer_sheet_url : null;
   } catch (error) {
     console.error('Error in getAnswerSheetUrl:', error);
     return null;
@@ -202,7 +202,8 @@ export const getAnswerSheetZipUrl = async (
       return null;
     }
     
-    return data?.zip_url || null;
+    // Safely access the property with proper type checking
+    return data && 'zip_url' in data ? data.zip_url : null;
   } catch (error) {
     console.error('Error in getAnswerSheetZipUrl:', error);
     return null;

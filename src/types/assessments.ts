@@ -56,3 +56,49 @@ export interface PaperEvaluation {
   created_at: string;
   updated_at: string;
 }
+
+// Adding the missing Assessment and AssessmentQuestion interfaces
+export interface Assessment {
+  id: string;
+  title: string;
+  instructions: string;
+  options: {
+    shuffleAnswers: boolean;
+    timeLimit: {
+      enabled: boolean;
+      minutes: number;
+    };
+    allowMultipleAttempts: boolean;
+    showResponses: boolean;
+    showResponsesOnlyOnce: boolean;
+    showCorrectAnswers: boolean;
+    showCorrectAnswersAt: string | null;
+    hideCorrectAnswersAt: string | null;
+    showOneQuestionAtTime: boolean;
+  };
+  restrictions: {
+    requireAccessCode: boolean;
+    accessCode: string | null;
+    filterIpAddresses: boolean;
+    allowedIpAddresses: string[] | null;
+  };
+  assignTo: string[] | null;
+  dueDate: string | null;
+  availableFrom: string | null;
+  availableUntil: string | null;
+  status: 'draft' | 'published' | 'archived';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssessmentQuestion {
+  id: string;
+  assessmentId: string;
+  questionText: string;
+  questionType: 'multiple_choice' | 'short_answer' | 'essay' | 'true_false';
+  options: any[]; // Can be refined further if needed
+  correctAnswer: string;
+  points: number;
+  questionOrder: number;
+  created_at: string;
+}
