@@ -21,6 +21,29 @@ export const checkTableExists = async (tableName: string): Promise<boolean> => {
   }
 };
 
+// Function to check if a column exists in a table
+export const checkColumnExists = async (tableName: string, columnName: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.rpc(
+      'check_column_exists',
+      { 
+        table_name_param: tableName, 
+        column_name_param: columnName 
+      }
+    );
+    
+    if (error) {
+      console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
+      return false;
+    }
+    
+    return !!data;
+  } catch (error) {
+    console.error(`Error in checkColumnExists for ${columnName} in ${tableName}:`, error);
+    return false;
+  }
+};
+
 // Function to select data from test_answers safely
 export const selectFromTestAnswers = async (studentId: string, testId: string) => {
   try {
@@ -41,7 +64,7 @@ export const selectFromTestAnswers = async (studentId: string, testId: string) =
       return null;
     }
     
-    return data && data.length > 0 ? data[0] : null;
+    return data && Array.isArray(data) && data.length > 0 ? data[0] : null;
   } catch (error) {
     console.error("Error in selectFromTestAnswers:", error);
     return null;

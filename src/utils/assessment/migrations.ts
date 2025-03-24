@@ -1,38 +1,22 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { checkTableExists } from "./rpcFunctions";
+import { checkTableExists, checkColumnExists } from "./rpcFunctions";
 
 // Function to check if the model_answer and explanation columns exist
 export async function ensureAssessmentColumnsExist() {
   try {
     // Check if model_answer column exists with client-side function
-    const { data: modelAnswerExists, error: modelAnswerError } = await supabase.rpc(
-      'check_column_exists',
-      { 
-        table_name_param: 'assessment_questions', 
-        column_name_param: 'model_answer' 
-      }
+    const modelAnswerExists = await checkColumnExists(
+      'assessment_questions', 
+      'model_answer'
     );
-    
-    if (modelAnswerError) {
-      console.error("Error checking if model_answer column exists:", modelAnswerError);
-      return false;
-    }
     
     // Check if explanation column exists
-    const { data: explanationExists, error: explanationError } = await supabase.rpc(
-      'check_column_exists',
-      { 
-        table_name_param: 'assessment_questions', 
-        column_name_param: 'explanation' 
-      }
+    const explanationExists = await checkColumnExists(
+      'assessment_questions', 
+      'explanation'
     );
-    
-    if (explanationError) {
-      console.error("Error checking if explanation column exists:", explanationError);
-      return false;
-    }
     
     // Add the model_answer column if it doesn't exist
     if (!modelAnswerExists) {

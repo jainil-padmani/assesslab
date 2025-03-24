@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import type { Json } from '@/integrations/supabase/types';
 import { selectFromTestAnswers, updateTestAnswers, insertTestAnswers } from "@/utils/assessment/rpcFunctions";
+import { EvaluationStatus } from "@/types/assessments";
 
 interface StudentEvaluationDetailsProps {
   studentId: string;
@@ -68,21 +69,24 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
         const { data, error } = await supabase
           .from("assessments_master")
           .select("*")
-          .eq("created_by", studentId) // Using created_by as student_id
+          .eq("created_by", studentId)
           .eq("subject_id", subjectId)
           .maybeSingle();
 
         if (!error && data) {
           // Try to extract data from options JSON field
           const options = data.options as Json;
-          if (typeof options === 'object' && options) {
-            if (options.answerSheetUrl && typeof options.answerSheetUrl === 'string') {
-              setAnswerSheetUrl(options.answerSheetUrl);
+          
+          if (typeof options === 'object' && options !== null) {
+            const optionsObj = options as Record<string, any>;
+            
+            if (optionsObj.answerSheetUrl && typeof optionsObj.answerSheetUrl === 'string') {
+              setAnswerSheetUrl(optionsObj.answerSheetUrl);
             }
             
-            if (options.textContent && typeof options.textContent === 'string') {
-              setTextContent(options.textContent);
-              setEditedContent(options.textContent);
+            if (optionsObj.textContent && typeof optionsObj.textContent === 'string') {
+              setTextContent(optionsObj.textContent);
+              setEditedContent(optionsObj.textContent);
             }
           }
         }
@@ -128,19 +132,15 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
           
           if (data) {
             // Update existing record
-            let options = data.options as Json;
-            if (typeof options !== 'object' || !options) {
-              options = {};
-            }
-            
-            options = {
-              ...options,
+            const optionsData = data.options as Record<string, any>;
+            const updatedOptions = {
+              ...optionsData,
               textContent: editedContent
             };
             
             const { error: updateError } = await supabase
               .from("assessments_master")
-              .update({ options })
+              .update({ options: updatedOptions })
               .eq("id", data.id);
             
             if (updateError) throw updateError;

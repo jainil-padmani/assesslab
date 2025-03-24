@@ -24,6 +24,7 @@ export default function Check() {
   } = useTestSelection();
 
   const {
+    evaluationData,
     evaluations,
     evaluatingStudents,
     setEvaluatingStudents,
@@ -34,7 +35,7 @@ export default function Check() {
     refetchEvaluations,
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
-  } = useEvaluations(selectedTest, selectedSubject, classStudents);
+  } = useEvaluations(selectedTest, selectedSubject);
 
   // Set up event listener for answer sheet uploads
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function Check() {
       
     } catch (error) {
       console.error('Error in handleEvaluateSingle:', error);
-      toast.error('Failed to evaluate paper: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to evaluate paper: ' + ((error instanceof Error) ? error.message : 'Unknown error'));
     } finally {
       // Remove the student from evaluating list
       setEvaluatingStudents(prev => prev.filter(id => id !== studentId));
@@ -215,7 +216,7 @@ export default function Check() {
       toast.success('All evaluations completed');
     } catch (error) {
       console.error('Error in handleEvaluateAll:', error);
-      toast.error('Failed to evaluate papers: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast.error('Failed to evaluate papers: ' + ((error instanceof Error) ? error.message : 'Unknown error'));
     } finally {
       // Clear evaluating students
       setEvaluatingStudents([]);
@@ -275,7 +276,7 @@ export default function Check() {
             />
           )}
           
-          {(showResults || evaluations.some(e => e.status === 'completed')) && (
+          {(showResults || evaluations.some(e => e.status === 'evaluated')) && (
             <EvaluationResultsCard
               evaluations={evaluations}
               classStudents={classStudents}

@@ -102,7 +102,7 @@ export interface PaperEvaluation {
   student_id: string;
   subject_id: string;
   evaluation_data: any;
-  status: string; 
+  status: EvaluationStatus; 
   created_at: string;
   updated_at: string;
 }

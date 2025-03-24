@@ -1,9 +1,11 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import { PaperEvaluation, EvaluationStatus } from '@/types/assessments';
+import { selectAllTestAnswersForTest } from '@/utils/assessment/rpcFunctions';
 
 export interface EvaluationData {
   student: {
@@ -76,23 +78,12 @@ const fetchAllStudentEvaluations = async (testId: string) => {
     let testAnswers: any[] = [];
     
     try {
-      // Use RPC function to check if table exists
-      const { data: tableExists } = await supabase.rpc(
-        'check_table_exists',
-        { table_name: 'test_answers' }
-      );
-        
-      if (tableExists) {
-        // Use RPC function to get test answers
-        const { data: answersData } = await supabase.rpc(
-          'select_all_test_answers_for_test',
-          { test_id_param: testId }
-        );
+      // Use RPC function to get test answers
+      const answersData = await selectAllTestAnswersForTest(testId);
           
-        if (answersData) {
-          testAnswers = answersData;
-          console.log(`Found ${testAnswers.length} test answers`);
-        }
+      if (answersData) {
+        testAnswers = answersData;
+        console.log(`Found ${testAnswers.length} test answers`);
       }
     } catch (err) {
       console.error("Error checking for test_answers:", err);
@@ -189,8 +180,11 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
   const [evaluationData, setEvaluationData] = useState<EvaluationData[]>([]);
   const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluatingStudents, setEvaluatingStudents] = useState<string[]>([]);
+  const [evaluationProgress, setEvaluationProgress] = useState(0);
+  const [showResults, setShowResults] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch: refetchEvaluations } = useQuery({
     queryKey: ['all-student-evaluations', testId],
     queryFn: () => fetchAllStudentEvaluations(testId),
     meta: {
@@ -219,7 +213,13 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     }
   }, [currentStudentId, evaluationData]);
 
-  const { mutate: updateEvaluation } = useMutation({
+  // Function to get a student's answer sheet URL
+  const getStudentAnswerSheetUrl = async (studentId: string) => {
+    const studentData = evaluationData.find(item => item.student.id === studentId);
+    return studentData?.answer_sheet_url || null;
+  };
+
+  const { mutate: updateEvaluation, isPending: isUpdateLoading } = useMutation({
     mutationFn: async ({ evaluation, studentId }: { evaluation: Json; studentId: string }) => {
       try {
         console.log(`Updating evaluation for student ${studentId} in test ${testId}`);
@@ -239,7 +239,11 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
         if (existingEvaluation) {
           const { error: updateError } = await supabase
             .from('paper_evaluations')
-            .update({ evaluation_data: evaluation, updated_at: new Date().toISOString() })
+            .update({ 
+              evaluation_data: evaluation, 
+              updated_at: new Date().toISOString(),
+              status: EvaluationStatus.EVALUATED
+            })
             .eq('test_id', testId)
             .eq('student_id', studentId);
 
@@ -257,7 +261,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
               student_id: studentId,
               subject_id: subjectId,
               evaluation_data: evaluation,
-              status: 'evaluated',
+              status: EvaluationStatus.EVALUATED,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             });
@@ -275,9 +279,16 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
         return { evaluation, studentId };
       } catch (error) {
         console.error("Error during evaluation update:", error);
-        toast.error(`Failed to update evaluation: ${error.message}`);
+        toast.error(`Failed to update evaluation: ${(error as Error).message}`);
         throw error;
       }
+    }
+  });
+
+  const evaluatePaperMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      // Implement API call to evaluate paper
+      return { success: true };
     }
   });
 
@@ -294,7 +305,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
       }
     } catch (error) {
       console.error("Error fetching evaluation:", error);
-      toast.error(`Failed to fetch evaluation: ${error.message}`);
+      toast.error(`Failed to fetch evaluation: ${(error as Error).message}`);
     } finally {
       setIsEvaluating(false);
     }
@@ -309,7 +320,18 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     error,
     setCurrentStudentId,
     updateEvaluation,
-    isUpdateLoading: false,
-    handleEvaluate
+    isUpdateLoading,
+    handleEvaluate,
+    // Additional properties
+    evaluations: evaluationData.map(item => item.evaluation).filter(Boolean),
+    evaluatingStudents,
+    setEvaluatingStudents,
+    evaluationProgress,
+    setEvaluationProgress,
+    showResults,
+    setShowResults,
+    refetchEvaluations,
+    evaluatePaperMutation,
+    getStudentAnswerSheetUrl
   };
 }
