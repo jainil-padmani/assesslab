@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -20,7 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Test } from "@/types/tests";
+import { Test, TestQuestion } from "@/types/tests";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type QuestionType = {
@@ -37,7 +36,7 @@ type GeneratedQuestionItem = {
   id: string;
   topic: string;
   question: string;
-  options?: string[];
+  options?: string[] | null;
   answer: string;
   type?: string;
 };
@@ -141,7 +140,7 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                   id: `${entry.id}-${index}`,
                   topic: entry.topic,
                   question: q.text || q.question,
-                  options: q.options,
+                  options: q.options || null,
                   answer: q.answer || '',
                   type: questionType
                 });
@@ -162,7 +161,7 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   // Load existing questions when component mounts
   useEffect(() => {
     if (existingQuestions) {
-      setQuestions(existingQuestions.map(q => {
+      const mappedQuestions: QuestionType[] = existingQuestions.map(q => {
         // Determine if this is a multiple choice or theory question based on options
         const type = q.options && Array.isArray(q.options) && q.options.length > 0 
           ? 'Multiple Choice' 
@@ -172,12 +171,14 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
           id: q.id,
           question: q.question_text,
           answer: q.correct_answer,
-          options: q.options,
+          options: Array.isArray(q.options) ? q.options : undefined,
           marks: q.marks || 1,
           topic: q.topic,
           type: type
         };
-      }));
+      });
+      
+      setQuestions(mappedQuestions);
     }
   }, [existingQuestions]);
   
@@ -226,7 +227,7 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     const newQ: QuestionType = {
       question: question.question,
       answer: question.answer,
-      options: question.options,
+      options: Array.isArray(question.options) ? question.options : undefined,
       marks: 1,
       topic: question.topic,
       type: questionType

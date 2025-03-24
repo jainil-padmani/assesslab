@@ -24,7 +24,20 @@ export function useTests(selectedClass: string, selectedSubject: string) {
         .order('test_date', { ascending: false });
       
       if (error) throw error;
-      if (data) setTests(data);
+      if (data) {
+        // Ensure data conforms to the Test interface
+        const typedTests: Test[] = data.map(test => ({
+          id: test.id,
+          name: test.name,
+          subject_id: test.subject_id,
+          class_id: test.class_id,
+          test_date: test.test_date,
+          max_marks: test.max_marks,
+          created_at: test.created_at,
+          status: test.status || 'draft'
+        }));
+        setTests(typedTests);
+      }
     } catch (error: any) {
       toast.error('Failed to fetch tests');
       console.error('Error fetching tests:', error);
