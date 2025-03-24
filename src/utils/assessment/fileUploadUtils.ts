@@ -173,8 +173,13 @@ export const getAnswerSheetUrl = async (
       return null;
     }
     
-    // Type safety: explicitly check if property exists and is a string
-    if (data && typeof data === 'object' && 'answer_sheet_url' in data) {
+    // Type safety: explicitly check if data exists before accessing its properties
+    if (!data) {
+      return null;
+    }
+    
+    // After confirming data exists, check if the property exists and is a string
+    if (typeof data === 'object' && 'answer_sheet_url' in data) {
       return data.answer_sheet_url as string;
     }
     
@@ -207,8 +212,13 @@ export const getAnswerSheetZipUrl = async (
       return null;
     }
     
-    // Type safety: explicitly check if property exists and is a string
-    if (data && typeof data === 'object' && 'zip_url' in data) {
+    // Type safety: explicitly check if data exists before accessing its properties
+    if (!data) {
+      return null;
+    }
+    
+    // After confirming data exists, check if the property exists and is a string
+    if (typeof data === 'object' && 'zip_url' in data) {
       return data.zip_url as string;
     }
     
