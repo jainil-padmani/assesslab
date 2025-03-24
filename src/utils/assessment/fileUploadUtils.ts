@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
+import { processPdfToZip } from "./pdfProcessingUtils";
 
 /**
  * Validates if a file is PDF
@@ -12,15 +13,16 @@ export const validatePdfFile = (file: File): boolean => {
 
 /**
  * Uploads an answer sheet file to Supabase storage
+ * For PDF files, it processes them into ZIP archives of PNG images for better OCR
  */
-export const uploadAnswerSheetFile = async (file: File): Promise<{ publicUrl: string }> => {
+export const uploadAnswerSheetFile = async (file: File, studentId?: string): Promise<{ publicUrl: string, zipUrl?: string, textContent?: string }> => {
   try {
     // Generate a unique file name
     const fileExt = file.name.split('.').pop();
     const fileName = `${uuidv4()}.${fileExt}`;
     const filePath = `answer_sheets/${fileName}`;
     
-    // Upload the file to Supabase storage
+    // Upload the original file to Supabase storage
     const { error: uploadError } = await supabase.storage
       .from('files')
       .upload(filePath, file);
@@ -34,7 +36,24 @@ export const uploadAnswerSheetFile = async (file: File): Promise<{ publicUrl: st
       .from('files')
       .getPublicUrl(filePath);
     
-    return { publicUrl: urlData.publicUrl };
+    let zipUrl: string | undefined;
+    
+    // If it's a PDF and studentId is provided, process it to a ZIP of PNGs
+    if (validatePdfFile(file) && studentId) {
+      try {
+        console.log("Processing PDF to ZIP for student:", studentId);
+        const { zipUrl: newZipUrl } = await processPdfToZip(file, studentId);
+        zipUrl = newZipUrl;
+        console.log("ZIP URL created:", zipUrl);
+      } catch (zipError) {
+        console.error("Error processing PDF to ZIP:", zipError);
+      }
+    }
+    
+    return { 
+      publicUrl: urlData.publicUrl,
+      zipUrl
+    };
   } catch (error: any) {
     console.error("Error uploading file:", error);
     throw new Error(error.message || "Failed to upload file");
@@ -79,7 +98,8 @@ export const saveTestAnswer = async (
   subjectId: string,
   testId: string,
   answerSheetUrl: string,
-  textContent?: string
+  textContent?: string,
+  zipUrl?: string
 ): Promise<string> => {
   try {
     // Check for existing test answer
@@ -101,7 +121,8 @@ export const saveTestAnswer = async (
       subject_id: subjectId,
       test_id: testId,
       answer_sheet_url: answerSheetUrl,
-      text_content: textContent || null
+      text_content: textContent || null,
+      zip_url: zipUrl || null
     };
     
     if (existingData?.id) {
@@ -141,7 +162,7 @@ export const getAnswerSheetUrl = async (
   try {
     const { data, error } = await supabase
       .from('test_answers')
-      .select('answer_sheet_url')
+      .select('answer_sheet_url, zip_url')
       .eq('student_id', studentId)
       .eq('subject_id', subjectId)
       .eq('test_id', testId)
@@ -155,6 +176,35 @@ export const getAnswerSheetUrl = async (
     return data?.answer_sheet_url || null;
   } catch (error) {
     console.error('Error in getAnswerSheetUrl:', error);
+    return null;
+  }
+};
+
+/**
+ * Retrieves the ZIP URL containing PNG images of the student's answer sheet
+ */
+export const getAnswerSheetZipUrl = async (
+  studentId: string,
+  subjectId: string,
+  testId: string
+): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('test_answers')
+      .select('zip_url')
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
+      .eq('test_id', testId)
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching answer sheet ZIP URL:', error);
+      return null;
+    }
+    
+    return data?.zip_url || null;
+  } catch (error) {
+    console.error('Error in getAnswerSheetZipUrl:', error);
     return null;
   }
 };

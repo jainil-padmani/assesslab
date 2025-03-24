@@ -26,6 +26,7 @@ export function UploadAnswerSheet({
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,21 +56,25 @@ export function UploadAnswerSheet({
 
     setIsUploading(true);
     setIsProcessing(true);
+    setProcessingStep("Uploading PDF file...");
     
     try {
       // Show processing toast
       toast.info('Processing PDF file...');
       
       // Upload the file to storage
-      const { publicUrl } = await uploadAnswerSheetFile(file);
-
+      setProcessingStep("Converting PDF to images...");
+      const { publicUrl, zipUrl } = await uploadAnswerSheetFile(file, studentId);
+      
+      setProcessingStep("Saving to database...");
       // Save to test_answers table
       await saveTestAnswer(
         studentId,
         selectedSubject,
         testId,
         publicUrl,
-        'Uploaded document'
+        'PDF uploaded - awaiting OCR extraction',
+        zipUrl
       );
       
       // Reset form
@@ -82,7 +87,7 @@ export function UploadAnswerSheet({
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
-        detail: { studentId, subjectId: selectedSubject, testId }
+        detail: { studentId, subjectId: selectedSubject, testId, zipUrl }
       });
       document.dispatchEvent(customEvent);
       
@@ -92,6 +97,7 @@ export function UploadAnswerSheet({
     } finally {
       setIsUploading(false);
       setIsProcessing(false);
+      setProcessingStep("");
     }
   };
 
@@ -115,7 +121,7 @@ export function UploadAnswerSheet({
         {isUploading ? (
           <div className="flex items-center">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {isProcessing ? "Processing..." : "Uploading..."}
+            {processingStep || "Processing..."}
           </div>
         ) : (
           <>

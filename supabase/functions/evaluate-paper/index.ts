@@ -181,7 +181,7 @@ serve(async (req) => {
               ...studentAnswer,
               text: extractedOcrText,
               isOcrProcessed: true,
-              testId: testId, // Include test ID to ensure answers are synced with the correct test
+              testId: testId,
               zipProcessed: true
             };
           }
@@ -293,7 +293,7 @@ serve(async (req) => {
               ...studentAnswer,
               text: extractedOcrText,
               isOcrProcessed: true,
-              testId: testId // Include test ID to ensure answers are synced with the correct test
+              testId: testId
             };
           }
         }
@@ -322,15 +322,15 @@ serve(async (req) => {
         
         // Find and update the assessment with the extracted text
         const { error } = await supabaseClient
-          .from('assessments')
+          .from('test_answers')
           .update({ text_content: extractedText })
           .eq('student_id', studentInfo.id)
           .eq('test_id', testId);
           
         if (error) {
-          console.error("Error updating assessment with extracted text:", error);
+          console.error("Error updating test_answers with extracted text:", error);
         } else {
-          console.log("Successfully updated assessment with extracted text");
+          console.log("Successfully updated test_answers with extracted text");
         }
       } catch (dbError) {
         console.error("Error connecting to database:", dbError);

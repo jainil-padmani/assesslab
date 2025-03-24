@@ -1,9 +1,11 @@
-
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAnswerSheetUrl } from "@/utils/assessment/fileUploadUtils";
+import { 
+  getAnswerSheetUrl, 
+  getAnswerSheetZipUrl 
+} from "@/utils/assessment/fileUploadUtils";
 import type { Student } from "@/types/dashboard";
 
 export type EvaluationStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
@@ -31,7 +33,6 @@ export function useEvaluations(
   
   const queryClient = useQueryClient();
 
-  // Fetch evaluations specifically for the selected test
   const { data: evaluations = [], refetch: refetchEvaluations } = useQuery({
     queryKey: ['evaluations', selectedTest],
     queryFn: async () => {
@@ -55,7 +56,6 @@ export function useEvaluations(
     enabled: !!selectedTest
   });
 
-  // Mutation for evaluating one student's paper
   const evaluatePaperMutation = useMutation({
     mutationFn: async ({ 
       studentId, 
@@ -84,14 +84,14 @@ export function useEvaluations(
     }) => {
       console.log("Starting evaluation for student:", studentInfo.name, "for test:", testId);
       
-      // Get the answer sheet URL from test_answers
       const answerSheetUrl = await getAnswerSheetUrl(studentId, subjectId, testId);
       
       if (!answerSheetUrl) {
         throw new Error("No answer sheet found for this student");
       }
       
-      // Check if an evaluation already exists for this student and test
+      const zipUrl = await getAnswerSheetZipUrl(studentId, subjectId, testId);
+      
       const { data: existingEvaluations, error: fetchError } = await supabase
         .from('paper_evaluations')
         .select('id, status')
@@ -103,13 +103,11 @@ export function useEvaluations(
         throw new Error(`Error checking existing evaluations: ${fetchError.message}`);
       }
       
-      // If an evaluation exists, update its status
       let evaluationId = '';
       if (existingEvaluations && existingEvaluations.length > 0) {
         evaluationId = existingEvaluations[0].id;
         console.log(`Found existing evaluation (ID: ${evaluationId}) - will update`);
         
-        // Update status to in_progress
         const { error: updateError } = await supabase
           .from('paper_evaluations')
           .update({
@@ -123,7 +121,6 @@ export function useEvaluations(
           console.error("Error updating evaluation status:", updateError);
         }
       } else {
-        // Create a new evaluation record with in_progress status
         const { data: newEval, error: insertError } = await supabase
           .from('paper_evaluations')
           .insert({
@@ -147,44 +144,35 @@ export function useEvaluations(
       }
       
       try {
-        // Mock the evaluation process (in a real app, this would call an edge function)
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Create mock evaluation data
-        const mockEvaluationData = {
-          student_name: studentInfo.name,
-          roll_no: studentInfo.roll_number,
-          subject: studentInfo.subject,
-          answer_sheet_url: answerSheetUrl,
-          answers: [
-            {
-              question_no: 1,
-              question: "What is the capital of France?",
-              answer: "Paris",
-              remarks: "Correct answer",
-              score: [5, 5],
-              confidence: 0.95
+        const evaluationResponse = await supabase.functions.invoke('evaluate-paper', {
+          body: {
+            questionPaper: {
+              url: questionPaperUrl,
+              topic: questionPaperTopic
             },
-            {
-              question_no: 2,
-              question: "What is 2+2?",
-              answer: "4",
-              remarks: "Correct answer",
-              score: [3, 3],
-              confidence: 0.98
-            }
-          ],
-          summary: {
-            totalScore: [8, 8],
-            percentage: 100
+            answerKey: {
+              url: answerKeyUrl,
+              topic: answerKeyTopic
+            },
+            studentAnswer: {
+              url: answerSheetUrl,
+              zip_url: zipUrl
+            },
+            studentInfo,
+            testId
           }
-        };
-
-        // Store the evaluation results
+        });
+        
+        if (evaluationResponse.error) {
+          throw new Error(`Edge function error: ${evaluationResponse.error.message}`);
+        }
+        
+        const evaluationData = evaluationResponse.data;
+        
         const { error: dbError } = await supabase
           .from('paper_evaluations')
           .update({
-            evaluation_data: mockEvaluationData,
+            evaluation_data: evaluationData,
             status: 'completed',
             updated_at: new Date().toISOString()
           })
@@ -195,13 +183,11 @@ export function useEvaluations(
           throw new Error(`Database error: ${dbError.message}`);
         }
         
-        // Update test grades with the score
-        if (mockEvaluationData?.summary?.totalScore) {
-          const [score, maxScore] = mockEvaluationData.summary.totalScore;
+        if (evaluationData?.summary?.totalScore) {
+          const [score, maxScore] = evaluationData.summary.totalScore;
           
           console.log(`Updating grades for ${studentInfo.name}: ${score}/${maxScore}`);
           
-          // First check if a grade already exists
           const { data: existingGrade } = await supabase
             .from('test_grades')
             .select('id')
@@ -210,7 +196,6 @@ export function useEvaluations(
             .maybeSingle();
             
           if (existingGrade) {
-            // Update existing grade
             const { error: updateError } = await supabase
               .from('test_grades')
               .update({
@@ -223,7 +208,6 @@ export function useEvaluations(
               console.error('Error updating test grade:', updateError);
             }
           } else {
-            // Insert new grade
             const { error: insertError } = await supabase
               .from('test_grades')
               .insert({
@@ -239,11 +223,25 @@ export function useEvaluations(
           }
         }
         
-        return mockEvaluationData;
+        if (evaluationData.text) {
+          const { error: textUpdateError } = await supabase
+            .from('test_answers')
+            .update({
+              text_content: evaluationData.text
+            })
+            .eq('student_id', studentId)
+            .eq('subject_id', subjectId)
+            .eq('test_id', testId);
+            
+          if (textUpdateError) {
+            console.error('Error updating extracted text:', textUpdateError);
+          }
+        }
+        
+        return evaluationData;
       } catch (error) {
         console.error("Evaluation failed:", error);
         
-        // Update status to failed
         await supabase
           .from('paper_evaluations')
           .update({
@@ -257,13 +255,11 @@ export function useEvaluations(
       }
     },
     onSuccess: (data, variables) => {
-      // Update the evaluation results
       setEvaluationResults(prev => ({
         ...prev,
         [variables.studentId]: data
       }));
       
-      // Refetch evaluations
       refetchEvaluations();
       
       toast.success(`Evaluation completed for ${variables.studentInfo.name}`);
@@ -279,13 +275,11 @@ export function useEvaluations(
     return evaluation?.status || 'pending';
   };
 
-  // Get answer sheet URL specific to a student and test
   const getStudentAnswerSheetUrl = async (studentId: string): Promise<string | null> => {
     if (!selectedSubject || !selectedTest) return null;
     return getAnswerSheetUrl(studentId, selectedSubject, selectedTest);
   };
 
-  // Enhanced delete evaluation function for permanent deletion
   const deleteEvaluation = useCallback(async (evaluationId: string, studentId?: string) => {
     try {
       if (!selectedTest) {
@@ -295,7 +289,6 @@ export function useEvaluations(
       
       console.log(`Starting permanent deletion for evaluation ${evaluationId} and student ${studentId || 'unknown'}`);
       
-      // If studentId is provided but evaluationId isn't specific, find the evaluation
       let targetEvaluationId = evaluationId;
       let targetStudentId = studentId;
       
@@ -310,7 +303,6 @@ export function useEvaluations(
         }
       }
       
-      // Delete from paper_evaluations table
       const { error: evalError } = await supabase
         .from('paper_evaluations')
         .delete()
@@ -323,7 +315,6 @@ export function useEvaluations(
       
       console.log("Successfully deleted from paper_evaluations table");
       
-      // Delete the corresponding test grade if studentId is provided
       if (targetStudentId) {
         const { error: gradeError } = await supabase
           .from('test_grades')
@@ -333,19 +324,16 @@ export function useEvaluations(
         
         if (gradeError) {
           console.error('Error deleting test grade:', gradeError);
-          // Continue even if there's an error deleting the grade
         } else {
           console.log("Successfully deleted from test_grades table");
         }
       }
       
-      // Force invalidate queries to ensure fresh data on next fetch
       queryClient.invalidateQueries({ queryKey: ['evaluations'] });
       queryClient.invalidateQueries({ queryKey: ['evaluations', selectedTest] });
       queryClient.invalidateQueries({ queryKey: ['test-grades'] });
       queryClient.invalidateQueries({ queryKey: ['test-grades', selectedTest] });
       
-      // Update local state to remove the deleted evaluation immediately
       setEvaluationResults(prev => {
         if (targetStudentId) {
           const updated = { ...prev };
@@ -355,7 +343,6 @@ export function useEvaluations(
         return prev;
       });
       
-      // Force refetch to ensure UI is in sync with database
       await refetchEvaluations();
       
       console.log("Successfully deleted evaluation:", targetEvaluationId);
