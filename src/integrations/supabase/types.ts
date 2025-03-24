@@ -33,6 +33,132 @@ export type Database = {
         }
         Relationships: []
       }
+      answer_keys: {
+        Row: {
+          blooms_taxonomy: Json | null
+          created_at: string
+          id: string
+          subject_id: string
+        }
+        Insert: {
+          blooms_taxonomy?: Json | null
+          created_at?: string
+          id?: string
+          subject_id: string
+        }
+        Update: {
+          blooms_taxonomy?: Json | null
+          created_at?: string
+          id?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_keys_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_questions: {
+        Row: {
+          assessment_id: string
+          correct_answer: string | null
+          created_at: string
+          id: string
+          marks: number | null
+          options: Json | null
+          question_text: string
+          question_type: string | null
+        }
+        Insert: {
+          assessment_id: string
+          correct_answer?: string | null
+          created_at?: string
+          id?: string
+          marks?: number | null
+          options?: Json | null
+          question_text: string
+          question_type?: string | null
+        }
+        Update: {
+          assessment_id?: string
+          correct_answer?: string | null
+          created_at?: string
+          id?: string
+          marks?: number | null
+          options?: Json | null
+          question_text?: string
+          question_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_questions_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments_master"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments_master: {
+        Row: {
+          assign_to: string[] | null
+          available_from: string | null
+          available_until: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          instructions: string | null
+          options: Json | null
+          restrictions: Json | null
+          status: string | null
+          subject_id: string
+          title: string
+        }
+        Insert: {
+          assign_to?: string[] | null
+          available_from?: string | null
+          available_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          options?: Json | null
+          restrictions?: Json | null
+          status?: string | null
+          subject_id: string
+          title: string
+        }
+        Update: {
+          assign_to?: string[] | null
+          available_from?: string | null
+          available_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          instructions?: string | null
+          options?: Json | null
+          restrictions?: Json | null
+          status?: string | null
+          subject_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_master_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classes: {
         Row: {
           created_at: string
@@ -564,6 +690,7 @@ export type Database = {
       }
       subjects: {
         Row: {
+          blooms_taxonomy: Json | null
           created_at: string
           id: string
           information_pdf_url: string | null
@@ -573,6 +700,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          blooms_taxonomy?: Json | null
           created_at?: string
           id?: string
           information_pdf_url?: string | null
@@ -582,6 +710,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          blooms_taxonomy?: Json | null
           created_at?: string
           id?: string
           information_pdf_url?: string | null

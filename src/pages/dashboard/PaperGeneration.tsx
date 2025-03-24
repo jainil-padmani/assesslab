@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSubjects } from "@/hooks/test-selection/useSubjects";
+import { useSubjects } from "@/hooks/useSubjects";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question, Json } from "@/types/papers";
@@ -26,6 +26,7 @@ interface CourseOutcome {
   description: string;
   questionCount: number;
   selected: boolean;
+  open: boolean; // Track if this course outcome's collapsible is open
   questionDistribution: {
     "1 mark": number;
     "2 marks": number;
@@ -145,46 +146,6 @@ export default function PaperGeneration() {
       setIsHistoryLoading(false);
     }
   };
-  
-  const fetchCourseOutcomes = async (subjectId: string) => {
-    try {
-      setIsLoadingCourseOutcomes(true);
-      
-      const { data, error } = await supabase
-        .from('course_outcomes')
-        .select('*')
-        .eq('subject_id', subjectId)
-        .order('co_number', { ascending: true });
-      
-      if (error) throw error;
-      
-      if (data) {
-        const mappedOutcomes = data.map(co => ({
-          id: co.id,
-          co_number: co.co_number,
-          description: co.description,
-          questionCount: 2,
-          selected: true,
-          questionDistribution: {
-            "1 mark": 1,
-            "2 marks": 1,
-            "4 marks": 0,
-            "8 marks": 0
-          }
-        }));
-        
-        setCourseOutcomes(mappedOutcomes);
-      } else {
-        setCourseOutcomes([]);
-      }
-    } catch (error) {
-      console.error("Error fetching course outcomes:", error);
-      toast.error("Failed to load course outcomes");
-      setCourseOutcomes([]);
-    } finally {
-      setIsLoadingCourseOutcomes(false);
-    }
-  };
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
@@ -238,6 +199,47 @@ export default function PaperGeneration() {
       toast.error(`Failed to upload file`);
     }
   };
+  
+  const fetchCourseOutcomes = async (subjectId: string) => {
+    try {
+      setIsLoadingCourseOutcomes(true);
+      
+      const { data, error } = await supabase
+        .from('course_outcomes')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('co_number', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data) {
+        const mappedOutcomes = data.map(co => ({
+          id: co.id,
+          co_number: co.co_number,
+          description: co.description,
+          questionCount: 2,
+          selected: true,
+          open: false, // Initially collapsed
+          questionDistribution: {
+            "1 mark": 1,
+            "2 marks": 1,
+            "4 marks": 0,
+            "8 marks": 0
+          }
+        }));
+        
+        setCourseOutcomes(mappedOutcomes);
+      } else {
+        setCourseOutcomes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching course outcomes:", error);
+      toast.error("Failed to load course outcomes");
+      setCourseOutcomes([]);
+    } finally {
+      setIsLoadingCourseOutcomes(false);
+    }
+  };
 
   const generateQuestions = async () => {
     if (!extractedContent && !contentUrl) {
@@ -275,6 +277,7 @@ export default function PaperGeneration() {
           "Multiple Choice (1 mark)": multipleChoiceCount
         };
       } else {
+        // For theory questions, aggregate the question distribution from all selected course outcomes
         const aggregatedDistribution = {
           "Short Answer (1 mark)": 0,
           "Short Answer (2 marks)": 0,
@@ -399,6 +402,14 @@ export default function PaperGeneration() {
     );
   };
   
+  const toggleOutcomeCollapsible = (id: string) => {
+    setCourseOutcomes(prev => 
+      prev.map(co => 
+        co.id === id ? { ...co, open: !co.open } : co
+      )
+    );
+  };
+  
   const updateCourseOutcomeDistribution = (
     outcomeId: string, 
     markCategory: keyof TheoryQuestionConfig, 
@@ -507,6 +518,24 @@ export default function PaperGeneration() {
     } finally {
       setEditingQuestion(null);
       setEditedAnswer("");
+    }
+  };
+
+  const calculateTotalMarks = () => {
+    if (questionMode === "multiple-choice") {
+      return multipleChoiceCount;
+    } else {
+      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+      let totalMarks = 0;
+      
+      selectedCourseOutcomes.forEach(co => {
+        totalMarks += co.questionDistribution["1 mark"] * 1;
+        totalMarks += co.questionDistribution["2 marks"] * 2;
+        totalMarks += co.questionDistribution["4 marks"] * 4;
+        totalMarks += co.questionDistribution["8 marks"] * 8;
+      });
+      
+      return totalMarks;
     }
   };
 
@@ -682,7 +711,12 @@ export default function PaperGeneration() {
                       ) : (
                         <div className="space-y-3 mt-3">
                           {courseOutcomes.map((co) => (
-                            <Collapsible key={co.id} className="border rounded-md">
+                            <Collapsible 
+                              key={co.id} 
+                              className="border rounded-md"
+                              open={co.open}
+                              onOpenChange={() => toggleOutcomeCollapsible(co.id)}
+                            >
                               <div className="flex items-center p-3 border-b">
                                 <Checkbox 
                                   id={`co-${co.id}`}
@@ -698,7 +732,11 @@ export default function PaperGeneration() {
                                 
                                 <CollapsibleTrigger asChild>
                                   <Button variant="ghost" size="sm" className="p-1 h-8 w-8">
-                                    <ChevronDown className="h-4 w-4" />
+                                    {co.open ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
                                   </Button>
                                 </CollapsibleTrigger>
                               </div>
@@ -706,7 +744,7 @@ export default function PaperGeneration() {
                               <CollapsibleContent>
                                 {co.selected && (
                                   <div className="p-3 space-y-3">
-                                    <div className="text-sm font-medium">Question Distribution</div>
+                                    <div className="text-sm font-medium">Question Distribution for CO{co.co_number}</div>
                                     
                                     {(Object.keys(co.questionDistribution) as Array<keyof TheoryQuestionConfig>).map((markCategory) => (
                                       <div key={markCategory} className="flex items-center justify-between">
@@ -744,6 +782,31 @@ export default function PaperGeneration() {
                               </CollapsibleContent>
                             </Collapsible>
                           ))}
+                          
+                          {/* Summary of all selected course outcomes */}
+                          {courseOutcomes.filter(co => co.selected).length > 0 && (
+                            <div className="mt-4 p-3 border rounded-md bg-gray-50">
+                              <h4 className="text-sm font-medium mb-2">Question Distribution Summary</h4>
+                              <div className="space-y-1">
+                                {(Object.keys(theoryQuestionConfig) as Array<keyof TheoryQuestionConfig>).map((markCategory) => {
+                                  const totalForCategory = courseOutcomes
+                                    .filter(co => co.selected)
+                                    .reduce((sum, co) => sum + co.questionDistribution[markCategory], 0);
+                                  
+                                  return (
+                                    <div key={markCategory} className="flex justify-between text-sm">
+                                      <span>{markCategory} Questions:</span>
+                                      <span>{totalForCategory}</span>
+                                    </div>
+                                  );
+                                })}
+                                <div className="flex justify-between font-medium pt-1 mt-1 border-t">
+                                  <span>Total Marks:</span>
+                                  <span>{calculateTotalMarks()}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -864,192 +927,4 @@ export default function PaperGeneration() {
                             >
                               <Edit className="h-3 w-3 mr-1" />
                               Edit
-                            </Button>
-                          </div>
-                          <p className="text-sm">{question.answer}</p>
-                        </div>
-                      )}
-                      
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {question.type}
-                        </span>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          {question.level}
-                        </span>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {question.marks} marks
-                        </span>
-                        {question.courseOutcome && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                            CO{question.courseOutcome}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={() => setGeneratedQuestions([])}
-              variant="outline"
-              className="ml-auto"
-            >
-              Generate New Questions
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      <Dialog open={!!selectedPaper} onOpenChange={(open) => !open && setSelectedPaper(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          {selectedPaper && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Questions: {selectedPaper.topic}</DialogTitle>
-                <DialogDescription>
-                  {selectedPaper.subject_name} - Created on {selectedPaper && format(new Date(selectedPaper.created_at), "dd MMM yyyy")}
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 mt-4">
-                {selectedPaper && Array.isArray(selectedPaper.questions) ? (
-                  <div className="space-y-3 max-h-[50vh] overflow-y-auto">
-                    {(selectedPaper.questions as Question[]).map((question, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-3 border rounded-md"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">
-                              Q{idx + 1}. {question.text}
-                            </p>
-                            
-                            {question.options && (
-                              <div className="mt-2 space-y-1 pl-4">
-                                {question.options.map((option, idx) => (
-                                  <div key={idx} className={`text-sm ${option.isCorrect ? 'font-bold text-green-600' : ''}`}>
-                                    {String.fromCharCode(65 + idx)}. {option.text}
-                                    {option.isCorrect && " ✓"}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {editingQuestion?.id === question.id ? (
-                              <div className="space-y-2">
-                                <Label htmlFor="edit-answer">Edit Answer:</Label>
-                                <Textarea
-                                  id="edit-answer"
-                                  value={editedAnswer}
-                                  onChange={(e) => setEditedAnswer(e.target.value)}
-                                  className="min-h-[100px] w-full"
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => setEditingQuestion(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button 
-                                    size="sm"
-                                    onClick={saveEditedAnswer}
-                                  >
-                                    <Check className="mr-1 h-4 w-4" />
-                                    Save
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between">
-                                  <p className="text-sm font-medium">Answer:</p>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    className="h-8 px-2"
-                                    onClick={() => handleEditAnswer(question)}
-                                  >
-                                    <Edit className="h-3 w-3 mr-1" />
-                                    Edit
-                                  </Button>
-                                </div>
-                                <p className="text-sm">{question.answer || "No answer provided"}</p>
-                              </>
-                            )}
-                            
-                            <div className="mt-1 flex flex-wrap gap-2">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {question.type}
-                              </span>
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                {question.level}
-                              </span>
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                {question.marks} marks
-                              </span>
-                              {question.courseOutcome && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                  CO{question.courseOutcome}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No questions available</p>
-                )}
-              </div>
-              
-              <DialogFooter className="flex justify-between items-center mt-4">
-                <Button 
-                  variant="destructive" 
-                  onClick={() => {
-                    setSelectedPaper(null);
-                    setPaperToDelete(selectedPaper);
-                    setIsDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Questions
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedPaper(null)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete these questions? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex space-x-2 pt-4">
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeletePaper}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+                            </Button
