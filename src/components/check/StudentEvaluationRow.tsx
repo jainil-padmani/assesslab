@@ -1,104 +1,125 @@
 
+import React from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, FileCheck, AlertCircle, FileX, Loader2 } from "lucide-react";
+import { FileUpload, Check, AlertCircle, File, Loader2 } from "lucide-react";
+import { useUploadAssessment } from "@/hooks/useUploadAssessment";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
-import { useState } from "react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import type { Student } from "@/types/dashboard";
-import type { EvaluationStatus } from "@/hooks/useEvaluations";
+import { EvaluationStatus } from "@/types/assessments";
 
 interface StudentEvaluationRowProps {
   student: Student;
-  status: EvaluationStatus;
-  evaluationData: any;
+  status: string;
+  evaluationData?: any;
   isEvaluating: boolean;
   selectedSubject: string;
-  selectedTest: string; // Add selected test prop
+  selectedTest: string;
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
 }
 
-export function StudentEvaluationRow({ 
-  student, 
-  status, 
+export function StudentEvaluationRow({
+  student,
+  status,
   evaluationData,
-  isEvaluating, 
+  isEvaluating,
   selectedSubject,
-  selectedTest, // Receive selected test
+  selectedTest,
   testFilesAvailable,
   onEvaluate
 }: StudentEvaluationRowProps) {
-  // Function to render the status badge with appropriate color
-  const renderStatusBadge = () => {
-    if (status === 'completed') {
-      const score = evaluationData?.summary?.percentage || 0;
-      
-      return (
-        <div className="flex items-center">
-          <CheckCircle className="h-4 w-4 mr-2 text-green-600 dark:text-green-500" />
-          <span>
-            {evaluationData?.summary?.percentage}% (
-            {evaluationData?.summary?.totalScore?.[0]}/
-            {evaluationData?.summary?.totalScore?.[1]})
-          </span>
-        </div>
-      );
-    } else if (status === 'in_progress' || isEvaluating) {
-      return (
-        <div className="flex items-center text-amber-600 dark:text-amber-500">
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          <span>Evaluating...</span>
-        </div>
-      );
-    } else if (status === 'failed') {
-      return (
-        <div className="flex items-center text-red-600 dark:text-red-500">
-          <FileX className="h-4 w-4 mr-2" />
-          <span>Failed</span>
-        </div>
-      );
-    } else {
-      return (
-        <div className="flex items-center text-gray-500">
-          <AlertCircle className="h-4 w-4 mr-2" />
-          <span>Not evaluated</span>
-        </div>
-      );
+  const { 
+    isUploading, 
+    hasAnswerSheet, 
+    answerSheetUrl, 
+    openFileUpload, 
+    handleFileSelected 
+  } = useUploadAssessment(student.id, selectedSubject, selectedTest);
+
+  const renderStatus = () => {
+    switch(status) {
+      case EvaluationStatus.COMPLETED:
+        return (
+          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">
+            <Check className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case EvaluationStatus.IN_PROGRESS:
+        return (
+          <Badge variant="warning" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            In Progress
+          </Badge>
+        );
+      case EvaluationStatus.FAILED:
+        return (
+          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Failed
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        );
     }
   };
 
   return (
-    <TableRow key={student.id}>
+    <TableRow>
       <TableCell className="font-medium">{student.name}</TableCell>
-      <TableCell>{student.gr_number}</TableCell>
+      <TableCell>{student.roll_number || '-'}</TableCell>
       <TableCell>
-        <UploadAnswerSheet 
-          studentId={student.id}
-          selectedSubject={selectedSubject}
-          isEvaluating={isEvaluating}
-          testId={selectedTest} // Pass the test ID to ensure papers are synced with tests
-        />
+        {hasAnswerSheet ? (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            asChild
+          >
+            <a href={answerSheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
+              <File className="h-4 w-4 mr-2" />
+              View Sheet
+            </a>
+          </Button>
+        ) : (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={openFileUpload}
+            disabled={isUploading}
+          >
+            <FileUpload className="h-4 w-4 mr-2" />
+            {isUploading ? 'Uploading...' : 'Upload'}
+          </Button>
+        )}
+        <UploadAnswerSheet onFileSelected={handleFileSelected} />
       </TableCell>
       <TableCell>
-        {renderStatusBadge()}
+        {renderStatus()}
       </TableCell>
-      <TableCell>
-        <div className="flex space-x-2">
-          {/* Always show Evaluate button, but with different styles based on status */}
-          {(status !== 'in_progress' && !isEvaluating) && (
-            <Button 
-              size="sm"
-              variant={status === 'failed' ? "outline" : (status === 'completed' ? "secondary" : "outline")}
-              onClick={() => onEvaluate(student.id)}
-              disabled={isEvaluating || !testFilesAvailable}
-              className={status === 'failed' ? "text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" : ""}
-            >
-              <FileCheck className="h-4 w-4 mr-2" />
-              Evaluate
-            </Button>
+      <TableCell className="text-right">
+        <Button 
+          variant="default" 
+          size="sm"
+          onClick={() => onEvaluate(student.id)}
+          disabled={isEvaluating || !hasAnswerSheet || !testFilesAvailable}
+          className="w-full md:w-auto"
+        >
+          {isEvaluating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Evaluating...
+            </>
+          ) : (
+            'Evaluate'
           )}
-        </div>
+        </Button>
       </TableCell>
     </TableRow>
   );
