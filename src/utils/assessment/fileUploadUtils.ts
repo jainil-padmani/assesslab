@@ -173,14 +173,17 @@ export const getAnswerSheetUrl = async (
       return null;
     }
     
-    // Type safety: explicitly check if data exists before accessing its properties
+    // Return null if data doesn't exist
     if (!data) {
       return null;
     }
     
-    // After confirming data exists, check if the property exists and is a string
-    if (typeof data === 'object' && 'answer_sheet_url' in data) {
-      return data.answer_sheet_url as string;
+    // Use type assertion to ensure TypeScript knows 'data' exists
+    const typedData = data as { answer_sheet_url?: string | null };
+    
+    // Now check if the property exists
+    if ('answer_sheet_url' in typedData && typedData.answer_sheet_url) {
+      return typedData.answer_sheet_url;
     }
     
     return null;
@@ -212,14 +215,17 @@ export const getAnswerSheetZipUrl = async (
       return null;
     }
     
-    // Type safety: explicitly check if data exists before accessing its properties
+    // Return null if data doesn't exist
     if (!data) {
       return null;
     }
     
-    // After confirming data exists, check if the property exists and is a string
-    if (typeof data === 'object' && 'zip_url' in data) {
-      return data.zip_url as string;
+    // Use type assertion to ensure TypeScript knows 'data' exists
+    const typedData = data as { zip_url?: string | null };
+    
+    // Now check if the property exists
+    if ('zip_url' in typedData && typedData.zip_url) {
+      return typedData.zip_url;
     }
     
     return null;
