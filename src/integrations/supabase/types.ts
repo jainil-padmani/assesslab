@@ -730,6 +730,7 @@ export type Database = {
           subject_id: string
           test_id: string
           text_content: string | null
+          zip_url: string | null
         }
         Insert: {
           answer_sheet_url?: string | null
@@ -739,6 +740,7 @@ export type Database = {
           subject_id: string
           test_id: string
           text_content?: string | null
+          zip_url?: string | null
         }
         Update: {
           answer_sheet_url?: string | null
@@ -748,6 +750,7 @@ export type Database = {
           subject_id?: string
           test_id?: string
           text_content?: string | null
+          zip_url?: string | null
         }
         Relationships: []
       }
@@ -926,6 +929,7 @@ export type Database = {
           subject_id: string
           test_id: string
           text_content: string | null
+          zip_url: string | null
         }[]
       }
     }

@@ -162,7 +162,7 @@ export const getAnswerSheetUrl = async (
   try {
     const { data, error } = await supabase
       .from('test_answers')
-      .select('answer_sheet_url, zip_url')
+      .select('answer_sheet_url')
       .eq('student_id', studentId)
       .eq('subject_id', subjectId)
       .eq('test_id', testId)
