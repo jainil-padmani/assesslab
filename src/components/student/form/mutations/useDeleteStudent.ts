@@ -30,32 +30,30 @@ export function useDeleteStudent() {
           if (deleteGradesError) throw deleteGradesError;
         }
         
-        // Check for assessments if the table exists
+        // Check for test_answers
         try {
-          const { data: assessments, error: assessmentsError } = await supabase
-            .from('assessments')
+          const { data: testAnswers, error: testAnswersError } = await supabase
+            .from('test_answers')
             .select('id')
             .eq('student_id', studentId);
           
-          if (assessmentsError && assessmentsError.code !== 'PGRST116') {
-            throw assessmentsError;
+          if (testAnswersError) {
+            throw testAnswersError;
           }
           
-          if (assessments && assessments.length > 0) {
-            console.log(`Deleting ${assessments.length} assessments for student ${studentId}`);
-            const { error: deleteAssessmentsError } = await supabase
-              .from('assessments')
+          if (testAnswers && testAnswers.length > 0) {
+            console.log(`Deleting ${testAnswers.length} test answers for student ${studentId}`);
+            const { error: deleteTestAnswersError } = await supabase
+              .from('test_answers')
               .delete()
               .eq('student_id', studentId);
             
-            if (deleteAssessmentsError && deleteAssessmentsError.code !== 'PGRST116') {
-              throw deleteAssessmentsError;
+            if (deleteTestAnswersError) {
+              throw deleteTestAnswersError;
             }
           }
         } catch (error: any) {
-          if (error.code !== 'PGRST116') {
-            console.error('Error checking/deleting assessments:', error);
-          }
+          console.error('Error checking/deleting test answers:', error);
         }
         
         // Check for paper_evaluations

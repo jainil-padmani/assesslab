@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -113,7 +112,6 @@ export default function Check() {
         studentId,
         testId: selectedTest,
         subjectId: selectedSubject,
-        answerSheetUrl,
         questionPaperUrl: questionPapers[0].question_paper_url,
         questionPaperTopic: questionPapers[0].topic,
         answerKeyUrl: answerKeys[0].answer_key_url,
@@ -193,7 +191,6 @@ export default function Check() {
             studentId: student.id,
             testId: selectedTest,
             subjectId: selectedSubject,
-            answerSheetUrl: answerSheetUrl!,
             questionPaperUrl: questionPapers[0].question_paper_url,
             questionPaperTopic: questionPapers[0].topic,
             answerKeyUrl: answerKeys[0].answer_key_url,

@@ -17,16 +17,14 @@ export interface PaperEvaluation {
   updated_at: string;
 }
 
-export interface Assessment {
+export interface TestAnswer {
   id: string;
   student_id: string;
   subject_id: string;
-  test_id?: string;
-  answer_sheet_url?: string;
-  text_content?: string;
-  status: string;
+  test_id: string;
+  answer_sheet_url?: string | null;
+  text_content?: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 export function useTestDetail(testId: string | undefined) {
@@ -82,20 +80,20 @@ export function useTestDetail(testId: string | undefined) {
       }
 
       try {
-        // Get assessments (uploaded answer sheets) for students in this test
-        let assessments: Assessment[] = [];
+        // Get answer sheets for students in this test from test_answers table
+        let testAnswers: TestAnswer[] = [];
         try {
-          const { data: assessmentData, error: assessmentsError } = await supabase
-            .from("assessments")
+          const { data: answerData, error: answersError } = await supabase
+            .from("test_answers")
             .select("*")
             .eq("subject_id", test.subject_id)
-            .eq("test_id", testId); // This ensures we get test-specific answer sheets
+            .eq("test_id", testId);
             
-          if (!assessmentsError) {
-            assessments = assessmentData as Assessment[];
+          if (!answersError) {
+            testAnswers = answerData as TestAnswer[];
           }
         } catch (error) {
-          console.error("Error fetching assessments:", error);
+          console.error("Error fetching test answers:", error);
         }
         
         // Get evaluation data for this test
@@ -114,9 +112,9 @@ export function useTestDetail(testId: string | undefined) {
             grade => grade.student_id === student.id
           );
           
-          // Find assessment for this student if it exists
-          const studentAssessment = assessments.find(
-            assessment => assessment.student_id === student.id
+          // Find answer sheet for this student if it exists
+          const studentAnswerSheet = testAnswers.find(
+            answer => answer.student_id === student.id
           );
           
           // Find evaluation for this student if it exists
@@ -128,7 +126,7 @@ export function useTestDetail(testId: string | undefined) {
             return {
               ...existingGrade,
               student,
-              answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+              answer_sheet_url: studentAnswerSheet?.answer_sheet_url || null,
               evaluation: studentEvaluation
             };
           } else {
@@ -140,20 +138,17 @@ export function useTestDetail(testId: string | undefined) {
               remarks: null,
               created_at: new Date().toISOString(),
               student,
-              answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+              answer_sheet_url: studentAnswerSheet?.answer_sheet_url || null,
               evaluation: studentEvaluation
-            } as TestGrade & { 
-              answer_sheet_url: string | null;
-              evaluation: PaperEvaluation | null;
             };
           }
         });
         
         return studentGrades;
       } catch (error) {
-        console.error("Error fetching assessment data:", error);
+        console.error("Error fetching test answer data:", error);
         
-        // Return grades without assessment data in case of error
+        // Return grades without test answer data in case of error
         const studentGrades = (classStudents as Student[]).map(student => {
           const existingGrade = (existingGrades as TestGrade[]).find(
             grade => grade.student_id === student.id
@@ -177,9 +172,6 @@ export function useTestDetail(testId: string | undefined) {
               student,
               answer_sheet_url: null,
               evaluation: null
-            } as TestGrade & { 
-              answer_sheet_url: string | null;
-              evaluation: PaperEvaluation | null;
             };
           }
         });
@@ -231,7 +223,7 @@ export function useTestDetail(testId: string | undefined) {
 
   // Update answer confidence score
   const handleUpdateAnswerScore = async (
-    grade: TestGrade & { evaluation?: PaperEvaluation | null }, 
+    grade: any, 
     questionIndex: number, 
     newScore: number
   ) => {
