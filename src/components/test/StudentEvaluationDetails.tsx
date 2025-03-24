@@ -50,49 +50,52 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     const fetchAnswerSheet = async () => {
       setLoading(true);
       try {
-        // Fetch the assessment record that contains the answer sheet URL
-        const { data, error } = await supabase
-          .from("assessments_master")
-          .select("*, answer_sheet_url, text_content")
-          .eq("student_id", studentId)
-          .eq("subject_id", subjectId)
-          .eq("test_id", testId)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error("Error fetching answer sheet:", error);
-          toast.error("Failed to load answer sheet");
-          return;
-        }
-
-        // Try alternative method if not found
-        if (!data || (!data.answer_sheet_url && !data.text_content)) {
-          const { data: altData, error: altError } = await supabase
-            .from("test_answers")
-            .select("*")
-            .eq("student_id", studentId)
-            .eq("test_id", testId)
-            .maybeSingle();
-
-          if (altError && altError.code !== 'PGRST116') {
-            console.error("Error fetching test answers:", altError);
-          } else if (altData) {
-            if (altData.answer_sheet_url) {
-              setAnswerSheetUrl(altData.answer_sheet_url);
+        // Check if test_answers table exists first
+        const { error: testError } = await supabase.rpc(
+          'check_table_exists',
+          { table_name: 'test_answers' }
+        );
+        
+        if (!testError) {
+          // First try test_answers table if it exists
+          const { data: testAnswers, error: answersError } = await supabase
+            .rpc('select_from_test_answers', {
+              student_id_param: studentId,
+              test_id_param: testId
+            });
+            
+          if (!answersError && testAnswers && testAnswers.length > 0) {
+            const answerData = testAnswers[0];
+            if (answerData.answer_sheet_url) setAnswerSheetUrl(answerData.answer_sheet_url);
+            if (answerData.text_content) {
+              setTextContent(answerData.text_content);
+              setEditedContent(answerData.text_content);
             }
-            if (altData.text_content) {
-              setTextContent(altData.text_content);
-              setEditedContent(altData.text_content);
-            }
+            setLoading(false);
             return;
           }
-        } else {
-          if (data.answer_sheet_url) {
-            setAnswerSheetUrl(data.answer_sheet_url);
-          }
-          if (data.text_content) {
-            setTextContent(data.text_content);
-            setEditedContent(data.text_content);
+        }
+        
+        // Fallback to assessments_master
+        const { data, error } = await supabase
+          .from("assessments_master")
+          .select("*")
+          .eq("created_by", studentId) // Using created_by as student_id
+          .eq("subject_id", subjectId)
+          .maybeSingle();
+
+        if (!error && data) {
+          // Try to extract data from options JSON field
+          const options = data.options as Json;
+          if (typeof options === 'object' && options) {
+            if ('answerSheetUrl' in options && typeof options.answerSheetUrl === 'string') {
+              setAnswerSheetUrl(options.answerSheetUrl);
+            }
+            
+            if ('textContent' in options && typeof options.textContent === 'string') {
+              setTextContent(options.textContent);
+              setEditedContent(options.textContent);
+            }
           }
         }
       } catch (error) {
@@ -110,49 +113,82 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     try {
       setLoading(true);
       
-      // First try to update in assessments_master
-      let { error } = await supabase
-        .from("assessments_master")
-        .update({ text_content: editedContent })
-        .eq("student_id", studentId)
-        .eq("test_id", testId);
+      // First check if test_answers table exists
+      const { data: tableExists, error: tableError } = await supabase.rpc(
+        'check_table_exists',
+        { table_name: 'test_answers' }
+      );
       
-      // If that fails, try test_answers
-      if (error) {
+      if (tableError) {
+        console.error("Error checking if test_answers table exists:", tableError);
+        throw tableError;
+      }
+      
+      if (tableExists) {
         // Check if record exists in test_answers
-        const { data: existingData, error: checkError } = await supabase
-          .from("test_answers")
-          .select("id")
-          .eq("student_id", studentId)
-          .eq("test_id", testId)
-          .maybeSingle();
+        const { data: existingData } = await supabase.rpc(
+          'select_from_test_answers',
+          {
+            student_id_param: studentId,
+            test_id_param: testId
+          }
+        );
           
-        if (checkError && checkError.code !== 'PGRST116') {
-          console.error("Error checking test answers:", checkError);
-          throw checkError;
-        }
-          
-        if (existingData) {
-          // Update existing record
-          const { error: updateError } = await supabase
-            .from("test_answers")
-            .update({ text_content: editedContent })
-            .eq("id", existingData.id);
+        if (existingData && existingData.length > 0) {
+          // Update existing record using RPC function
+          const { error: updateError } = await supabase.rpc(
+            'update_test_answers',
+            {
+              student_id_param: studentId,
+              test_id_param: testId,
+              text_content_param: editedContent
+            }
+          );
               
           if (updateError) throw updateError;
         } else {
-          // Insert new record
-          const { error: insertError } = await supabase
-            .from("test_answers")
-            .insert({
-              student_id: studentId,
-              test_id: testId,
-              subject_id: subjectId,
-              text_content: editedContent,
-              created_at: new Date().toISOString(),
-            });
+          // Insert new record using RPC function
+          const { error: insertError } = await supabase.rpc(
+            'insert_test_answers',
+            {
+              student_id_param: studentId,
+              test_id_param: testId,
+              subject_id_param: subjectId,
+              text_content_param: editedContent
+            }
+          );
               
           if (insertError) throw insertError;
+        }
+      } else {
+        // Fallback to assessments_master
+        const { data, error } = await supabase
+          .from("assessments_master")
+          .select("id, options")
+          .eq("created_by", studentId)
+          .eq("subject_id", subjectId)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') throw error;
+        
+        if (data) {
+          // Update existing record
+          let options = data.options as Json;
+          if (typeof options !== 'object' || !options) {
+            options = {};
+          }
+          
+          options = {
+            ...options,
+            textContent: editedContent
+          };
+          
+          const { error: updateError } = await supabase
+            .from("assessments_master")
+            .update({ options })
+            .eq("id", data.id);
+          
+          if (updateError) throw updateError;
         }
       }
       
@@ -179,7 +215,7 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
 
   const openAnswerSheet = () => {
     if (answerSheetUrl) {
-      window.open(answerSheetUrl as string, "_blank");
+      window.open(answerSheetUrl, "_blank");
     } else {
       toast.error("No answer sheet available");
     }

@@ -4,7 +4,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useTestDetail } from "@/hooks/useTestDetail";
 import { TestHeader } from "@/components/test/TestHeader";
 import { TestPapersManagement } from "@/components/test/TestPapersManagement";
-import { StudentEvaluationDetails } from "@/components/test/StudentEvaluationDetails";
+import StudentEvaluationDetails from "@/components/test/StudentEvaluationDetails";
 import { StudentGradesTable } from "@/components/test/StudentGradesTable";
 
 export default function TestDetail() {
@@ -49,11 +49,13 @@ export default function TestDetail() {
       <TestPapersManagement test={test} />
 
       {/* Student Evaluation Details */}
-      <StudentEvaluationDetails 
-        selectedStudentGrade={selectedStudentGrade}
-        test={test}
-        handleUpdateAnswerScore={handleUpdateAnswerScore}
-      />
+      {selectedStudentGrade && (
+        <StudentEvaluationDetails 
+          studentId={selectedStudentGrade.student_id}
+          testId={test.id}
+          subjectId={test.subject_id}
+        />
+      )}
 
       {/* Student Grades Table */}
       <StudentGradesTable 

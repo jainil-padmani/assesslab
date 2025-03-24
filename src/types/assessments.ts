@@ -75,3 +75,34 @@ export interface StudentAssessmentAttempt {
   attemptNumber: number;
   submittedAt: string;
 }
+
+// Test answer interface for the test_answers table
+export interface TestAnswer {
+  id: string;
+  student_id: string;
+  test_id: string;
+  subject_id: string;
+  answer_sheet_url?: string | null;
+  text_content?: string | null;
+  created_at: string;
+}
+
+// Enum for paper evaluation status
+export enum EvaluationStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  EVALUATED = 'evaluated',
+  FAILED = 'failed'
+}
+
+// Interface for paper evaluations
+export interface PaperEvaluation {
+  id: string;
+  test_id: string;
+  student_id: string;
+  subject_id: string;
+  evaluation_data: any;
+  status: string; 
+  created_at: string;
+  updated_at: string;
+}

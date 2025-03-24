@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
+import { PaperEvaluation, EvaluationStatus } from '@/types/assessments';
 
-interface EvaluationData {
+export interface EvaluationData {
   student: {
     id: string;
     name: string;
@@ -14,10 +15,13 @@ interface EvaluationData {
   assessment_id: string;
   answer_sheet_url: string | null;
   text_content: string | null;
-  evaluation: any | null;
+  evaluation: PaperEvaluation | null;
   grade: any | null;
   created_at: string;
 }
+
+// For type safety later
+export { PaperEvaluation, EvaluationStatus };
 
 // Add proper type checks and null handling to fetchAllStudentEvaluations function
 const fetchAllStudentEvaluations = async (testId: string) => {
@@ -67,32 +71,83 @@ const fetchAllStudentEvaluations = async (testId: string) => {
     
     console.log(`Found ${gradesData?.length || 0} grades`);
     
+    // Check for test_answers data
+    let testAnswers: any[] = [];
+    
+    try {
+      const { data: tableExists } = await supabase
+        .from('information_schema.tables')
+        .select('table_name')
+        .eq('table_name', 'test_answers')
+        .maybeSingle();
+        
+      if (tableExists) {
+        const { data: answersData, error: answersError } = await supabase
+          .from('test_answers')
+          .select('*')
+          .eq('test_id', testId);
+          
+        if (!answersError && answersData) {
+          testAnswers = answersData;
+          console.log(`Found ${testAnswers.length} test answers`);
+        }
+      }
+    } catch (err) {
+      console.error("Error checking for test_answers:", err);
+    }
+    
     // Combine the data
     const studentData = assessmentsData && assessmentsData.length > 0 
       ? assessmentsData.map(assessment => {
+          const studentId = assessment.created_by || assessment.student?.id;
+          
+          if (!studentId) {
+            console.warn("Assessment without student ID:", assessment);
+            return null;
+          }
+          
           // Find matching evaluation if it exists
           const evaluation = evaluationsData?.find(e => 
-            e.student_id === assessment.student_id
+            e.student_id === studentId
           );
           
           // Find matching grade if it exists
           const grade = gradesData?.find(g => 
-            g.student_id === assessment.student_id
+            g.student_id === studentId
+          );
+          
+          // Find matching test answer if it exists
+          const testAnswer = testAnswers.find(a =>
+            a.student_id === studentId
           );
           
           // Extract the student data safely
-          const student = assessment.student;
+          const student = assessment.student || { id: studentId, name: 'Unknown' };
+          
+          // Get answer sheet URL from options or test_answers
+          let answerSheetUrl = null;
+          let textContent = null;
+          
+          if (testAnswer) {
+            answerSheetUrl = testAnswer.answer_sheet_url;
+            textContent = testAnswer.text_content;
+          } else if (assessment.options && typeof assessment.options === 'object') {
+            // Try to get from options
+            const options = assessment.options as any;
+            answerSheetUrl = options.answerSheetUrl || null;
+            textContent = options.textContent || null;
+          }
           
           return {
-            student: student || { id: assessment.student_id, name: 'Unknown' },
+            student,
             assessment_id: assessment.id,
-            answer_sheet_url: assessment.answer_sheet_url,
-            text_content: assessment.text_content,
+            answer_sheet_url: answerSheetUrl,
+            text_content: textContent,
             evaluation: evaluation || null,
             grade: grade || null,
             created_at: assessment.created_at
           };
-        }) 
+        }).filter(Boolean) as EvaluationData[]
       : [];
     
     return studentData;
@@ -136,8 +191,10 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
   const { data, isLoading, error } = useQuery({
     queryKey: ['all-student-evaluations', testId],
     queryFn: () => fetchAllStudentEvaluations(testId),
-    onError: (err) => {
-      toast.error(`Failed to fetch student evaluations: ${err.message}`);
+    meta: {
+      onError: (err: Error) => {
+        toast.error(`Failed to fetch student evaluations: ${err.message}`);
+      }
     },
     onSuccess: (data) => {
       if (data) {
@@ -256,7 +313,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     error,
     setCurrentStudentId,
     updateEvaluation,
-    isUpdateLoading,
+    isUpdateLoading: false,
     handleEvaluate
   };
 }
