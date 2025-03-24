@@ -32,20 +32,20 @@ type QuestionType = {
   type: 'Multiple Choice' | 'Theory';
 };
 
-type GeneratedQuestionItem = {
-  id: string;
-  topic: string;
-  question: string;
-  options?: string[] | null;
-  answer: string;
-  type?: string;
-};
-
 type SaveStatus = 'unsaved' | 'saved' | 'published';
 
 interface TestQuestionsManagementProps {
   test: Test & { subjects?: any };
 }
+
+type GeneratedQuestionItem = {
+  id: string;
+  topic: string;
+  question: string;
+  options?: Array<{text: string, isCorrect: boolean}> | null;
+  answer: string;
+  type?: string;
+};
 
 export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) {
   const [questions, setQuestions] = useState<QuestionType[]>([]);
@@ -62,7 +62,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [questionType, setQuestionType] = useState<'Multiple Choice' | 'Theory'>('Multiple Choice');
   
-  // Fetch existing test questions
   const { data: existingQuestions, isLoading: isLoadingQuestions, refetch: refetchQuestions } = useQuery({
     queryKey: ['test-questions', test.id],
     queryFn: async () => {
@@ -82,7 +81,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     }
   });
   
-  // Fetch generated question topics
   const { data: generatedQuestionTopics, isLoading: isLoadingTopics } = useQuery({
     queryKey: ['generated-question-topics', test.subject_id],
     queryFn: async () => {
@@ -97,7 +95,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
         return [];
       }
       
-      // Get unique topics
       const uniqueTopics = [...new Set(data.map(item => item.topic))];
       return uniqueTopics.map(topic => ({
         value: topic,
@@ -106,7 +103,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     }
   });
   
-  // Fetch generated questions for selected topic
   const { data: generatedQuestions, isLoading: isLoadingGeneratedQuestions } = useQuery({
     queryKey: ['generated-questions', test.subject_id, selectedTopic],
     queryFn: async () => {
@@ -124,7 +120,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
       }
       
       try {
-        // Process the questions from all entries with this topic
         const allQuestions: GeneratedQuestionItem[] = [];
         
         data.forEach(entry => {
@@ -158,11 +153,9 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     enabled: !!selectedTopic
   });
   
-  // Load existing questions when component mounts
   useEffect(() => {
     if (existingQuestions) {
       const mappedQuestions: QuestionType[] = existingQuestions.map(q => {
-        // Determine if this is a multiple choice or theory question based on options
         const type = q.options && Array.isArray(q.options) && q.options.length > 0 
           ? 'Multiple Choice' 
           : 'Theory';
@@ -171,7 +164,7 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
           id: q.id,
           question: q.question_text,
           answer: q.correct_answer,
-          options: Array.isArray(q.options) ? q.options : undefined,
+          options: Array.isArray(q.options) ? q.options.map(opt => typeof opt === 'string' ? opt : '') : undefined,
           marks: q.marks || 1,
           topic: q.topic,
           type: type
@@ -193,14 +186,12 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
       return;
     }
     
-    // For multiple choice, validate that we have 4 options
     if (newQuestion.type === 'Multiple Choice') {
       if (!newQuestion.options || newQuestion.options.filter(o => o.trim()).length !== 4) {
         toast.error('Multiple choice questions must have exactly 4 options');
         return;
       }
       
-      // Check if the answer matches one of the options
       if (!newQuestion.options.some(o => o === newQuestion.answer)) {
         toast.error('The correct answer must match one of the options');
         return;
@@ -224,10 +215,20 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     const questionType = question.type as 'Multiple Choice' | 'Theory' || 
                         (question.options && question.options.length > 0 ? 'Multiple Choice' : 'Theory');
     
+    let optionsArray: string[] | undefined = undefined;
+    
+    if (question.options && Array.isArray(question.options)) {
+      if (question.options.length > 0 && typeof question.options[0] === 'object' && 'text' in question.options[0]) {
+        optionsArray = question.options.map(opt => (opt as {text: string, isCorrect: boolean}).text);
+      } else if (question.options.length > 0 && typeof question.options[0] === 'string') {
+        optionsArray = question.options as string[];
+      }
+    }
+    
     const newQ: QuestionType = {
       question: question.question,
       answer: question.answer,
-      options: Array.isArray(question.options) ? question.options : undefined,
+      options: optionsArray,
       marks: 1,
       topic: question.topic,
       type: questionType
@@ -247,7 +248,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   
   const handleSaveQuestions = async (publish: boolean = false) => {
     try {
-      // First, delete existing questions
       const { error: deleteError } = await supabase
         .from('test_questions')
         .delete()
@@ -255,7 +255,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
       
       if (deleteError) throw deleteError;
       
-      // Then insert new questions
       if (questions.length > 0) {
         const questionsToInsert = questions.map(q => ({
           test_id: test.id,
@@ -274,7 +273,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
         if (insertError) throw insertError;
       }
       
-      // Update test status if publishing
       if (publish) {
         const { error: updateError } = await supabase
           .from('tests')
@@ -341,7 +339,6 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                       const newOptions = [...(newQuestion.options || [])];
                       newOptions[index] = e.target.value;
                       
-                      // If this option was the answer, update the answer too
                       const updatedQuestion = {...newQuestion, options: newOptions};
                       if (newQuestion.answer === newQuestion.options?.[index]) {
                         updatedQuestion.answer = e.target.value;
@@ -409,6 +406,67 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
           </TabsContent>
         </Tabs>
       </div>
+    );
+  };
+  
+  const renderGeneratedQuestions = () => {
+    if (!generatedQuestions || generatedQuestions.length === 0) {
+      return (
+        <div className="flex justify-center items-center h-full text-gray-500">
+          No questions available for this topic
+        </div>
+      );
+    }
+    
+    return (
+      <ul className="space-y-4">
+        {generatedQuestions.map((q, index) => (
+          <li key={index} className="border-b pb-4 last:border-b-0">
+            <div className="flex justify-between items-start gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant={q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'outline' : 'secondary'}>
+                    {q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'MCQ' : 'Theory'}
+                  </Badge>
+                </div>
+                <p className="font-medium">{q.question}</p>
+                {q.options && q.options.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {q.options.map((option, i) => {
+                      const optionText = typeof option === 'string' 
+                        ? option 
+                        : option && typeof option === 'object' && 'text' in option 
+                          ? option.text 
+                          : '';
+                      
+                      const isCorrect = typeof option === 'object' && option && 'isCorrect' in option 
+                        ? option.isCorrect 
+                        : optionText === q.answer;
+                        
+                      return (
+                        <li key={i} className={`text-sm ${isCorrect ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
+                          {isCorrect && <CheckCircle className="h-3 w-3 inline mr-1" />}
+                          {optionText}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <p className="mt-2 text-sm font-medium">
+                  <span className="text-gray-500">Answer:</span> {q.answer}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => handleAddGeneratedQuestion(q)}
+              >
+                <PlusCircle className="h-4 w-4 mr-1" />
+                Add
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
     );
   };
   
@@ -489,47 +547,8 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                         <div className="flex justify-center items-center h-full">
                           Loading questions...
                         </div>
-                      ) : generatedQuestions && generatedQuestions.length > 0 ? (
-                        <ul className="space-y-4">
-                          {generatedQuestions.map((q, index) => (
-                            <li key={index} className="border-b pb-4 last:border-b-0">
-                              <div className="flex justify-between items-start gap-4">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant={q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'outline' : 'secondary'}>
-                                      {q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'MCQ' : 'Theory'}
-                                    </Badge>
-                                  </div>
-                                  <p className="font-medium">{q.question}</p>
-                                  {q.options && q.options.length > 0 && (
-                                    <ul className="mt-2 space-y-1">
-                                      {q.options.map((option, i) => (
-                                        <li key={i} className={`text-sm ${option === q.answer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
-                                          {option === q.answer && <CheckCircle className="h-3 w-3 inline mr-1" />}
-                                          {option}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                  <p className="mt-2 text-sm font-medium">
-                                    <span className="text-gray-500">Answer:</span> {q.answer}
-                                  </p>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleAddGeneratedQuestion(q)}
-                                >
-                                  <PlusCircle className="h-4 w-4 mr-1" />
-                                  Add
-                                </Button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
                       ) : (
-                        <div className="flex justify-center items-center h-full text-gray-500">
-                          No questions available for this topic
-                        </div>
+                        renderGeneratedQuestions()
                       )}
                     </div>
                   ) : (

@@ -45,7 +45,7 @@ export interface TestQuestion {
   test_id: string;
   question_text: string;
   correct_answer: string;
-  options?: string[] | any;
+  options?: string[] | Array<{text: string, isCorrect: boolean}> | any;
   marks: number;
   topic?: string;
   status: 'draft' | 'published' | string;
