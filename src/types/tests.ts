@@ -28,3 +28,13 @@ export interface TestFormData {
   test_date: string;
   max_marks: number;
 }
+
+export interface TestAnswer {
+  id: string;
+  student_id: string;
+  test_id: string;
+  subject_id: string;
+  answer_sheet_url?: string | null;
+  text_content?: string | null;
+  created_at: string;
+}

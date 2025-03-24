@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -30,6 +31,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { getAnswerSheetUrl } from "@/utils/assessment/fileUploadUtils";
 import type { TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
 import { useTestFiles } from "@/hooks/test-selection/useTestFiles";
@@ -65,33 +67,35 @@ export function StudentEvaluationDetails({
   // Fetch the latest answer sheet URL directly from the database
   useEffect(() => {
     const fetchLatestAnswerSheet = async () => {
-      if (!selectedStudentGrade?.student_id || !test?.subject_id) return;
+      if (!selectedStudentGrade?.student_id || !test?.subject_id || !test?.id) return;
       
       try {
-        // Get the latest assessment for this student and subject
-        const { data, error } = await supabase
-          .from('assessments')
-          .select('answer_sheet_url, text_content')
-          .eq('student_id', selectedStudentGrade.student_id)
-          .eq('subject_id', test.subject_id)
-          .eq('test_id', test.id)
-          .order('updated_at', { ascending: false })
-          .maybeSingle();
+        // Get the answer sheet URL from test_answers table
+        const answerSheetUrl = await getAnswerSheetUrl(
+          selectedStudentGrade.student_id,
+          test.subject_id,
+          test.id
+        );
         
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching latest answer sheet:', error);
-          return;
-        }
-        
-        if (data?.answer_sheet_url) {
+        if (answerSheetUrl) {
           // Add a cache-busting parameter to avoid browser caching
-          const url = new URL(data.answer_sheet_url);
+          const url = new URL(answerSheetUrl);
           url.searchParams.set('t', Date.now().toString());
           setLatestAnswerSheetUrl(url.toString());
         }
 
-        // Set the extracted text from OCR if available
-        if (data?.text_content) {
+        // Also fetch text content if available
+        const { data, error } = await supabase
+          .from('test_answers')
+          .select('text_content')
+          .eq('student_id', selectedStudentGrade.student_id)
+          .eq('subject_id', test.subject_id)
+          .eq('test_id', test.id)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching text content:', error);
+        } else if (data?.text_content) {
           setExtractedText(data.text_content);
         } else {
           setExtractedText(null);
@@ -290,19 +294,13 @@ export function StudentEvaluationDetails({
                                         Math.max(0, Number(e.target.value)), 
                                         answer.score[1]
                                       );
-                                      handleUpdateAnswerScore(
-                                        selectedStudentGrade, 
-                                        index, 
-                                        newScore
-                                      );
+                                      handleUpdateAnswerScore(selectedStudentGrade, index, newScore);
                                     }}
+                                    className="h-8 w-20 text-center"
                                     min={0}
                                     max={answer.score[1]}
-                                    className="w-16 h-8"
                                   />
-                                  <span className="text-sm text-muted-foreground">
-                                    / {answer.score[1]}
-                                  </span>
+                                  <span className="text-sm text-muted-foreground">/ {answer.score[1]}</span>
                                 </div>
                               </div>
                             </div>
@@ -318,90 +316,58 @@ export function StudentEvaluationDetails({
           
           <TabsContent value="question-paper">
             {questionPaperUrl ? (
-              <div className="h-[600px] overflow-auto border rounded-md">
-                <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
-                  <iframe 
-                    src={`${addCacheBuster(questionPaperUrl)}#view=FitH`} 
-                    title="Question Paper" 
-                    className="w-full h-[600px]"
-                  />
-                </div>
+              <div className="rounded-md overflow-hidden border h-[600px]">
+                <iframe 
+                  src={`${addCacheBuster(questionPaperUrl)}#zoom=${zoomLevel/100}`}
+                  className="w-full h-full"
+                  title="Question Paper"
+                />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[600px] border rounded-md">
-                <div className="text-center text-muted-foreground">
-                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                  <p>Question paper not available</p>
-                </div>
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-5 w-5 mr-2" />
+                No question paper available
               </div>
             )}
           </TabsContent>
           
           <TabsContent value="answer-key">
             {answerKeyUrl ? (
-              <div className="h-[600px] overflow-auto border rounded-md">
-                <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
-                  <iframe 
-                    src={`${addCacheBuster(answerKeyUrl)}#view=FitH`} 
-                    title="Answer Key" 
-                    className="w-full h-[600px]"
-                  />
-                </div>
+              <div className="rounded-md overflow-hidden border h-[600px]">
+                <iframe 
+                  src={`${addCacheBuster(answerKeyUrl)}#zoom=${zoomLevel/100}`}
+                  className="w-full h-full"
+                  title="Answer Key"
+                />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[600px] border rounded-md">
-                <div className="text-center text-muted-foreground">
-                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                  <p>Answer key not available</p>
-                </div>
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-5 w-5 mr-2" />
+                No answer key available
               </div>
             )}
           </TabsContent>
           
           <TabsContent value="student-paper">
             {studentPaperUrl ? (
-              <div className="h-[600px] overflow-auto border rounded-md">
-                <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', width: `${100 / (zoomLevel / 100)}%` }}>
-                  <iframe 
-                    src={`${addCacheBuster(studentPaperUrl)}#view=FitH`} 
-                    title="Student Paper" 
-                    className="w-full h-[600px]"
-                  />
-                </div>
+              <div className="rounded-md overflow-hidden border h-[600px]">
+                <iframe 
+                  src={`${addCacheBuster(studentPaperUrl)}#zoom=${zoomLevel/100}`}
+                  className="w-full h-full"
+                  title="Student Answer Sheet"
+                />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[600px] border rounded-md">
-                <div className="text-center text-muted-foreground">
-                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                  <p>Student paper not available</p>
-                </div>
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-5 w-5 mr-2" />
+                No student answer sheet available
               </div>
             )}
           </TabsContent>
           
           <TabsContent value="ocr-text">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FileDigit className="h-5 w-5 text-primary" />
-                  Extracted Text from OCR
-                </h3>
-              </div>
-              
-              {!ocrText || ocrText === "No OCR text available for this answer sheet" ? (
-                <div className="flex items-center justify-center h-[600px] border rounded-md">
-                  <div className="text-center text-muted-foreground">
-                    <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                    <p>No OCR text available for this answer sheet</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-[600px] overflow-auto border rounded-md p-4 bg-white dark:bg-gray-950">
-                  <div className="whitespace-pre-wrap font-mono text-sm">
-                    {ocrText}
-                  </div>
-                </div>
-              )}
+            <div className="rounded-md border p-4 h-[600px] overflow-auto">
+              <pre className="whitespace-pre-wrap text-sm font-mono">{ocrText}</pre>
             </div>
           </TabsContent>
         </Tabs>

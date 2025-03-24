@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAnswerSheetUrl } from "@/utils/assessment/fileUploadUtils";
 import type { Student } from "@/types/dashboard";
 
 export type EvaluationStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
@@ -60,7 +61,6 @@ export function useEvaluations(
       studentId, 
       testId, 
       subjectId, 
-      answerSheetUrl,
       questionPaperUrl,
       questionPaperTopic,
       answerKeyUrl,
@@ -70,7 +70,6 @@ export function useEvaluations(
       studentId: string; 
       testId: string; 
       subjectId: string; 
-      answerSheetUrl: string;
       questionPaperUrl: string;
       questionPaperTopic: string;
       answerKeyUrl: string;
@@ -84,6 +83,13 @@ export function useEvaluations(
       }
     }) => {
       console.log("Starting evaluation for student:", studentInfo.name, "for test:", testId);
+      
+      // Get the answer sheet URL from test_answers
+      const answerSheetUrl = await getAnswerSheetUrl(studentId, subjectId, testId);
+      
+      if (!answerSheetUrl) {
+        throw new Error("No answer sheet found for this student");
+      }
       
       // Check if an evaluation already exists for this student and test
       const { data: existingEvaluations, error: fetchError } = await supabase
@@ -149,6 +155,7 @@ export function useEvaluations(
           student_name: studentInfo.name,
           roll_no: studentInfo.roll_number,
           subject: studentInfo.subject,
+          answer_sheet_url: answerSheetUrl,
           answers: [
             {
               question_no: 1,
@@ -272,28 +279,10 @@ export function useEvaluations(
     return evaluation?.status || 'pending';
   };
 
-  // Get answer sheet URL specific to a subject
+  // Get answer sheet URL specific to a student and test
   const getStudentAnswerSheetUrl = async (studentId: string): Promise<string | null> => {
-    try {
-      // Use 'assessments' table which we just created
-      const { data, error } = await supabase
-        .from('assessments')
-        .select('answer_sheet_url')
-        .eq('student_id', studentId)
-        .eq('subject_id', selectedSubject)
-        .eq('test_id', selectedTest)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching answer sheet URL:', error);
-        return null;
-      }
-      
-      return data?.answer_sheet_url || null;
-    } catch (error) {
-      console.error('Error in getStudentAnswerSheetUrl:', error);
-      return null;
-    }
+    if (!selectedSubject || !selectedTest) return null;
+    return getAnswerSheetUrl(studentId, selectedSubject, selectedTest);
   };
 
   // Enhanced delete evaluation function for permanent deletion

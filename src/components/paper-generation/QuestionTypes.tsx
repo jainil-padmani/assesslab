@@ -39,6 +39,7 @@ interface QuestionTypesProps {
   multipleChoiceCount: number;
   setMultipleChoiceCount: (count: number) => void;
   theoryQuestionConfig: TheoryQuestionConfig;
+  setTheoryQuestionConfig: React.Dispatch<React.SetStateAction<TheoryQuestionConfig>>;
   courseOutcomes: CourseOutcome[];
   setCourseOutcomes: React.Dispatch<React.SetStateAction<CourseOutcome[]>>;
   isLoadingCourseOutcomes: boolean;
@@ -51,6 +52,7 @@ export function QuestionTypes({
   multipleChoiceCount,
   setMultipleChoiceCount,
   theoryQuestionConfig,
+  setTheoryQuestionConfig,
   courseOutcomes,
   setCourseOutcomes,
   isLoadingCourseOutcomes,
@@ -58,7 +60,7 @@ export function QuestionTypes({
 }: QuestionTypesProps) {
   
   const handleMultipleChoiceCountChange = (delta: number) => {
-    setMultipleChoiceCount(prev => Math.max(1, prev + delta));
+    setMultipleChoiceCount(Math.max(1, multipleChoiceCount + delta));
   };
   
   const handleMultipleChoiceInputChange = (value: string) => {
@@ -105,6 +107,14 @@ export function QuestionTypes({
         return co;
       })
     );
+  };
+
+  // Handle direct question count updates when no course outcomes are available
+  const handleTheoryQuestionChange = (markCategory: keyof TheoryQuestionConfig, delta: number) => {
+    setTheoryQuestionConfig(prev => ({
+      ...prev,
+      [markCategory]: Math.max(0, prev[markCategory] + delta)
+    }));
   };
 
   return (
@@ -168,8 +178,50 @@ export function QuestionTypes({
                 {isLoadingCourseOutcomes ? (
                   <div className="animate-pulse mt-2">Loading course outcomes...</div>
                 ) : courseOutcomes.length === 0 ? (
-                  <div className="text-sm text-muted-foreground mt-2">
-                    No course outcomes found for this subject. Please select a subject with defined course outcomes.
+                  <div className="space-y-4">
+                    <div className="text-sm text-amber-600 mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <p className="flex items-center">
+                        <AlertCircle className="h-4 w-4 mr-2 shrink-0" />
+                        No course outcomes mapped for this subject. You can specify the number of questions for each mark category directly.
+                      </p>
+                    </div>
+                    
+                    <div className="mt-4 p-4 border rounded-md bg-gray-50">
+                      <h4 className="text-sm font-medium mb-3">Specify Question Distribution</h4>
+                      <div className="space-y-3">
+                        {(Object.keys(theoryQuestionConfig) as Array<keyof TheoryQuestionConfig>).map((markCategory) => (
+                          <div key={markCategory} className="flex items-center justify-between">
+                            <Label className="text-sm">{markCategory} Questions</Label>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleTheoryQuestionChange(markCategory, -1)}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="text-sm w-6 text-center">
+                                {theoryQuestionConfig[markCategory]}
+                              </span>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleTheoryQuestionChange(markCategory, 1)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <div className="flex justify-between font-medium pt-2 mt-2 border-t">
+                          <span>Total Marks:</span>
+                          <span>{calculateTotalMarks()}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3 mt-3">

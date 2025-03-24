@@ -6,9 +6,9 @@ import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   validatePdfFile, 
-  uploadAnswerSheetFile 
+  uploadAnswerSheetFile,
+  saveTestAnswer 
 } from "@/utils/assessment/fileUploadUtils";
-import { supabase } from "@/integrations/supabase/client";
 
 interface UploadAnswerSheetProps {
   studentId: string;
@@ -48,6 +48,11 @@ export function UploadAnswerSheet({
       return;
     }
 
+    if (!testId) {
+      toast.error('No test selected');
+      return;
+    }
+
     setIsUploading(true);
     setIsProcessing(true);
     
@@ -55,59 +60,17 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file...');
       
-      // Check for existing assessments - using newly created 'assessments' table
-      const { data: existingData, error: existingError } = await supabase
-        .from('assessments')
-        .select('id, answer_sheet_url')
-        .eq('student_id', studentId)
-        .eq('subject_id', selectedSubject)
-        .maybeSingle();
-      
-      if (existingError && existingError.code !== 'PGRST116') {
-        console.error('Error checking existing assessments:', existingError);
-        throw new Error('Failed to check existing assessments');
-      }
-      
-      // Extract previous URL for cleanup later
-      const previousUrl = existingData?.answer_sheet_url || null;
-      
       // Upload the file to storage
       const { publicUrl } = await uploadAnswerSheetFile(file);
 
-      // Prepare the assessment data
-      const assessmentData = {
-        student_id: studentId,
-        subject_id: selectedSubject,
-        answer_sheet_url: publicUrl,
-        status: 'pending',
-        updated_at: new Date().toISOString(),
-        text_content: 'Uploaded document'
-      } as any;
-      
-      if (testId) {
-        assessmentData.test_id = testId;
-      }
-
-      // Update or create assessment
-      if (existingData?.id) {
-        // Update existing assessment
-        const { error: updateError } = await supabase
-          .from('assessments')
-          .update(assessmentData)
-          .eq('id', existingData.id);
-        
-        if (updateError) throw updateError;
-      } else {
-        // Create a new assessment
-        const { error: insertError } = await supabase
-          .from('assessments')
-          .insert({
-            ...assessmentData,
-            created_at: new Date().toISOString()
-          });
-
-        if (insertError) throw insertError;
-      }
+      // Save to test_answers table
+      await saveTestAnswer(
+        studentId,
+        selectedSubject,
+        testId,
+        publicUrl,
+        'Uploaded document'
+      );
       
       // Reset form
       setFile(null);

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -146,7 +145,7 @@ export default function PaperGeneration() {
       
       if (error) throw error;
       
-      if (data) {
+      if (data && data.length > 0) {
         const mappedOutcomes = data.map(co => ({
           id: co.id,
           co_number: co.co_number,
@@ -186,17 +185,26 @@ export default function PaperGeneration() {
     if (questionMode === "multiple-choice") {
       return multipleChoiceCount;
     } else {
-      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-      let totalMarks = 0;
-      
-      selectedCourseOutcomes.forEach(co => {
-        totalMarks += co.questionDistribution["1 mark"] * 1;
-        totalMarks += co.questionDistribution["2 marks"] * 2;
-        totalMarks += co.questionDistribution["4 marks"] * 4;
-        totalMarks += co.questionDistribution["8 marks"] * 8;
-      });
-      
-      return totalMarks;
+      if (courseOutcomes.length > 0) {
+        const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+        let totalMarks = 0;
+        
+        selectedCourseOutcomes.forEach(co => {
+          totalMarks += co.questionDistribution["1 mark"] * 1;
+          totalMarks += co.questionDistribution["2 marks"] * 2;
+          totalMarks += co.questionDistribution["4 marks"] * 4;
+          totalMarks += co.questionDistribution["8 marks"] * 8;
+        });
+        
+        return totalMarks;
+      } else {
+        return (
+          theoryQuestionConfig["1 mark"] * 1 +
+          theoryQuestionConfig["2 marks"] * 2 +
+          theoryQuestionConfig["4 marks"] * 4 +
+          theoryQuestionConfig["8 marks"] * 8
+        );
+      }
     }
   };
 
@@ -216,7 +224,7 @@ export default function PaperGeneration() {
       return;
     }
     
-    if (questionMode === "theory") {
+    if (questionMode === "theory" && courseOutcomes.length > 0) {
       const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
       if (selectedCourseOutcomes.length === 0) {
         toast.error("Please select at least one course outcome for theory questions");
@@ -228,30 +236,38 @@ export default function PaperGeneration() {
     toast.info("Generating questions, this may take a moment...");
     
     try {
-      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-      
       let questionTypesConfig = {};
+      
       if (questionMode === "multiple-choice") {
         questionTypesConfig = {
           "Multiple Choice (1 mark)": multipleChoiceCount
         };
       } else {
-        // For theory questions, aggregate the question distribution from all selected course outcomes
-        const aggregatedDistribution = {
-          "Short Answer (1 mark)": 0,
-          "Short Answer (2 marks)": 0,
-          "Medium Answer (4 marks)": 0,
-          "Long Answer (8 marks)": 0
-        };
-        
-        selectedCourseOutcomes.forEach(co => {
-          aggregatedDistribution["Short Answer (1 mark)"] += co.questionDistribution["1 mark"];
-          aggregatedDistribution["Short Answer (2 marks)"] += co.questionDistribution["2 marks"];
-          aggregatedDistribution["Medium Answer (4 marks)"] += co.questionDistribution["4 marks"];
-          aggregatedDistribution["Long Answer (8 marks)"] += co.questionDistribution["8 marks"];
-        });
-        
-        questionTypesConfig = aggregatedDistribution;
+        if (courseOutcomes.length > 0) {
+          const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+          const aggregatedDistribution = {
+            "Short Answer (1 mark)": 0,
+            "Short Answer (2 marks)": 0,
+            "Medium Answer (4 marks)": 0,
+            "Long Answer (8 marks)": 0
+          };
+          
+          selectedCourseOutcomes.forEach(co => {
+            aggregatedDistribution["Short Answer (1 mark)"] += co.questionDistribution["1 mark"];
+            aggregatedDistribution["Short Answer (2 marks)"] += co.questionDistribution["2 marks"];
+            aggregatedDistribution["Medium Answer (4 marks)"] += co.questionDistribution["4 marks"];
+            aggregatedDistribution["Long Answer (8 marks)"] += co.questionDistribution["8 marks"];
+          });
+          
+          questionTypesConfig = aggregatedDistribution;
+        } else {
+          questionTypesConfig = {
+            "Short Answer (1 mark)": theoryQuestionConfig["1 mark"],
+            "Short Answer (2 marks)": theoryQuestionConfig["2 marks"],
+            "Medium Answer (4 marks)": theoryQuestionConfig["4 marks"],
+            "Long Answer (8 marks)": theoryQuestionConfig["8 marks"]
+          };
+        }
       }
       
       const response = await supabase.functions.invoke('generate-questions', {
@@ -260,7 +276,9 @@ export default function PaperGeneration() {
           content: extractedContent || "No content provided",
           bloomsTaxonomy,
           difficulty,
-          courseOutcomes: questionMode === "theory" ? selectedCourseOutcomes : undefined,
+          courseOutcomes: courseOutcomes.length > 0 && questionMode === "theory" 
+            ? courseOutcomes.filter(co => co.selected) 
+            : undefined,
           questionTypes: questionTypesConfig,
           questionMode: questionMode
         }
@@ -328,7 +346,7 @@ export default function PaperGeneration() {
       (!extractedContent && !contentUrl) || 
       !selectedSubject || 
       !topicName || 
-      (questionMode === "theory" && courseOutcomes.filter(co => co.selected).length === 0)
+      (questionMode === "theory" && courseOutcomes.length > 0 && courseOutcomes.filter(co => co.selected).length === 0)
     );
   };
 
@@ -379,6 +397,7 @@ export default function PaperGeneration() {
             multipleChoiceCount={multipleChoiceCount}
             setMultipleChoiceCount={setMultipleChoiceCount}
             theoryQuestionConfig={theoryQuestionConfig}
+            setTheoryQuestionConfig={setTheoryQuestionConfig}
             courseOutcomes={courseOutcomes}
             setCourseOutcomes={setCourseOutcomes}
             isLoadingCourseOutcomes={isLoadingCourseOutcomes}
