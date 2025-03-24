@@ -1,6 +1,4 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface AssessmentData {
   student_id: string;
@@ -77,13 +75,14 @@ export const fetchExistingAssessments = async (
 /**
  * Fetch all subjects
  */
-export const fetchSubjects = async () => {
+export async function fetchSubjects() {
   const { data, error } = await supabase
     .from('subjects')
-    .select('id, name, subject_code');
-    
+    .select('*')
+    .order('name', { ascending: true });
+  
   if (error) {
-    console.error('Error fetching subjects:', error);
+    console.error("Error fetching subjects:", error);
     throw error;
   }
   

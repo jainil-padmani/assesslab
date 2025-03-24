@@ -1,263 +1,324 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, User } from "lucide-react";
+import { fetchAssessmentById, submitAssessmentAttempt } from "@/utils/assessment/assessmentService";
+import { Assessment, AssessmentQuestion, StudentAssessmentAnswer } from "@/types/assessments";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { fetchAssessmentDetails, fetchAssessmentQuestions, submitAssessmentAnswers } from "@/utils/assessment/assessmentManager";
-import { ArrowLeft, ArrowRight, Clock, CheckCircle, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const TakeAssessment = () => {
   const { assessmentId } = useParams<{ assessmentId: string }>();
   const navigate = useNavigate();
   
-  // Student identification
-  const [grNumber, setGrNumber] = useState("");
-  const [studentId, setStudentId] = useState<string | null>(null);
-  const [studentDetails, setStudentDetails] = useState<any>(null);
-  const [accessCode, setAccessCode] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  
-  // Assessment state
-  const [isStarted, setIsStarted] = useState(false);
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: string]: string }>({});
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [timeSpent, setTimeSpent] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
-  const [submissionScore, setSubmissionScore] = useState<{
-    score: number;
-    possibleScore: number;
-  } | null>(null);
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const [studentName, setStudentName] = useState("");
+  
+  // Check if user is logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setStudentId(data.user.id);
+      }
+    };
+    
+    checkUser();
+  }, []);
   
   // Fetch assessment details
-  const { data: assessment, isLoading: isLoadingDetails, error: detailsError } = useQuery({
-    queryKey: ["take-assessment-details", assessmentId],
-    queryFn: () => fetchAssessmentDetails(assessmentId!),
-    enabled: !!assessmentId
-  });
-  
-  // Fetch assessment questions
-  const { data: questions, isLoading: isLoadingQuestions, error: questionsError } = useQuery({
-    queryKey: ["take-assessment-questions", assessmentId],
-    queryFn: () => fetchAssessmentQuestions(assessmentId!),
-    enabled: !!assessmentId
-  });
-  
-  // Set up the timer
   useEffect(() => {
-    let timer: number | undefined;
+    if (assessmentId) {
+      fetchAssessment();
+    }
+  }, [assessmentId]);
+  
+  // Initialize timer if time limit is set
+  useEffect(() => {
+    if (assessment?.options.timeLimit.enabled) {
+      const minutes = assessment.options.timeLimit.minutes;
+      setTimeLeft(minutes * 60); // Convert to seconds
+    }
+  }, [assessment]);
+  
+  // Timer countdown
+  useEffect(() => {
+    if (timeLeft === null) return;
     
-    if (isStarted && assessment?.options?.time_limit_enabled && assessment.options.time_limit_minutes) {
-      // Convert minutes to seconds
-      const timeLimitInSeconds = assessment.options.time_limit_minutes * 60;
-      
-      if (timeRemaining === null) {
-        setTimeRemaining(timeLimitInSeconds);
-      }
-      
-      timer = window.setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev === null || prev <= 0) {
-            clearInterval(timer);
-            handleTimeUp();
-            return 0;
-          }
-          return prev - 1;
-        });
-        
-        setTimeSpent(prev => prev + 1);
-      }, 1000);
-    } else if (isStarted) {
-      // If there's no time limit, just track time spent
-      timer = window.setInterval(() => {
-        setTimeSpent(prev => prev + 1);
-      }, 1000);
+    if (timeLeft <= 300 && !showTimeWarning) { // 5 minutes warning
+      setShowTimeWarning(true);
+      toast.warning("5 minutes remaining!");
     }
     
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isStarted, assessment]);
-  
-  // Format time display
-  const formatTime = (totalSeconds: number) => {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    
-    const parts = [];
-    
-    if (hours > 0) {
-      parts.push(`${hours}h`);
-    }
-    
-    if (minutes > 0 || hours > 0) {
-      parts.push(`${minutes}m`);
-    }
-    
-    parts.push(`${seconds}s`);
-    
-    return parts.join(' ');
-  };
-  
-  // Handle time up
-  const handleTimeUp = () => {
-    toast.warning("Time's up! The assessment will be submitted automatically.");
-    handleSubmitAssessment();
-  };
-  
-  // Verify student GR number
-  const verifyStudent = async () => {
-    if (!grNumber.trim()) {
-      toast.error("Please enter your GR Number");
+    if (timeLeft <= 0) {
+      toast.error("Time's up! Your assessment will be submitted.");
+      handleSubmit();
       return;
     }
     
-    setIsVerifying(true);
+    const timerId = setTimeout(() => {
+      setTimeLeft(timeLeft - 1);
+    }, 1000);
+    
+    return () => clearTimeout(timerId);
+  }, [timeLeft]);
+  
+  const fetchAssessment = async () => {
+    if (!assessmentId) return;
     
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, name, gr_number, roll_number')
-        .eq('gr_number', grNumber)
-        .maybeSingle();
+      setLoading(true);
+      const data = await fetchAssessmentById(assessmentId);
+      
+      if (data) {
+        setAssessment(data);
         
-      if (error) throw error;
-      
-      if (!data) {
-        toast.error("Student not found. Please check your GR Number");
-        setIsVerifying(false);
-        return;
-      }
-      
-      setStudentDetails(data);
-      setStudentId(data.id);
-      
-      // Check if access code is required
-      if (assessment?.restrictions?.require_access_code) {
-        // Don't auto-proceed, let them enter the access code
+        // Initialize answers object with empty strings
+        if (data.questions && data.questions.length > 0) {
+          const initialAnswers: Record<string, string> = {};
+          data.questions.forEach(q => {
+            initialAnswers[q.id] = '';
+          });
+          setAnswers(initialAnswers);
+        }
       } else {
-        // If no access code required, proceed
-        setIsStarted(true);
+        toast.error("Assessment not found");
       }
-      
-      setIsVerifying(false);
     } catch (error) {
-      console.error('Error verifying student:', error);
-      toast.error("There was a problem verifying your ID. Please try again.");
-      setIsVerifying(false);
+      console.error("Error fetching assessment:", error);
+      toast.error("Failed to load assessment");
+    } finally {
+      setLoading(false);
     }
   };
   
-  // Verify access code
-  const verifyAccessCode = () => {
-    if (!accessCode.trim()) {
-      toast.error("Please enter the access code");
-      return;
-    }
-    
-    if (assessment?.restrictions?.access_code === accessCode) {
-      setIsStarted(true);
-    } else {
-      toast.error("Incorrect access code. Please try again.");
-    }
-  };
-  
-  // Handle answer change
-  const handleAnswerChange = (questionId: string, value: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: value
-    }));
-  };
-  
-  // Navigate between questions
-  const handleNext = () => {
-    if (questions && currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-  
-  const handlePrevious = () => {
+  const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
   
-  // Submit assessment
-  const handleSubmitAssessment = async () => {
-    if (!studentId || !questions || !assessmentId) return;
+  const handleNextQuestion = () => {
+    if (assessment?.questions && currentQuestionIndex < assessment.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+  
+  const handleAnswerChange = (questionId: string, answer: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+  };
+  
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  };
+  
+  const calculateScore = (): [number, number, StudentAssessmentAnswer[]] => {
+    if (!assessment?.questions) return [0, 0, []];
     
-    setIsSubmitting(true);
+    let score = 0;
+    const possibleScore = assessment.questions.reduce((total, q) => total + q.points, 0);
+    
+    const assessmentAnswers: StudentAssessmentAnswer[] = assessment.questions.map(question => {
+      const userAnswer = answers[question.id] || '';
+      const isCorrect = userAnswer.toLowerCase() === question.correctAnswer.toLowerCase();
+      
+      if (isCorrect) {
+        score += question.points;
+      }
+      
+      return {
+        questionId: question.id,
+        answer: userAnswer,
+        isCorrect,
+        points: isCorrect ? question.points : 0
+      };
+    });
+    
+    return [score, possibleScore, assessmentAnswers];
+  };
+  
+  const handleSubmit = async () => {
+    if (!assessment || !assessmentId || !studentId) {
+      toast.error("Cannot submit assessment. Missing information.");
+      return;
+    }
     
     try {
-      // Format answers for submission
-      const formattedAnswers = Object.entries(answers).map(([questionId, answer]) => ({
-        question_id: questionId,
-        answer
-      }));
+      setIsSubmitting(true);
+      setShowConfirmSubmit(false);
       
-      // Submit answers
-      const result = await submitAssessmentAnswers(
+      // Calculate score
+      const [score, possibleScore, studentAnswers] = calculateScore();
+      
+      // Calculate time spent (in seconds)
+      const timeSpent = assessment.options.timeLimit.enabled
+        ? (assessment.options.timeLimit.minutes * 60) - (timeLeft || 0)
+        : 0;
+      
+      // Submit the attempt
+      await submitAssessmentAttempt({
         assessmentId,
         studentId,
-        formattedAnswers,
-        timeSpent
-      );
-      
-      setSubmissionSuccess(true);
-      setSubmissionScore({
-        score: result.score,
-        possibleScore: result.possibleScore
+        answers: studentAnswers,
+        score,
+        possibleScore,
+        timeSpent,
+        status: 'submitted',
+        attemptNumber: 1
       });
       
       toast.success("Assessment submitted successfully!");
+      
+      // Navigate back to the assessment details
+      navigate(`/dashboard/assessments/detail/${assessmentId}`);
     } catch (error) {
-      console.error('Error submitting assessment:', error);
-      toast.error("There was a problem submitting your assessment. Please try again.");
+      console.error("Error submitting assessment:", error);
+      toast.error("Failed to submit assessment. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  // Loading state
-  if (isLoadingDetails || isLoadingQuestions) {
+  // Render question based on type
+  const renderQuestion = (question: AssessmentQuestion) => {
+    switch (question.questionType) {
+      case 'multiple_choice':
+        return (
+          <RadioGroup
+            value={answers[question.id] || ''}
+            onValueChange={(value) => handleAnswerChange(question.id, value)}
+            className="space-y-3 mt-4"
+          >
+            {question.options?.map((option, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <RadioGroupItem value={option} id={`option-${index}`} />
+                <Label htmlFor={`option-${index}`}>{option}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        );
+      
+      case 'true_false':
+        return (
+          <RadioGroup
+            value={answers[question.id] || ''}
+            onValueChange={(value) => handleAnswerChange(question.id, value)}
+            className="space-y-3 mt-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="true" id="true" />
+              <Label htmlFor="true">True</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="false" id="false" />
+              <Label htmlFor="false">False</Label>
+            </div>
+          </RadioGroup>
+        );
+      
+      case 'short_answer':
+        return (
+          <Input
+            placeholder="Your answer"
+            value={answers[question.id] || ''}
+            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+            className="mt-4"
+          />
+        );
+      
+      case 'essay':
+        return (
+          <Textarea
+            placeholder="Your answer"
+            value={answers[question.id] || ''}
+            onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+            className="mt-4 min-h-[150px]"
+          />
+        );
+      
+      default:
+        return (
+          <div className="text-muted-foreground mt-4">
+            Unknown question type: {question.questionType}
+          </div>
+        );
+    }
+  };
+  
+  if (loading) {
     return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <div className="text-center py-8">
-          <h1 className="text-2xl font-bold mb-4">Loading Assessment...</h1>
-          <p>Please wait while we load your assessment.</p>
+      <div className="container mx-auto p-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/dashboard/assessments")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
         </div>
+        
+        <Card className="mb-6 animate-pulse">
+          <CardHeader>
+            <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
   
-  // Error state
-  if (detailsError || questionsError || !assessment) {
+  if (!assessment) {
     return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <Card className="border-red-200 bg-red-50">
+      <div className="container mx-auto p-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/dashboard/assessments")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Assessment Not Found</h1>
+        </div>
+        
+        <Card>
           <CardHeader>
-            <CardTitle className="text-red-600">Assessment Not Found</CardTitle>
+            <CardTitle>Assessment Not Found</CardTitle>
+            <CardDescription>
+              The assessment you're looking for doesn't exist or has been deleted
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p>
-              The assessment you're looking for is not available or may have been removed.
-            </p>
-          </CardContent>
           <CardFooter>
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
+            <Button onClick={() => navigate("/dashboard/assessments")}>
+              Back to Assessments
             </Button>
           </CardFooter>
         </Card>
@@ -265,223 +326,31 @@ const TakeAssessment = () => {
     );
   }
   
-  // Check availability
-  const now = new Date();
-  const isBeforeAvailableFrom = assessment.available_from && new Date(assessment.available_from) > now;
-  const isAfterAvailableUntil = assessment.available_until && new Date(assessment.available_until) < now;
-  
-  if (isBeforeAvailableFrom) {
+  // Check if assessment has questions
+  if (!assessment.questions || assessment.questions.length === 0) {
     return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>{assessment.title}</CardTitle>
-            <CardDescription>
-              This assessment is not yet available
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Not Available</AlertTitle>
-              <AlertDescription>
-                This assessment will be available from {new Date(assessment.available_from).toLocaleString()}.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-  
-  if (isAfterAvailableUntil) {
-    return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>{assessment.title}</CardTitle>
-            <CardDescription>
-              This assessment is no longer available
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Closed</AlertTitle>
-              <AlertDescription>
-                This assessment was available until {new Date(assessment.available_until).toLocaleString()} and is now closed.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-  
-  // Success screen after submission
-  if (submissionSuccess) {
-    return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <Card>
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <CheckCircle className="h-12 w-12 text-green-500" />
-            </div>
-            <CardTitle>Assessment Submitted</CardTitle>
-            <CardDescription>
-              Thank you for completing the assessment
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-md text-center">
-                <p className="text-sm text-muted-foreground mb-1">Your Score</p>
-                <h3 className="text-3xl font-bold">
-                  {submissionScore?.score}/{submissionScore?.possibleScore}
-                </h3>
-                <p className="text-lg font-medium">
-                  {submissionScore ? Math.round(submissionScore.score / submissionScore.possibleScore * 100) : 0}%
-                </p>
-              </div>
-              
-              {assessment.options?.show_quiz_responses && (
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {assessment.options.show_once_after_attempt 
-                      ? "You can now view your responses. This will only be available once."
-                      : "You can view your responses below."}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-center">
-            <Button onClick={() => navigate(-1)}>
-              Finish
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-  
-  // Student identification screen
-  if (!isStarted) {
-    return (
-      <div className="container mx-auto p-4 max-w-3xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>{assessment.title}</CardTitle>
-            <CardDescription>
-              Please enter your information to start the assessment
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {!studentId ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="gr-number">GR Number / Roll Number</Label>
-                    <Input
-                      id="gr-number"
-                      placeholder="Enter your GR Number or Roll Number"
-                      value={grNumber}
-                      onChange={(e) => setGrNumber(e.target.value)}
-                    />
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    onClick={verifyStudent}
-                    disabled={isVerifying || !grNumber.trim()}
-                  >
-                    {isVerifying ? "Verifying..." : "Verify"}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-muted p-4 rounded-md">
-                    <h3 className="font-medium mb-2">Student Information</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="text-muted-foreground">Name:</div>
-                      <div>{studentDetails?.name}</div>
-                      
-                      <div className="text-muted-foreground">GR Number:</div>
-                      <div>{studentDetails?.gr_number}</div>
-                      
-                      {studentDetails?.roll_number && (
-                        <>
-                          <div className="text-muted-foreground">Roll Number:</div>
-                          <div>{studentDetails.roll_number}</div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {assessment.restrictions?.require_access_code && (
-                    <div className="space-y-2">
-                      <Label htmlFor="access-code">Access Code</Label>
-                      <Input
-                        id="access-code"
-                        placeholder="Enter the access code provided by your teacher"
-                        value={accessCode}
-                        onChange={(e) => setAccessCode(e.target.value)}
-                      />
-                      <Button 
-                        className="w-full mt-2" 
-                        onClick={verifyAccessCode}
-                        disabled={!accessCode.trim()}
-                      >
-                        Submit Access Code
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter>
-            {assessment.instructions && (
-              <div className="space-y-2 w-full">
-                <h3 className="font-medium">Assessment Instructions:</h3>
-                <div className="text-sm bg-muted p-3 rounded-md">
-                  {assessment.instructions}
-                </div>
-              </div>
-            )}
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-  
-  // Actual assessment screen
-  const currentQuestion = questions && questions.length > 0 
-    ? questions[currentQuestionIndex] 
-    : null;
-  
-  if (!currentQuestion) {
-    return (
-      <div className="container mx-auto p-4 max-w-3xl">
+      <div className="container mx-auto p-4">
+        <div className="flex items-center gap-2 mb-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate("/dashboard/assessments")}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">{assessment.title}</h1>
+        </div>
+        
         <Card>
           <CardHeader>
             <CardTitle>No Questions Available</CardTitle>
+            <CardDescription>
+              This assessment doesn't have any questions yet
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p>There are no questions available for this assessment.</p>
-          </CardContent>
           <CardFooter>
-            <Button variant="outline" onClick={() => navigate(-1)}>
-              Go Back
+            <Button onClick={() => navigate("/dashboard/assessments")}>
+              Back to Assessments
             </Button>
           </CardFooter>
         </Card>
@@ -489,145 +358,148 @@ const TakeAssessment = () => {
     );
   }
   
-  // One question at a time or all questions
-  const showOneQuestionAtTime = assessment.options?.show_one_question_at_time;
+  const currentQuestion = assessment.questions[currentQuestionIndex];
+  const progressPercentage = ((currentQuestionIndex + 1) / assessment.questions.length) * 100;
   
   return (
-    <div className="container mx-auto p-4 max-w-3xl">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>{assessment.title}</CardTitle>
-            {assessment.options?.time_limit_enabled && timeRemaining !== null && (
-              <div className="flex items-center bg-muted px-3 py-1 rounded-md">
-                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span className={`text-sm font-medium ${timeRemaining < 60 ? 'text-red-500' : ''}`}>
-                  {formatTime(timeRemaining)}
-                </span>
-              </div>
-            )}
+    <div className="container mx-auto p-4">
+      <div className="flex items-center gap-2 mb-6">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => navigate("/dashboard/assessments")}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-bold">{assessment.title}</h1>
+      </div>
+      
+      {/* Time remaining */}
+      {timeLeft !== null && (
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm font-medium">Time Remaining</span>
+            <span className={`flex items-center ${timeLeft < 300 ? 'text-red-500 font-bold' : ''}`}>
+              <Clock className="h-4 w-4 mr-1" />
+              {formatTime(timeLeft)}
+            </span>
           </div>
+        </div>
+      )}
+      
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm">
+            Question {currentQuestionIndex + 1} of {assessment.questions.length}
+          </span>
+          <span className="text-sm">
+            {Math.round(progressPercentage)}% Complete
+          </span>
+        </div>
+        <Progress value={progressPercentage} className="h-2" />
+      </div>
+      
+      {/* Question card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Question {currentQuestionIndex + 1}</CardTitle>
           <CardDescription>
-            {showOneQuestionAtTime 
-              ? `Question ${currentQuestionIndex + 1} of ${questions?.length}`
-              : `${questions?.length} Questions • ${assessment.options?.time_limit_enabled 
-                ? `${assessment.options.time_limit_minutes} Minutes` 
-                : "No Time Limit"}`
-            }
+            {currentQuestion.points} {currentQuestion.points === 1 ? 'point' : 'points'}
           </CardDescription>
         </CardHeader>
-        
         <CardContent>
-          {showOneQuestionAtTime ? (
-            // Show one question at a time
-            <div className="space-y-4">
-              <div className="text-lg font-medium">{currentQuestion.question_text}</div>
-              
-              {currentQuestion.question_type === 'multiple_choice' && currentQuestion.options && (
-                <RadioGroup 
-                  value={answers[currentQuestion.id] || ''} 
-                  onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-                >
-                  <div className="space-y-2">
-                    {currentQuestion.options.map((option, i) => (
-                      <div key={i} className="flex items-center space-x-2">
-                        <RadioGroupItem value={option} id={`option-${i}`} />
-                        <Label htmlFor={`option-${i}`}>{option}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </RadioGroup>
-              )}
-              
-              {currentQuestion.question_type === 'text' && (
-                <Textarea 
-                  placeholder="Type your answer here..." 
-                  value={answers[currentQuestion.id] || ''}
-                  onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
-                  className="min-h-[150px]"
-                />
-              )}
-            </div>
-          ) : (
-            // Show all questions
-            <div className="space-y-8">
-              {questions?.map((question, index) => (
-                <div key={question.id} className="space-y-4">
-                  <div className="text-lg font-medium">
-                    {index + 1}. {question.question_text}
-                  </div>
-                  
-                  {question.question_type === 'multiple_choice' && question.options && (
-                    <RadioGroup 
-                      value={answers[question.id] || ''} 
-                      onValueChange={(value) => handleAnswerChange(question.id, value)}
-                    >
-                      <div className="space-y-2">
-                        {question.options.map((option, i) => (
-                          <div key={i} className="flex items-center space-x-2">
-                            <RadioGroupItem value={option} id={`q${index}-option-${i}`} />
-                            <Label htmlFor={`q${index}-option-${i}`}>{option}</Label>
-                          </div>
-                        ))}
-                      </div>
-                    </RadioGroup>
-                  )}
-                  
-                  {question.question_type === 'text' && (
-                    <Textarea 
-                      placeholder="Type your answer here..." 
-                      value={answers[question.id] || ''}
-                      onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                      className="min-h-[100px]"
-                    />
-                  )}
-                  
-                  {index < questions.length - 1 && <Separator />}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-        
-        <CardFooter>
-          <div className="w-full flex justify-between">
-            {showOneQuestionAtTime ? (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={handlePrevious}
-                  disabled={currentQuestionIndex === 0}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Previous
-                </Button>
-                
-                {currentQuestionIndex < (questions?.length || 0) - 1 ? (
-                  <Button onClick={handleNext}>
-                    Next
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleSubmitAssessment}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit Assessment"}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button 
-                className="w-full" 
-                onClick={handleSubmitAssessment}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Assessment"}
-              </Button>
-            )}
+          <div className="whitespace-pre-line mb-4">
+            {currentQuestion.questionText}
           </div>
+          
+          {renderQuestion(currentQuestion)}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button 
+            variant="outline"
+            onClick={handlePrevQuestion}
+            disabled={currentQuestionIndex === 0}
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Previous
+          </Button>
+          
+          {currentQuestionIndex < assessment.questions.length - 1 ? (
+            <Button onClick={handleNextQuestion}>
+              Next
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button 
+              variant="default" 
+              onClick={() => setShowConfirmSubmit(true)}
+              disabled={isSubmitting}
+            >
+              Submit Assessment
+            </Button>
+          )}
         </CardFooter>
       </Card>
+      
+      {/* Question navigation */}
+      {!assessment.options.showOneQuestionAtTime && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {assessment.questions.map((_, index) => (
+            <Button
+              key={index}
+              variant={index === currentQuestionIndex ? "default" : 
+                answers[assessment.questions[index].id] ? "outline" : "ghost"}
+              size="sm"
+              onClick={() => setCurrentQuestionIndex(index)}
+              className="w-10 h-10 rounded-full p-0"
+            >
+              {index + 1}
+            </Button>
+          ))}
+        </div>
+      )}
+      
+      {/* Submit confirmation dialog */}
+      <Dialog open={showConfirmSubmit} onOpenChange={setShowConfirmSubmit}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit Assessment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to submit your assessment? You won't be able to change your answers after submission.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-2 py-2">
+            <p><strong>Questions answered:</strong> {Object.values(answers).filter(a => a).length} of {assessment.questions.length}</p>
+            
+            {Object.values(answers).some(a => !a) && (
+              <Alert variant="warning" className="text-amber-600 bg-amber-50">
+                <AlertTitle>Some questions are unanswered</AlertTitle>
+                <AlertDescription>
+                  You have {assessment.questions.length - Object.values(answers).filter(a => a).length} unanswered questions.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowConfirmSubmit(false)}
+            >
+              Continue Working
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Assessment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
