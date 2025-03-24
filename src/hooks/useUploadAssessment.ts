@@ -2,14 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { v4 as uuidv4 } from "uuid";
-import { fetchExistingAssessments } from "@/utils/assessment/assessmentManager";
-
-interface UploadResult {
-  success: boolean;
-  url?: string;
-  error?: string;
-}
 
 export function useUploadAssessment(studentId: string, subjectId: string, testId: string) {
   const [isUploading, setIsUploading] = useState(false);
@@ -26,10 +18,21 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
 
   const checkExistingAnswerSheet = async () => {
     try {
-      const assessments = await fetchExistingAssessments(studentId, subjectId, testId);
+      const { data, error } = await supabase
+        .from('assessments')
+        .select('answer_sheet_url')
+        .eq('student_id', studentId)
+        .eq('subject_id', subjectId)
+        .eq('test_id', testId)
+        .maybeSingle();
       
-      if (assessments && assessments.length > 0 && assessments[0].answer_sheet_url) {
-        setAnswerSheetUrl(assessments[0].answer_sheet_url);
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error checking existing answer sheet:", error);
+        return;
+      }
+      
+      if (data?.answer_sheet_url) {
+        setAnswerSheetUrl(data.answer_sheet_url);
         setHasAnswerSheet(true);
       } else {
         setAnswerSheetUrl(null);
@@ -45,22 +48,24 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
       fileInputRef.current.click();
     } else {
       // Dispatch a custom event to open the file dialog
-      const event = new CustomEvent('openFileUpload', { detail: { studentId, subjectId, testId } });
+      const event = new CustomEvent('openFileUpload', { 
+        detail: { studentId, subjectId, testId } 
+      });
       document.dispatchEvent(event);
     }
   };
 
-  const uploadFile = async (file: File): Promise<UploadResult> => {
+  const handleFileSelected = async (file: File) => {
     try {
       setIsUploading(true);
       
       // Generate a unique file name
       const fileExt = file.name.split('.').pop();
-      const fileName = `${studentId}_${uuidv4()}.${fileExt}`;
+      const fileName = `${studentId}_${Date.now()}.${fileExt}`;
       const filePath = `answer_sheets/${fileName}`;
       
       // Upload the file to Supabase storage
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('files')
         .upload(filePath, file);
       
@@ -73,77 +78,69 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
         .from('files')
         .getPublicUrl(filePath);
       
-      return { success: true, url: urlData.publicUrl };
-    } catch (error: any) {
-      console.error("Error uploading file:", error);
-      return { success: false, error: error.message || "Failed to upload file" };
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const saveAssessmentRecord = async (url: string) => {
-    try {
+      const url = urlData.publicUrl;
+      
       // Check for existing assessment
-      const assessments = await fetchExistingAssessments(studentId, subjectId, testId);
+      const { data: existingData, error: checkError } = await supabase
+        .from('assessments')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('subject_id', subjectId)
+        .eq('test_id', testId)
+        .maybeSingle();
       
-      const assessmentData = {
-        student_id: studentId,
-        subject_id: subjectId,
-        test_id: testId,
-        answer_sheet_url: url,
-        status: 'submitted',
-        updated_at: new Date().toISOString()
-      };
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
       
-      if (assessments && assessments.length > 0) {
+      // Save or update assessment record
+      if (existingData) {
         // Update existing record
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('assessments')
-          .update(assessmentData)
-          .eq('id', assessments[0].id);
+          .update({
+            answer_sheet_url: url,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingData.id);
         
-        if (error) throw error;
+        if (updateError) throw updateError;
       } else {
         // Create new record
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('assessments')
           .insert({
-            ...assessmentData,
-            created_at: new Date().toISOString()
+            student_id: studentId,
+            subject_id: subjectId,
+            test_id: testId,
+            answer_sheet_url: url,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           });
         
-        if (error) throw error;
+        if (insertError) throw insertError;
       }
       
       // Update UI state
       setAnswerSheetUrl(url);
       setHasAnswerSheet(true);
       
+      toast.success("Answer sheet uploaded successfully");
+      
       // Dispatch event for other components to listen
       const event = new CustomEvent('answerSheetUploaded', { 
         detail: { studentId, subjectId, testId, url } 
       });
       document.dispatchEvent(event);
-    } catch (error: any) {
-      console.error("Error saving assessment record:", error);
-      throw new Error(error.message || "Failed to save assessment record");
-    }
-  };
-
-  const handleFileSelected = async (file: File) => {
-    try {
-      const result = await uploadFile(file);
       
-      if (!result.success || !result.url) {
-        toast.error(result.error || "Failed to upload file");
-        return;
-      }
-      
-      await saveAssessmentRecord(result.url);
-      toast.success("Answer sheet uploaded successfully");
+      return url;
     } catch (error: any) {
-      toast.error(error.message || "Error uploading answer sheet");
+      toast.error(error.message || "Failed to upload file");
+      console.error("Error uploading file:", error);
+      throw error;
+    } finally {
+      setIsUploading(false);
     }
   };
 

@@ -6,18 +6,9 @@ import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   validatePdfFile, 
-  uploadAnswerSheetFile, 
-  deletePreviousFiles, 
-  extractTextFromPdf,
-  processPdfFile
+  uploadAnswerSheetFile 
 } from "@/utils/assessment/fileUploadUtils";
-import { 
-  fetchExistingAssessments, 
-  updateAssessment, 
-  createAssessment,
-  removeDuplicateAssessments
-} from "@/utils/assessment/assessmentManager";
-import { resetEvaluations } from "@/utils/assessment/evaluationReset";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UploadAnswerSheetProps {
   studentId: string;
@@ -62,22 +53,26 @@ export function UploadAnswerSheet({
     
     try {
       // Show processing toast
-      toast.info('Processing PDF file for enhanced OCR...');
+      toast.info('Processing PDF file...');
       
-      // Fetch existing assessments
-      const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
+      // Check for existing assessments
+      const { data: existingData, error: existingError } = await supabase
+        .from('assessments')
+        .select('id, answer_sheet_url')
+        .eq('student_id', studentId)
+        .eq('subject_id', selectedSubject)
+        .maybeSingle();
       
-      // Extract previous URLs for cleanup later
-      const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
+      if (existingError && existingError.code !== 'PGRST116') {
+        console.error('Error checking existing assessments:', existingError);
+        throw new Error('Failed to check existing assessments');
+      }
       
-      // Process the file for enhanced OCR
-      const zipUrl = await processPdfFile(file, 'student');
+      // Extract previous URL for cleanup later
+      const previousUrl = existingData?.answer_sheet_url || null;
       
-      // Extract text content (this now returns info about the processed ZIP)
-      const textContent = await extractTextFromPdf(file);
-      
-      // Upload the original PDF file to storage
-      const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
+      // Upload the file to storage
+      const { publicUrl } = await uploadAnswerSheetFile(file);
 
       // Prepare the assessment data
       const assessmentData = {
@@ -86,8 +81,7 @@ export function UploadAnswerSheet({
         answer_sheet_url: publicUrl,
         status: 'pending',
         updated_at: new Date().toISOString(),
-        text_content: textContent,
-        zip_url: zipUrl // Store the ZIP URL for OCR processing
+        text_content: 'Uploaded document'
       };
       
       if (testId) {
@@ -95,27 +89,25 @@ export function UploadAnswerSheet({
       }
 
       // Update or create assessment
-      if (existingAssessments && existingAssessments.length > 0) {
-        const primaryAssessmentId = existingAssessments[0].id;
+      if (existingData) {
+        // Update existing assessment
+        const { error: updateError } = await supabase
+          .from('assessments')
+          .update(assessmentData)
+          .eq('id', existingData.id);
         
-        // Update the primary assessment
-        await updateAssessment(primaryAssessmentId, assessmentData);
-        
-        // Remove any duplicate assessments if they exist
-        if (existingAssessments.length > 1) {
-          const duplicateIds = existingAssessments.slice(1).map(a => a.id);
-          await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
-        }
+        if (updateError) throw updateError;
       } else {
         // Create a new assessment
-        await createAssessment(assessmentData);
+        const { error: insertError } = await supabase
+          .from('assessments')
+          .insert({
+            ...assessmentData,
+            created_at: new Date().toISOString()
+          });
+
+        if (insertError) throw insertError;
       }
-      
-      // Delete previous files
-      await deletePreviousFiles(previousUrls);
-      
-      // Reset evaluations and grades
-      await resetEvaluations(studentId, selectedSubject, testId);
       
       // Reset form
       setFile(null);
@@ -123,7 +115,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and processed for OCR');
+      toast.success('Answer sheet uploaded successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -77,10 +76,9 @@ export function StudentEvaluationDetails({
           .eq('subject_id', test.subject_id)
           .eq('test_id', test.id)
           .order('updated_at', { ascending: false })
-          .limit(1)
-          .single();
+          .maybeSingle();
         
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error('Error fetching latest answer sheet:', error);
           return;
         }

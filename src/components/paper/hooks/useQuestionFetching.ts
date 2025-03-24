@@ -1,139 +1,86 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Question } from '@/types/papers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+interface Question {
+  id: string;
+  question_text: string;
+  correct_answer: string;
+  options: string[];
+}
+
+interface PaginatedQuestions {
+  data: Question[];
+  total: number;
+}
+
 interface UseQuestionFetchingProps {
-  subjectId?: string;
+  topicId: string;
+  currentPage: number;
+  questionsPerPage: number;
 }
 
-interface QuestionFilters {
-  questionType?: string;
-  difficultyLevel?: string;
-  bloomsLevel?: string;
-  marks?: number;
-  courseOutcome?: string;
-  searchTerm?: string;
-}
-
-export function useQuestionFetching({ subjectId }: UseQuestionFetchingProps) {
-  const [filters, setFilters] = useState<QuestionFilters>({});
-  const [isFiltering, setIsFiltering] = useState(false);
+export function useQuestionFetching({
+  topicId,
+  currentPage,
+  questionsPerPage,
+}: UseQuestionFetchingProps) {
+  const [totalPages, setTotalPages] = useState<number | string>(1);
 
   const {
-    data: questions,
-    isLoading,
-    isError,
-    error,
-    refetch
-  } = useQuery({
-    queryKey: ['questions', subjectId],
-    queryFn: async () => {
-      if (!subjectId) return [];
-
-      try {
-        const { data, error } = await supabase
-          .from('generated_questions')
-          .select('*')
-          .eq('subject_id', subjectId)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        // Flatten the questions arrays into a single array with metadata
-        const flattenedQuestions: Question[] = [];
-        
-        data.forEach(item => {
-          if (item.questions && Array.isArray(item.questions)) {
-            item.questions.forEach((q: Question) => {
-              flattenedQuestions.push({
-                ...q,
-                source_id: item.id,
-                topic: item.topic,
-                created_at: item.created_at
-              });
-            });
-          }
-        });
-
-        return flattenedQuestions;
-      } catch (error) {
-        console.error('Error fetching questions:', error);
-        toast.error('Failed to load questions');
-        return [];
-      }
-    },
-    enabled: !!subjectId
-  });
-
-  const applyFilters = (newFilters: QuestionFilters) => {
-    setFilters(newFilters);
-    setIsFiltering(true);
-  };
-
-  const filteredQuestions = (questions || []).filter(question => {
-    if (!isFiltering) return true;
-
-    // Apply type filter
-    if (filters.questionType && question.type !== filters.questionType) {
-      return false;
-    }
-
-    // Apply difficulty filter
-    if (filters.difficultyLevel) {
-      const difficulty = question.difficulty?.toLowerCase();
-      if (!difficulty || !difficulty.includes(filters.difficultyLevel.toLowerCase())) {
-        return false;
-      }
-    }
-
-    // Apply Bloom's taxonomy filter
-    if (filters.bloomsLevel && question.level !== filters.bloomsLevel) {
-      return false;
-    }
-
-    // Apply marks filter
-    if (filters.marks && question.marks !== filters.marks) {
-      return false;
-    }
-
-    // Apply course outcome filter
-    if (filters.courseOutcome && question.courseOutcome !== filters.courseOutcome) {
-      return false;
-    }
-
-    // Apply search term filter
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      const textMatches = question.text?.toLowerCase().includes(searchLower);
-      const answerMatches = question.answer?.toLowerCase().includes(searchLower);
-      
-      // Fix: Added colon after if statement
-      if (!textMatches && !answerMatches) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  const clearFilters = () => {
-    setFilters({});
-    setIsFiltering(false);
-  };
-
-  return {
-    questions: filteredQuestions,
-    originalQuestions: questions || [],
+    data: paginatedQuestions,
     isLoading,
     isError,
     error,
     refetch,
-    applyFilters,
-    clearFilters,
-    filters,
-    isFiltering
+  } = useQuery<PaginatedQuestions>({
+    queryKey: ['questions', topicId, currentPage, questionsPerPage],
+    queryFn: async (): Promise<PaginatedQuestions> => {
+      try {
+        const startIndex = (currentPage - 1) * questionsPerPage;
+
+        let query = supabase
+          .from('questions')
+          .select('*', { count: 'exact' })
+          .eq('topic_id', topicId)
+          .range(startIndex, startIndex + questionsPerPage - 1);
+
+        const { data, error, count } = await query;
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        const totalQuestions = count || 0;
+        setTotalPages(Math.ceil(totalQuestions / questionsPerPage));
+
+        return {
+          data: data as Question[],
+          total: totalQuestions,
+        };
+      } catch (error: any) {
+        toast.error(`Failed to load questions: ${error.message}`);
+        return { data: [], total: 0 };
+      }
+    },
+    keepPreviousData: true,
+  });
+
+  const isLastPage = (currentPage: number, totalPages: number | string) => {
+    if (typeof totalPages === 'string') {
+      return currentPage === parseInt(totalPages, 10);
+    }
+    return currentPage === totalPages;
+  };
+
+  return {
+    questions: paginatedQuestions?.data || [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    totalPages,
+    isLastPage: isLastPage(currentPage, totalPages),
   };
 }

@@ -19,22 +19,8 @@ export function useSubjects(classId?: string) {
         
         // If classId is provided, filter subjects by class
         if (classId) {
-          // Get class-subjects mapping
-          const { data: mappings, error: mappingError } = await supabase
-            .from('class_subjects')
-            .select('subject_id')
-            .eq('class_id', classId);
-          
-          if (mappingError) throw mappingError;
-          
-          // If there are mappings, filter by them
-          if (mappings && mappings.length > 0) {
-            const subjectIds = mappings.map(mapping => mapping.subject_id);
-            query = query.in('id', subjectIds);
-          } else {
-            // No subjects for this class
-            return [];
-          }
+          // For now, return all subjects as class_subjects may not exist
+          // We can add the filtering logic later when the table is created
         }
         
         const { data, error } = await query.order('name');

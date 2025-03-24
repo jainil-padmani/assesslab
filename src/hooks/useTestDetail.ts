@@ -69,70 +69,107 @@ export function useTestDetail(testId: string | undefined) {
         throw gradesError;
       }
 
-      // Get assessments (uploaded answer sheets) for students in this test
-      const { data: assessments, error: assessmentsError } = await supabase
-        .from("assessments")
-        .select("*")
-        .eq("subject_id", test.subject_id)
-        .eq("test_id", testId); // This ensures we get test-specific answer sheets
-        
-      if (assessmentsError) {
-        toast.error("Failed to load assessments");
-        throw assessmentsError;
-      }
-      
-      // Get evaluation data for this test
-      const { data: evaluations, error: evaluationsError } = await supabase
-        .from("paper_evaluations")
-        .select("*")
-        .eq("test_id", testId);
-        
-      if (evaluationsError) {
-        console.error("Failed to load evaluations:", evaluationsError);
-      }
-      
-      // Map grades to students or create empty grades
-      const studentGrades = (classStudents as Student[]).map(student => {
-        const existingGrade = (existingGrades as TestGrade[]).find(
-          grade => grade.student_id === student.id
-        );
-        
-        // Find assessment for this student if it exists
-        const studentAssessment = assessments ? assessments.find(
-          assessment => assessment.student_id === student.id
-        ) : null;
-        
-        // Find evaluation for this student if it exists
-        const studentEvaluation = evaluations ? evaluations.find(
-          evaluation => evaluation.student_id === student.id
-        ) : null;
-        
-        if (existingGrade) {
-          return {
-            ...existingGrade,
-            student,
-            answer_sheet_url: studentAssessment?.answer_sheet_url || null,
-            evaluation: studentEvaluation
-          };
-        } else {
-          return {
-            id: `temp-${student.id}`,
-            test_id: testId!,
-            student_id: student.id,
-            marks: 0,
-            remarks: null,
-            created_at: new Date().toISOString(),
-            student,
-            answer_sheet_url: studentAssessment?.answer_sheet_url || null,
-            evaluation: studentEvaluation
-          } as TestGrade & { 
-            answer_sheet_url: string | null;
-            evaluation: PaperEvaluation | null;
-          };
+      try {
+        // Get assessments (uploaded answer sheets) for students in this test
+        const { data: assessments, error: assessmentsError } = await supabase
+          .from("assessments")
+          .select("*")
+          .eq("subject_id", test.subject_id)
+          .eq("test_id", testId); // This ensures we get test-specific answer sheets
+          
+        if (assessmentsError && assessmentsError.code !== 'PGRST116') {
+          toast.error("Failed to load assessments");
+          throw assessmentsError;
         }
-      });
-      
-      return studentGrades;
+        
+        // Get evaluation data for this test
+        const { data: evaluations, error: evaluationsError } = await supabase
+          .from("paper_evaluations")
+          .select("*")
+          .eq("test_id", testId);
+          
+        if (evaluationsError) {
+          console.error("Failed to load evaluations:", evaluationsError);
+        }
+        
+        // Map grades to students or create empty grades
+        const studentGrades = (classStudents as Student[]).map(student => {
+          const existingGrade = (existingGrades as TestGrade[]).find(
+            grade => grade.student_id === student.id
+          );
+          
+          // Find assessment for this student if it exists
+          const studentAssessment = assessments ? assessments.find(
+            (assessment: any) => assessment.student_id === student.id
+          ) : null;
+          
+          // Find evaluation for this student if it exists
+          const studentEvaluation = evaluations ? evaluations.find(
+            (evaluation: any) => evaluation.student_id === student.id
+          ) : null;
+          
+          if (existingGrade) {
+            return {
+              ...existingGrade,
+              student,
+              answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+              evaluation: studentEvaluation
+            };
+          } else {
+            return {
+              id: `temp-${student.id}`,
+              test_id: testId!,
+              student_id: student.id,
+              marks: 0,
+              remarks: null,
+              created_at: new Date().toISOString(),
+              student,
+              answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+              evaluation: studentEvaluation
+            } as TestGrade & { 
+              answer_sheet_url: string | null;
+              evaluation: PaperEvaluation | null;
+            };
+          }
+        });
+        
+        return studentGrades;
+      } catch (error) {
+        console.error("Error fetching assessment data:", error);
+        
+        // Return grades without assessment data in case of error
+        const studentGrades = (classStudents as Student[]).map(student => {
+          const existingGrade = (existingGrades as TestGrade[]).find(
+            grade => grade.student_id === student.id
+          );
+          
+          if (existingGrade) {
+            return {
+              ...existingGrade,
+              student,
+              answer_sheet_url: null,
+              evaluation: null
+            };
+          } else {
+            return {
+              id: `temp-${student.id}`,
+              test_id: testId!,
+              student_id: student.id,
+              marks: 0,
+              remarks: null,
+              created_at: new Date().toISOString(),
+              student,
+              answer_sheet_url: null,
+              evaluation: null
+            } as TestGrade & { 
+              answer_sheet_url: string | null;
+              evaluation: PaperEvaluation | null;
+            };
+          }
+        });
+        
+        return studentGrades;
+      }
     },
     enabled: !!testId && !!test
   });

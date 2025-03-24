@@ -10,7 +10,7 @@ interface AssessmentData {
   updated_at: string;
   test_id?: string;
   text_content?: string | null;
-  zip_url?: string | null; // ZIP URL is now properly typed
+  zip_url?: string | null;
 }
 
 /**
@@ -21,24 +21,29 @@ export const fetchExistingAssessments = async (
   subjectId: string,
   testId?: string
 ) => {
-  let query = supabase
-    .from('assessments')
-    .select('id, answer_sheet_url, text_content, zip_url');
-  
-  query = query.eq('student_id', studentId).eq('subject_id', subjectId);
-  
-  if (testId) {
-    query = query.eq('test_id', testId);
+  try {
+    let query = supabase
+      .from('assessments')
+      .select('id, answer_sheet_url, text_content, zip_url');
+    
+    query = query.eq('student_id', studentId).eq('subject_id', subjectId);
+    
+    if (testId) {
+      query = query.eq('test_id', testId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error checking existing assessments:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchExistingAssessments:', error);
+    return [];
   }
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error('Error checking existing assessments:', error);
-    throw error;
-  }
-  
-  return data || [];
 };
 
 /**
@@ -48,29 +53,39 @@ export const updateAssessment = async (
   assessmentId: string,
   assessmentData: AssessmentData
 ) => {
-  const { error } = await supabase
-    .from('assessments')
-    .update(assessmentData)
-    .eq('id', assessmentId);
+  try {
+    const { error } = await supabase
+      .from('assessments')
+      .update(assessmentData)
+      .eq('id', assessmentId);
+      
+    if (error) throw error;
     
-  if (error) throw error;
-  
-  toast.success('Answer sheet updated successfully');
+    toast.success('Answer sheet updated successfully');
+  } catch (error) {
+    console.error('Error in updateAssessment:', error);
+    throw error;
+  }
 };
 
 /**
  * Creates a new assessment
  */
 export const createAssessment = async (assessmentData: AssessmentData) => {
-  const { error } = await supabase
-    .from('assessments')
-    .insert({
-      ...assessmentData,
-      created_at: new Date().toISOString()
-    });
+  try {
+    const { error } = await supabase
+      .from('assessments')
+      .insert({
+        ...assessmentData,
+        created_at: new Date().toISOString()
+      });
 
-  if (error) throw error;
-  toast.success('Answer sheet uploaded successfully');
+    if (error) throw error;
+    toast.success('Answer sheet uploaded successfully');
+  } catch (error) {
+    console.error('Error in createAssessment:', error);
+    throw error;
+  }
 };
 
 /**
@@ -82,14 +97,18 @@ export const removeDuplicateAssessments = async (
 ) => {
   if (duplicateIds.length === 0) return;
   
-  const { error } = await supabase
-    .from('assessments')
-    .delete()
-    .in('id', duplicateIds);
-    
-  if (error) {
-    console.error('Error removing duplicate assessments:', error);
-  } else {
-    console.log(`Removed ${duplicateIds.length} duplicate assessment(s)`);
+  try {
+    const { error } = await supabase
+      .from('assessments')
+      .delete()
+      .in('id', duplicateIds);
+      
+    if (error) {
+      console.error('Error removing duplicate assessments:', error);
+    } else {
+      console.log(`Removed ${duplicateIds.length} duplicate assessment(s)`);
+    }
+  } catch (error) {
+    console.error('Error in removeDuplicateAssessments:', error);
   }
 };

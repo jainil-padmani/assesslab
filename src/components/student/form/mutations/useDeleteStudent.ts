@@ -1,119 +1,105 @@
 
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
-export const useDeleteStudent = () => {
-  const [isLoading, setIsLoading] = useState(false);
+export function useDeleteStudent() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const deleteStudentMutation = useMutation({
+  return useMutation({
     mutationFn: async (studentId: string) => {
-      setIsLoading(true);
+      // First check for related data that should be deleted
       try {
-        console.log("Starting student deletion process for ID:", studentId);
+        // Check for test_grades
+        const { data: testGrades, error: testGradesError } = await supabase
+          .from('test_grades')
+          .select('id')
+          .eq('student_id', studentId);
         
-        // Check all possible related tables and delete data in the correct order
-        // to avoid foreign key constraint errors
+        if (testGradesError) throw testGradesError;
         
-        // Step 1: Delete paper evaluations
-        console.log("Deleting paper evaluations...");
-        const { error: evalDeleteError } = await supabase
-          .from("paper_evaluations")
-          .delete()
-          .eq("student_id", studentId);
+        if (testGrades && testGrades.length > 0) {
+          console.log(`Deleting ${testGrades.length} test grades for student ${studentId}`);
+          const { error: deleteGradesError } = await supabase
+            .from('test_grades')
+            .delete()
+            .eq('student_id', studentId);
           
-        if (evalDeleteError) {
-          console.error("Error deleting paper evaluations:", evalDeleteError);
-          console.log("Continuing deletion process despite evaluation error");
-          // We'll continue even if there's an error here
+          if (deleteGradesError) throw deleteGradesError;
         }
         
-        // Step 2: Delete test grades
-        console.log("Deleting test grades...");
-        const { error: gradesError } = await supabase
-          .from("test_grades")
-          .delete()
-          .eq("student_id", studentId);
+        // Check for assessments if the table exists
+        try {
+          const { data: assessments, error: assessmentsError } = await supabase
+            .from('assessments')
+            .select('id')
+            .eq('student_id', studentId);
           
-        if (gradesError) {
-          console.error("Error deleting test grades:", gradesError);
-          console.log("Continuing deletion process despite grades error");
-          // Continue even if there's an error deleting grades
-        }
-        
-        // Step 3: Delete assessments
-        console.log("Deleting assessments...");
-        const { error: assessmentsError } = await supabase
-          .from("assessments")
-          .delete()
-          .eq("student_id", studentId);
+          if (assessmentsError && assessmentsError.code !== 'PGRST116') {
+            throw assessmentsError;
+          }
           
-        if (assessmentsError) {
-          console.error("Error deleting assessments:", assessmentsError);
-          console.log("Continuing deletion process despite assessments error");
-          // Continue even if there's an error deleting assessments
+          if (assessments && assessments.length > 0) {
+            console.log(`Deleting ${assessments.length} assessments for student ${studentId}`);
+            const { error: deleteAssessmentsError } = await supabase
+              .from('assessments')
+              .delete()
+              .eq('student_id', studentId);
+            
+            if (deleteAssessmentsError && deleteAssessmentsError.code !== 'PGRST116') {
+              throw deleteAssessmentsError;
+            }
+          }
+        } catch (error: any) {
+          if (error.code !== 'PGRST116') {
+            console.error('Error checking/deleting assessments:', error);
+          }
         }
         
-        // Step 4: Delete subject enrollments
-        console.log("Deleting subject enrollments...");
-        const { error: enrollmentsError } = await supabase
-          .from("subject_enrollments")
-          .delete()
-          .eq("student_id", studentId);
+        // Check for paper_evaluations
+        const { data: evaluations, error: evaluationsError } = await supabase
+          .from('paper_evaluations')
+          .select('id')
+          .eq('student_id', studentId);
+        
+        if (evaluationsError) throw evaluationsError;
+        
+        if (evaluations && evaluations.length > 0) {
+          console.log(`Deleting ${evaluations.length} evaluations for student ${studentId}`);
+          const { error: deleteEvaluationsError } = await supabase
+            .from('paper_evaluations')
+            .delete()
+            .eq('student_id', studentId);
           
-        if (enrollmentsError) {
-          console.error("Error deleting enrollments:", enrollmentsError);
-          console.log("Continuing deletion process despite enrollments error");
-          // Continue even if there's an error deleting enrollments
+          if (deleteEvaluationsError) throw deleteEvaluationsError;
         }
         
-        // Step 5: Delete student subjects
-        console.log("Deleting student subjects...");
-        const { error: subjectsError } = await supabase
-          .from("student_subjects")
+        // Finally, delete the student
+        const { error } = await supabase
+          .from('students')
           .delete()
-          .eq("student_id", studentId);
-          
-        if (subjectsError) {
-          console.error("Error deleting student subjects:", subjectsError);
-          console.log("Continuing deletion process despite subjects error");
-          // Continue despite errors
-        }
+          .eq('id', studentId);
         
-        // Finally: Delete the student
-        console.log("Deleting student...");
-        const { error: studentError } = await supabase
-          .from("students")
-          .delete()
-          .eq("id", studentId);
-
-        if (studentError) {
-          console.error("Error deleting student:", studentError);
-          throw new Error(`Failed to delete student: ${studentError.message}`);
-        }
+        if (error) throw error;
         
-        console.log("Student and all related data successfully deleted");
         return studentId;
-      } catch (error) {
-        console.error("Deletion process failed:", error);
-        throw error;
-      } finally {
-        setIsLoading(false);
+      } catch (error: any) {
+        console.error('Error deleting student:', error);
+        throw new Error(`Failed to delete student: ${error.message}`);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student and all related data deleted successfully");
+    onSuccess: (_, studentId) => {
+      toast.success('Student deleted successfully');
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['student', studentId] });
+      // Navigate back to students list
+      navigate('/dashboard/students');
     },
     onError: (error: Error) => {
-      toast.error(`Error deleting student: ${error.message}`);
-    },
+      toast.error(error.message);
+    }
   });
-
-  return {
-    isLoading,
-    deleteStudentMutation,
-  };
-};
+}

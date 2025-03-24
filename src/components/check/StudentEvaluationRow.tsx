@@ -2,7 +2,7 @@
 import React from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { FileUpload, Check, AlertCircle, File, Loader2 } from "lucide-react";
+import { Upload, Check, AlertCircle, File, Loader2 } from "lucide-react";
 import { useUploadAssessment } from "@/hooks/useUploadAssessment";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { Badge } from "@/components/ui/badge";
@@ -94,11 +94,16 @@ export function StudentEvaluationRow({
             onClick={openFileUpload}
             disabled={isUploading}
           >
-            <FileUpload className="h-4 w-4 mr-2" />
+            <Upload className="h-4 w-4 mr-2" />
             {isUploading ? 'Uploading...' : 'Upload'}
           </Button>
         )}
-        <UploadAnswerSheet onFileSelected={handleFileSelected} />
+        <UploadAnswerSheet 
+          studentId={student.id} 
+          selectedSubject={selectedSubject} 
+          testId={selectedTest}
+          isEvaluating={isEvaluating}
+        />
       </TableCell>
       <TableCell>
         {renderStatus()}

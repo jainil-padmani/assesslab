@@ -22,13 +22,13 @@ export function useAssessmentDetail(assessmentId?: string) {
       
       try {
         const { data, error } = await supabase
-          .from('assessments')
+          .from('assessments_master')
           .select('*')
           .eq('id', assessmentId)
           .single();
         
         if (error) throw error;
-        return data as Assessment;
+        return data as unknown as Assessment;
       } catch (error: any) {
         console.error('Error fetching assessment:', error);
         setError(new Error(`Failed to fetch assessment: ${error.message}`));
@@ -52,11 +52,23 @@ export function useAssessmentDetail(assessmentId?: string) {
         const { data, error } = await supabase
           .from('assessment_questions')
           .select('*')
-          .eq('assessmentId', assessmentId)
-          .order('questionOrder', { ascending: true });
+          .eq('assessment_id', assessmentId)
+          .order('question_order', { ascending: true });
         
         if (error) throw error;
-        return data as AssessmentQuestion[];
+        
+        // Transform data to match AssessmentQuestion type
+        return data.map(q => ({
+          id: q.id,
+          assessmentId: q.assessment_id,
+          questionText: q.question_text,
+          questionType: q.question_type as 'multiple_choice' | 'short_answer' | 'essay' | 'true_false',
+          options: q.options || [],
+          correctAnswer: q.correct_answer || '',
+          points: q.points,
+          questionOrder: q.question_order,
+          created_at: q.created_at
+        })) as AssessmentQuestion[];
       } catch (error: any) {
         console.error('Error fetching assessment questions:', error);
         setError(new Error(`Failed to fetch assessment questions: ${error.message}`));
@@ -72,7 +84,7 @@ export function useAssessmentDetail(assessmentId?: string) {
       setIsLoading(true);
       
       const { error } = await supabase
-        .from('assessments')
+        .from('assessments_master')
         .update(updateData)
         .eq('id', id);
       
@@ -99,13 +111,13 @@ export function useAssessmentDetail(assessmentId?: string) {
       const { error: questionsError } = await supabase
         .from('assessment_questions')
         .delete()
-        .eq('assessmentId', id);
+        .eq('assessment_id', id);
       
       if (questionsError) throw questionsError;
       
       // Then delete the assessment
       const { error } = await supabase
-        .from('assessments')
+        .from('assessments_master')
         .delete()
         .eq('id', id);
       
@@ -126,16 +138,39 @@ export function useAssessmentDetail(assessmentId?: string) {
     try {
       setIsLoading(true);
       
+      // Transform to match database schema
+      const dbQuestionData = {
+        assessment_id: questionData.assessmentId,
+        question_text: questionData.questionText,
+        question_type: questionData.questionType,
+        options: questionData.options,
+        correct_answer: questionData.correctAnswer,
+        points: questionData.points,
+        question_order: questionData.questionOrder || 0
+      };
+      
       const { data, error } = await supabase
         .from('assessment_questions')
-        .insert(questionData)
+        .insert(dbQuestionData)
         .select();
       
       if (error) throw error;
       
       // Refetch questions to update the UI
       refetchQuestions();
-      return data[0] as AssessmentQuestion;
+      
+      // Transform back to frontend type
+      return {
+        id: data[0].id,
+        assessmentId: data[0].assessment_id,
+        questionText: data[0].question_text,
+        questionType: data[0].question_type,
+        options: data[0].options || [],
+        correctAnswer: data[0].correct_answer || '',
+        points: data[0].points,
+        questionOrder: data[0].question_order,
+        created_at: data[0].created_at
+      } as AssessmentQuestion;
     } catch (error: any) {
       console.error('Error creating question:', error);
       setError(new Error(`Failed to create question: ${error.message}`));
@@ -150,9 +185,18 @@ export function useAssessmentDetail(assessmentId?: string) {
     try {
       setIsLoading(true);
       
+      // Transform to match database schema
+      const dbUpdateData: any = {};
+      if (updateData.questionText) dbUpdateData.question_text = updateData.questionText;
+      if (updateData.questionType) dbUpdateData.question_type = updateData.questionType;
+      if (updateData.options) dbUpdateData.options = updateData.options;
+      if (updateData.correctAnswer) dbUpdateData.correct_answer = updateData.correctAnswer;
+      if (updateData.points !== undefined) dbUpdateData.points = updateData.points;
+      if (updateData.questionOrder !== undefined) dbUpdateData.question_order = updateData.questionOrder;
+      
       const { error } = await supabase
         .from('assessment_questions')
-        .update(updateData)
+        .update(dbUpdateData)
         .eq('id', questionId);
       
       if (error) throw error;
