@@ -1,7 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Assessment, AssessmentQuestion, StudentAssessmentAttempt } from "@/types/assessments";
+import { Assessment, AssessmentOption, AssessmentQuestion, StudentAssessmentAttempt, StudentAssessmentAnswer } from "@/types/assessments";
 import { toast } from "sonner";
+import type { Json } from '@/integrations/supabase/types';
 
 export async function fetchAssessmentsBySubject(subjectId: string): Promise<Assessment[]> {
   try {
@@ -21,8 +22,8 @@ export async function fetchAssessmentsBySubject(subjectId: string): Promise<Asse
       id: item.id,
       title: item.title,
       instructions: item.instructions,
-      options: item.options,
-      restrictions: item.restrictions,
+      options: item.options as unknown as AssessmentOption,
+      restrictions: item.restrictions as unknown as AssessmentRestriction,
       assignTo: item.assign_to,
       dueDate: item.due_date,
       availableFrom: item.available_from,
@@ -31,7 +32,7 @@ export async function fetchAssessmentsBySubject(subjectId: string): Promise<Asse
       createdBy: item.created_by,
       status: item.status,
       createdAt: item.created_at
-    })) as Assessment[];
+    }));
   } catch (error) {
     console.error("Failed to fetch assessments:", error);
     throw error;
@@ -72,8 +73,8 @@ export async function fetchAssessmentById(assessmentId: string): Promise<Assessm
       id: data.id,
       title: data.title,
       instructions: data.instructions,
-      options: data.options,
-      restrictions: data.restrictions,
+      options: data.options as unknown as AssessmentOption,
+      restrictions: data.restrictions as unknown as AssessmentRestriction,
       assignTo: data.assign_to,
       dueDate: data.due_date,
       availableFrom: data.available_from,
@@ -93,7 +94,7 @@ export async function fetchAssessmentById(assessmentId: string): Promise<Assessm
         questionOrder: q.question_order,
         createdAt: q.created_at
       })) : []
-    } as Assessment;
+    };
   } catch (error) {
     console.error("Failed to fetch assessment details:", error);
     throw error;
@@ -108,8 +109,8 @@ export async function createAssessment(assessment: Omit<Assessment, 'id' | 'crea
       .insert({
         title: assessment.title,
         instructions: assessment.instructions,
-        options: assessment.options,
-        restrictions: assessment.restrictions,
+        options: assessment.options as unknown as Json,
+        restrictions: assessment.restrictions as unknown as Json,
         assign_to: assessment.assignTo,
         due_date: assessment.dueDate,
         available_from: assessment.availableFrom,
@@ -191,7 +192,7 @@ export async function submitAssessmentAttempt(
       .insert({
         assessment_id: attempt.assessmentId,
         student_id: attempt.studentId,
-        answers: attempt.answers as any, // Type casting to handle JSON conversion
+        answers: attempt.answers as unknown as Json, // Type casting to handle JSON conversion
         score: attempt.score,
         possible_score: attempt.possibleScore,
         time_spent: attempt.timeSpent,
@@ -234,14 +235,14 @@ export async function getStudentAttempts(
       id: item.id,
       assessmentId: item.assessment_id,
       studentId: item.student_id,
-      answers: item.answers,
+      answers: item.answers as unknown as StudentAssessmentAnswer[],
       score: item.score,
       possibleScore: item.possible_score,
       timeSpent: item.time_spent,
       status: item.status,
       attemptNumber: item.attempt_number,
       submittedAt: item.submitted_at
-    })) as StudentAssessmentAttempt[];
+    }));
   } catch (error) {
     console.error("Failed to fetch student attempts:", error);
     throw error;

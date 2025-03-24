@@ -64,12 +64,15 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file for enhanced OCR...');
       
-      // Fetch existing assessments - Fix table name to assessments_master
+      // Fetch existing assessments
       const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
       
       // Extract previous URLs for cleanup later - Add type safety check
       const previousUrls = existingAssessments && Array.isArray(existingAssessments) 
-        ? existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) 
+        ? existingAssessments
+            .filter(assessment => assessment && typeof assessment === 'object' && 'answer_sheet_url' in assessment)
+            .map(assessment => assessment.answer_sheet_url as string)
+            .filter(Boolean) 
         : [];
       
       // Process the file for enhanced OCR
@@ -97,8 +100,14 @@ export function UploadAnswerSheet({
       }
 
       // Update or create assessment - Fix for type safety
-      if (existingAssessments && existingAssessments.length > 0 && existingAssessments[0] && existingAssessments[0].id) {
-        const primaryAssessmentId = existingAssessments[0].id;
+      if (existingAssessments && 
+          Array.isArray(existingAssessments) && 
+          existingAssessments.length > 0 && 
+          existingAssessments[0] && 
+          typeof existingAssessments[0] === 'object' && 
+          'id' in existingAssessments[0]) {
+        
+        const primaryAssessmentId = existingAssessments[0].id as string;
         
         // Update the primary assessment
         await updateAssessment(primaryAssessmentId, assessmentData);
@@ -118,9 +127,9 @@ export function UploadAnswerSheet({
         await createAssessment(assessmentData);
       }
       
-      // Delete previous files - Fix the function call to match expected parameters
+      // Delete previous files
       if (previousUrls.length > 0) {
-        await deletePreviousFiles(previousUrls);
+        await deletePreviousFiles(previousUrls, 'assessments');
       }
       
       // Reset evaluations and grades

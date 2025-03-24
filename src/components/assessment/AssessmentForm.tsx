@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Json } from '@supabase/supabase-js';
+import type { Json } from '@/integrations/supabase/types';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long'),
@@ -87,7 +86,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     points: 1
   });
 
-  // States for question import
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string>('all');
   const [questionMode, setQuestionMode] = useState<'theory' | 'practical'>('theory');
@@ -95,7 +93,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
-  // Fetch available topics for the subject
   const { data: topics = [], isLoading: loadingTopics } = useQuery({
     queryKey: ['question-topics', subjectId],
     queryFn: async () => {
@@ -109,7 +106,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
 
       if (error) throw error;
       
-      // Extract unique topics
       const uniqueTopics = [...new Set((data || []).map(item => item.topic))];
       return uniqueTopics;
     },
@@ -162,13 +158,11 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     return data.user?.id;
   };
 
-  // Function to fetch importable questions based on topic and mode
   const fetchImportableQuestions = async () => {
     if (!subjectId) return;
     
     setIsLoadingQuestions(true);
     try {
-      // Create the query
       let query = supabase
         .from('generated_questions')
         .select('*')
@@ -183,7 +177,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       
       if (error) throw error;
       
-      // Process the questions from the data
       const processedQuestions = (data || []).flatMap(item => {
         const questionsData = item.questions;
         if (!questionsData || !Array.isArray(questionsData)) return [];
@@ -205,7 +198,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     }
   };
 
-  // Function to handle question selection for import
   const toggleQuestionSelection = (questionId: string) => {
     setSelectedQuestions(prev => 
       prev.includes(questionId) 
@@ -214,7 +206,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     );
   };
 
-  // Function to import selected questions
   const importSelectedQuestions = () => {
     const questionsToImport = importableQuestions.filter(q => selectedQuestions.includes(q.id));
     
@@ -388,7 +379,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     );
   };
 
-  // Effect to fetch questions when dialog opens
   useEffect(() => {
     if (showImportDialog) {
       fetchImportableQuestions();
@@ -1089,7 +1079,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                   </div>
                 )}
                 
-                {(newQuestion.questionType === 'short_answer' || newQuestion.questionType === 'essay') && (
+                {(newQuestion.questionType === 'short_answer' || newQuestion.questionType === 'essay' || newQuestion.questionType === 'true_false') && (
                   <div>
                     <Label htmlFor="correctAnswer">Correct Answer {newQuestion.questionType === 'short_answer' ? '*' : '(Optional)'}</Label>
                     <Textarea 
