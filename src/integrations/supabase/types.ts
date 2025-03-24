@@ -793,6 +793,50 @@ export type Database = {
           },
         ]
       }
+      test_questions: {
+        Row: {
+          correct_answer: string
+          created_at: string | null
+          id: string
+          marks: number | null
+          options: Json | null
+          question_text: string
+          status: string | null
+          test_id: string | null
+          topic: string | null
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string | null
+          id?: string
+          marks?: number | null
+          options?: Json | null
+          question_text: string
+          status?: string | null
+          test_id?: string | null
+          topic?: string | null
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string | null
+          id?: string
+          marks?: number | null
+          options?: Json | null
+          question_text?: string
+          status?: string | null
+          test_id?: string | null
+          topic?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_questions_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tests: {
         Row: {
           class_id: string
@@ -800,6 +844,7 @@ export type Database = {
           id: string
           max_marks: number
           name: string
+          status: string | null
           subject_id: string
           test_date: string
           user_id: string | null
@@ -810,6 +855,7 @@ export type Database = {
           id?: string
           max_marks: number
           name: string
+          status?: string | null
           subject_id: string
           test_date: string
           user_id?: string | null
@@ -820,6 +866,7 @@ export type Database = {
           id?: string
           max_marks?: number
           name?: string
+          status?: string | null
           subject_id?: string
           test_date?: string
           user_id?: string | null

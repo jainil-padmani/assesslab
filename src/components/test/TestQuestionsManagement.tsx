@@ -15,10 +15,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle, List, Trash2, Save, FlaskConical, FileQuestion } from "lucide-react";
+import { PlusCircle, List, Trash2, Save, FlaskConical, FileQuestion, CheckCircle, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Test } from "@/types/tests";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type QuestionType = {
   id?: string;
@@ -27,6 +30,7 @@ type QuestionType = {
   answer: string;
   marks: number;
   topic?: string;
+  type: 'Multiple Choice' | 'Theory';
 };
 
 type GeneratedQuestionItem = {
@@ -35,6 +39,7 @@ type GeneratedQuestionItem = {
   question: string;
   options?: string[];
   answer: string;
+  type?: string;
 };
 
 type SaveStatus = 'unsaved' | 'saved' | 'published';
@@ -50,11 +55,13 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     question: '',
     answer: '',
     options: ['', '', '', ''],
-    marks: 1
+    marks: 1,
+    type: 'Multiple Choice'
   });
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isSelectingGenerated, setIsSelectingGenerated] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [questionType, setQuestionType] = useState<'Multiple Choice' | 'Theory'>('Multiple Choice');
   
   // Fetch existing test questions
   const { data: existingQuestions, isLoading: isLoadingQuestions, refetch: refetchQuestions } = useQuery({
@@ -101,14 +108,14 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   });
   
   // Fetch generated questions for selected topic
-  const { data: generatedQuestions, isLoading: isLoadingGeneratedQuestions, refetch: refetchGeneratedQuestions } = useQuery({
+  const { data: generatedQuestions, isLoading: isLoadingGeneratedQuestions } = useQuery({
     queryKey: ['generated-questions', test.subject_id, selectedTopic],
     queryFn: async () => {
       if (!selectedTopic) return [];
       
       const { data, error } = await supabase
         .from('generated_questions')
-        .select('id, questions, topic')
+        .select('id, questions, topic, question_mode')
         .eq('subject_id', test.subject_id)
         .eq('topic', selectedTopic);
       
@@ -123,15 +130,20 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
         
         data.forEach(entry => {
           const questionSet = entry.questions;
+          const questionMode = entry.question_mode || 'theory';
+          
           if (Array.isArray(questionSet)) {
             questionSet.forEach((q: any, index: number) => {
-              if (q.question) {
+              if (q.text || q.question) {
+                const questionType = q.type || (questionMode === 'multiple-choice' ? 'Multiple Choice' : 'Theory');
+                
                 allQuestions.push({
                   id: `${entry.id}-${index}`,
                   topic: entry.topic,
-                  question: q.question,
+                  question: q.text || q.question,
                   options: q.options,
-                  answer: q.answer || ''
+                  answer: q.answer || '',
+                  type: questionType
                 });
               }
             });
@@ -150,14 +162,22 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   // Load existing questions when component mounts
   useEffect(() => {
     if (existingQuestions) {
-      setQuestions(existingQuestions.map(q => ({
-        id: q.id,
-        question: q.question_text,
-        answer: q.correct_answer,
-        options: q.options,
-        marks: q.marks || 1,
-        topic: q.topic
-      })));
+      setQuestions(existingQuestions.map(q => {
+        // Determine if this is a multiple choice or theory question based on options
+        const type = q.options && Array.isArray(q.options) && q.options.length > 0 
+          ? 'Multiple Choice' 
+          : 'Theory';
+        
+        return {
+          id: q.id,
+          question: q.question_text,
+          answer: q.correct_answer,
+          options: q.options,
+          marks: q.marks || 1,
+          topic: q.topic,
+          type: type
+        };
+      }));
     }
   }, [existingQuestions]);
   
@@ -172,12 +192,27 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
       return;
     }
     
-    setQuestions([...questions, newQuestion]);
+    // For multiple choice, validate that we have 4 options
+    if (newQuestion.type === 'Multiple Choice') {
+      if (!newQuestion.options || newQuestion.options.filter(o => o.trim()).length !== 4) {
+        toast.error('Multiple choice questions must have exactly 4 options');
+        return;
+      }
+      
+      // Check if the answer matches one of the options
+      if (!newQuestion.options.some(o => o === newQuestion.answer)) {
+        toast.error('The correct answer must match one of the options');
+        return;
+      }
+    }
+    
+    setQuestions([...questions, {...newQuestion, type: questionType}]);
     setNewQuestion({
       question: '',
       answer: '',
       options: ['', '', '', ''],
-      marks: 1
+      marks: 1,
+      type: questionType
     });
     setIsAddingQuestion(false);
     setSaveStatus('unsaved');
@@ -185,12 +220,16 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
   };
   
   const handleAddGeneratedQuestion = (question: GeneratedQuestionItem) => {
+    const questionType = question.type as 'Multiple Choice' | 'Theory' || 
+                        (question.options && question.options.length > 0 ? 'Multiple Choice' : 'Theory');
+    
     const newQ: QuestionType = {
       question: question.question,
       answer: question.answer,
       options: question.options,
       marks: 1,
-      topic: question.topic
+      topic: question.topic,
+      type: questionType
     };
     
     setQuestions([...questions, newQ]);
@@ -221,7 +260,7 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
           test_id: test.id,
           question_text: q.question,
           correct_answer: q.answer,
-          options: q.options,
+          options: q.type === 'Multiple Choice' ? q.options : null,
           marks: q.marks,
           topic: q.topic || null,
           status: publish ? 'published' : 'draft'
@@ -257,6 +296,121 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
     setSelectedTopic(topic);
   };
   
+  const handleQuestionTypeChange = (type: 'Multiple Choice' | 'Theory') => {
+    setQuestionType(type);
+    setNewQuestion({
+      ...newQuestion,
+      type: type,
+      options: type === 'Multiple Choice' ? ['', '', '', ''] : undefined
+    });
+  };
+  
+  const renderQuestionForm = () => {
+    return (
+      <div className="space-y-4">
+        <Tabs defaultValue={questionType} onValueChange={(value) => handleQuestionTypeChange(value as any)}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="Multiple Choice">Multiple Choice</TabsTrigger>
+            <TabsTrigger value="Theory">Theory</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="Multiple Choice" className="space-y-4">
+            <div>
+              <Label htmlFor="mcq-question">Question Text</Label>
+              <Textarea
+                id="mcq-question"
+                value={newQuestion.question}
+                onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
+                placeholder="Enter question text"
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            
+            <div>
+              <Label>Options (exactly 4 required)</Label>
+              {newQuestion.options?.map((option, index) => (
+                <div key={index} className="flex items-center gap-2 mt-2">
+                  <RadioGroup value={newQuestion.answer === option ? "selected" : ""} onValueChange={() => setNewQuestion({...newQuestion, answer: option})}>
+                    <RadioGroupItem value="selected" id={`option-${index}`} />
+                  </RadioGroup>
+                  <Input
+                    value={option}
+                    onChange={(e) => {
+                      const newOptions = [...(newQuestion.options || [])];
+                      newOptions[index] = e.target.value;
+                      
+                      // If this option was the answer, update the answer too
+                      const updatedQuestion = {...newQuestion, options: newOptions};
+                      if (newQuestion.answer === newQuestion.options?.[index]) {
+                        updatedQuestion.answer = e.target.value;
+                      }
+                      
+                      setNewQuestion(updatedQuestion);
+                    }}
+                    placeholder={`Option ${index + 1}`}
+                    className="flex-1"
+                  />
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground mt-1">Select the radio button next to the correct answer</p>
+            </div>
+            
+            <div>
+              <Label htmlFor="mcq-marks">Marks</Label>
+              <Input
+                id="mcq-marks"
+                type="number"
+                value={newQuestion.marks}
+                onChange={(e) => setNewQuestion({...newQuestion, marks: parseInt(e.target.value) || 1})}
+                min={1}
+                className="mt-1 w-20"
+              />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="Theory" className="space-y-4">
+            <div>
+              <Label htmlFor="theory-question">Question Text</Label>
+              <Textarea
+                id="theory-question"
+                value={newQuestion.question}
+                onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
+                placeholder="Enter question text"
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="theory-answer">Model Answer</Label>
+              <Textarea
+                id="theory-answer"
+                value={newQuestion.answer}
+                onChange={(e) => setNewQuestion({...newQuestion, answer: e.target.value})}
+                placeholder="Enter the model answer"
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="theory-marks">Marks</Label>
+              <Input
+                id="theory-marks"
+                type="number"
+                value={newQuestion.marks}
+                onChange={(e) => setNewQuestion({...newQuestion, marks: parseInt(e.target.value) || 1})}
+                min={1}
+                className="mt-1 w-20"
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  };
+  
   if (isLoadingQuestions) {
     return <div className="flex items-center justify-center py-8">Loading questions...</div>;
   }
@@ -283,55 +437,8 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                 <DialogHeader>
                   <DialogTitle>Add New Question</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <Label htmlFor="question">Question Text</Label>
-                    <Textarea
-                      id="question"
-                      value={newQuestion.question}
-                      onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})}
-                      placeholder="Enter question text"
-                      className="mt-1"
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="options">Options (one per line)</Label>
-                    <Textarea
-                      id="options"
-                      value={newQuestion.options?.join('\n')}
-                      onChange={(e) => setNewQuestion({...newQuestion, options: e.target.value.split('\n')})}
-                      placeholder="Enter options (one per line)"
-                      className="mt-1"
-                      rows={4}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="answer">Correct Answer</Label>
-                    <Input
-                      id="answer"
-                      value={newQuestion.answer}
-                      onChange={(e) => setNewQuestion({...newQuestion, answer: e.target.value})}
-                      placeholder="Enter the correct answer"
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="marks">Marks</Label>
-                    <Input
-                      id="marks"
-                      type="number"
-                      value={newQuestion.marks}
-                      onChange={(e) => setNewQuestion({...newQuestion, marks: parseInt(e.target.value) || 1})}
-                      min={1}
-                      className="mt-1 w-20"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
+                {renderQuestionForm()}
+                <DialogFooter className="mt-4">
                   <Button variant="outline" onClick={() => setIsAddingQuestion(false)}>Cancel</Button>
                   <Button onClick={handleAddQuestion}>Add Question</Button>
                 </DialogFooter>
@@ -361,12 +468,14 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                         <SelectGroup>
                           {isLoadingTopics ? (
                             <SelectItem value="loading" disabled>Loading topics...</SelectItem>
-                          ) : (
-                            generatedQuestionTopics?.map((topic, i) => (
+                          ) : generatedQuestionTopics && generatedQuestionTopics.length > 0 ? (
+                            generatedQuestionTopics.map((topic, i) => (
                               <SelectItem key={i} value={topic.value}>
                                 {topic.label}
                               </SelectItem>
                             ))
+                          ) : (
+                            <SelectItem value="none" disabled>No topics found</SelectItem>
                           )}
                         </SelectGroup>
                       </SelectContent>
@@ -385,11 +494,17 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                             <li key={index} className="border-b pb-4 last:border-b-0">
                               <div className="flex justify-between items-start gap-4">
                                 <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant={q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'outline' : 'secondary'}>
+                                      {q.type === 'Multiple Choice' || (q.options && q.options.length > 0) ? 'MCQ' : 'Theory'}
+                                    </Badge>
+                                  </div>
                                   <p className="font-medium">{q.question}</p>
                                   {q.options && q.options.length > 0 && (
                                     <ul className="mt-2 space-y-1">
                                       {q.options.map((option, i) => (
-                                        <li key={i} className="text-sm text-gray-600">
+                                        <li key={i} className={`text-sm ${option === q.answer ? 'text-green-600 font-medium' : 'text-gray-600'}`}>
+                                          {option === q.answer && <CheckCircle className="h-3 w-3 inline mr-1" />}
                                           {option}
                                         </li>
                                       ))}
@@ -451,6 +566,9 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                   
                   <div className="flex items-center gap-2 mb-2">
                     <span className="font-semibold">Q{index + 1}.</span>
+                    <Badge variant={q.type === 'Multiple Choice' ? 'outline' : 'secondary'}>
+                      {q.type === 'Multiple Choice' ? 'MCQ' : 'Theory'}
+                    </Badge>
                     <span className="text-sm bg-secondary px-2 py-0.5 rounded">
                       {q.marks} mark{q.marks !== 1 ? 's' : ''}
                     </span>
@@ -463,12 +581,21 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
                   
                   <p className="font-medium mb-3">{q.question}</p>
                   
-                  {q.options && q.options.length > 0 && q.options[0] !== '' && (
+                  {q.type === 'Multiple Choice' && q.options && q.options.length > 0 && (
                     <div className="ml-4 mb-3">
                       <p className="text-sm text-gray-500 mb-1">Options:</p>
-                      <ul className="space-y-1 list-disc list-inside">
+                      <ul className="space-y-1">
                         {q.options.map((option, i) => (
-                          option ? <li key={i} className="text-sm">{option}</li> : null
+                          option ? (
+                            <li key={i} className={`text-sm flex items-center ${option === q.answer ? 'text-green-600 font-medium' : ''}`}>
+                              {option === q.answer ? (
+                                <CheckCircle className="h-3 w-3 mr-2 text-green-600" />
+                              ) : (
+                                <XCircle className="h-3 w-3 mr-2 text-gray-400" />
+                              )}
+                              {option}
+                            </li>
+                          ) : null
                         ))}
                       </ul>
                     </div>
@@ -482,6 +609,12 @@ export function TestQuestionsManagement({ test }: TestQuestionsManagementProps) 
               ))}
               
               <div className="flex justify-end gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddingQuestion(false)}
+                >
+                  Cancel
+                </Button>
                 <Button
                   variant="outline"
                   disabled={saveStatus === 'saved'}
