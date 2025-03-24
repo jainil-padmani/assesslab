@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GeneratedPaper, Question, Json } from "@/types/papers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check, Plus, Minus, AlertCircle } from "lucide-react";
+import { Trash2, History, FileX, Upload, RefreshCw, Edit, Check, Plus, Minus, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CourseOutcome {
   id: string;
@@ -26,12 +26,16 @@ interface CourseOutcome {
   description: string;
   questionCount: number;
   selected: boolean;
+  questionDistribution: {
+    "1 mark": number;
+    "2 marks": number;
+    "4 marks": number;
+    "8 marks": number;
+  }
 }
 
-// Types of question generation modes
 type QuestionMode = "multiple-choice" | "theory";
 
-// Interface for theory question configuration
 interface TheoryQuestionConfig {
   "1 mark": number;
   "2 marks": number;
@@ -67,13 +71,8 @@ export default function PaperGeneration() {
     create: 15
   });
   
-  // New state for question mode
   const [questionMode, setQuestionMode] = useState<QuestionMode>("multiple-choice");
-  
-  // State for multiple-choice questions count
   const [multipleChoiceCount, setMultipleChoiceCount] = useState<number>(10);
-  
-  // State for theory questions configuration by marks
   const [theoryQuestionConfig, setTheoryQuestionConfig] = useState<TheoryQuestionConfig>({
     "1 mark": 5,
     "2 marks": 3,
@@ -81,11 +80,9 @@ export default function PaperGeneration() {
     "8 marks": 1
   });
   
-  // New state for course outcomes
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
   const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
   
-  // State for editing answers
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [editedAnswer, setEditedAnswer] = useState<string>("");
 
@@ -101,7 +98,6 @@ export default function PaperGeneration() {
     fetchPapers();
   }, []);
   
-  // Add effect to fetch course outcomes when subject is selected
   useEffect(() => {
     if (selectedSubject) {
       fetchCourseOutcomes(selectedSubject);
@@ -150,7 +146,6 @@ export default function PaperGeneration() {
     }
   };
   
-  // Add function to fetch course outcomes
   const fetchCourseOutcomes = async (subjectId: string) => {
     try {
       setIsLoadingCourseOutcomes(true);
@@ -168,8 +163,14 @@ export default function PaperGeneration() {
           id: co.id,
           co_number: co.co_number,
           description: co.description,
-          questionCount: 2, // Default count
-          selected: true // Default to selected
+          questionCount: 2,
+          selected: true,
+          questionDistribution: {
+            "1 mark": 1,
+            "2 marks": 1,
+            "4 marks": 0,
+            "8 marks": 0
+          }
         }));
         
         setCourseOutcomes(mappedOutcomes);
@@ -238,7 +239,6 @@ export default function PaperGeneration() {
     }
   };
 
-  // Update the generate questions function for both modes
   const generateQuestions = async () => {
     if (!extractedContent && !contentUrl) {
       toast.error("Please upload content material first");
@@ -255,7 +255,6 @@ export default function PaperGeneration() {
       return;
     }
     
-    // Validate for theory mode with course outcomes
     if (questionMode === "theory") {
       const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
       if (selectedCourseOutcomes.length === 0) {
@@ -268,23 +267,29 @@ export default function PaperGeneration() {
     toast.info("Generating questions, this may take a moment...");
     
     try {
-      // Filter selected course outcomes
       const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
       
-      // Prepare question types configuration based on mode
       let questionTypesConfig = {};
       if (questionMode === "multiple-choice") {
         questionTypesConfig = {
           "Multiple Choice (1 mark)": multipleChoiceCount
         };
       } else {
-        // For theory mode, map the theory question config
-        questionTypesConfig = {
-          "Short Answer (1 mark)": theoryQuestionConfig["1 mark"],
-          "Short Answer (2 marks)": theoryQuestionConfig["2 marks"],
-          "Medium Answer (4 marks)": theoryQuestionConfig["4 marks"],
-          "Long Answer (8 marks)": theoryQuestionConfig["8 marks"]
+        const aggregatedDistribution = {
+          "Short Answer (1 mark)": 0,
+          "Short Answer (2 marks)": 0,
+          "Medium Answer (4 marks)": 0,
+          "Long Answer (8 marks)": 0
         };
+        
+        selectedCourseOutcomes.forEach(co => {
+          aggregatedDistribution["Short Answer (1 mark)"] += co.questionDistribution["1 mark"];
+          aggregatedDistribution["Short Answer (2 marks)"] += co.questionDistribution["2 marks"];
+          aggregatedDistribution["Medium Answer (4 marks)"] += co.questionDistribution["4 marks"];
+          aggregatedDistribution["Long Answer (8 marks)"] += co.questionDistribution["8 marks"];
+        });
+        
+        questionTypesConfig = aggregatedDistribution;
       }
       
       const response = await supabase.functions.invoke('generate-questions', {
@@ -295,7 +300,7 @@ export default function PaperGeneration() {
           difficulty,
           courseOutcomes: questionMode === "theory" ? selectedCourseOutcomes : undefined,
           questionTypes: questionTypesConfig,
-          questionMode: questionMode // Pass the mode to the edge function
+          questionMode: questionMode
         }
       });
       
@@ -313,18 +318,16 @@ export default function PaperGeneration() {
       }
       
       try {
-        // Save generated questions to Supabase
         const { error: saveQuestionsError } = await supabase.from('generated_questions').insert({
           subject_id: selectedSubject,
           topic: topicName,
           questions: response.data.questions as Json,
           user_id: (await supabase.auth.getUser()).data.user?.id || '',
-          question_mode: questionMode // Save the mode used for generation
+          question_mode: questionMode
         });
         
         if (saveQuestionsError) throw saveQuestionsError;
         
-        // Convert Question[] to a JSON-compatible object before storing in Supabase
         const questionsJson = response.data.questions as Json;
         
         const { error: savePaperError } = await supabase.from('generated_papers').insert({
@@ -334,7 +337,7 @@ export default function PaperGeneration() {
           questions: questionsJson,
           content_url: contentUrl || null,
           user_id: (await supabase.auth.getUser()).data.user?.id || '',
-          question_mode: questionMode // Save the mode used for generation
+          question_mode: questionMode
         });
         
         if (savePaperError) throw savePaperError;
@@ -360,7 +363,6 @@ export default function PaperGeneration() {
     }));
   };
   
-  // Functions to handle theory question configuration
   const handleTheoryQuestionCountChange = (markCategory: keyof TheoryQuestionConfig, delta: number) => {
     setTheoryQuestionConfig(prev => ({
       ...prev,
@@ -378,7 +380,6 @@ export default function PaperGeneration() {
     }
   };
   
-  // Function to handle multiple choice question count
   const handleMultipleChoiceCountChange = (delta: number) => {
     setMultipleChoiceCount(prev => Math.max(1, prev + delta));
   };
@@ -390,7 +391,6 @@ export default function PaperGeneration() {
     }
   };
   
-  // Handle course outcome selection
   const toggleCourseOutcome = (id: string) => {
     setCourseOutcomes(prev => 
       prev.map(co => 
@@ -399,12 +399,26 @@ export default function PaperGeneration() {
     );
   };
   
-  // Handle course outcome question count change
-  const handleCourseOutcomeCountChange = (id: string, count: number) => {
+  const updateCourseOutcomeDistribution = (
+    outcomeId: string, 
+    markCategory: keyof TheoryQuestionConfig, 
+    delta: number
+  ) => {
     setCourseOutcomes(prev => 
-      prev.map(co => 
-        co.id === id ? { ...co, questionCount: Math.max(1, count) } : co
-      )
+      prev.map(co => {
+        if (co.id === outcomeId) {
+          const newValue = Math.max(0, co.questionDistribution[markCategory] + delta);
+          const newDistribution = { ...co.questionDistribution, [markCategory]: newValue };
+          const totalQuestions = Object.values(newDistribution).reduce((sum, val) => sum + val, 0);
+          
+          return {
+            ...co,
+            questionCount: totalQuestions,
+            questionDistribution: newDistribution
+          };
+        }
+        return co;
+      })
     );
   };
 
@@ -456,7 +470,6 @@ export default function PaperGeneration() {
     if (!editingQuestion || !selectedPaper) return;
     
     try {
-      // Update the answer in the local state
       const updatedQuestions = selectedPaper.questions as Question[];
       const questionIndex = updatedQuestions.findIndex(q => q.id === editingQuestion.id);
       
@@ -466,7 +479,6 @@ export default function PaperGeneration() {
           answer: editedAnswer
         };
         
-        // Update the paper in state
         const updatedPaper = {
           ...selectedPaper,
           questions: updatedQuestions
@@ -474,7 +486,6 @@ export default function PaperGeneration() {
         
         setSelectedPaper(updatedPaper);
         
-        // Update in the database
         const { error } = await supabase
           .from('generated_papers')
           .update({ questions: updatedQuestions as Json })
@@ -482,7 +493,6 @@ export default function PaperGeneration() {
           
         if (error) throw error;
         
-        // Update in the papers list
         const updatedPapers = papers.map(p => 
           p.id === selectedPaper.id ? updatedPaper : p
         );
@@ -495,7 +505,6 @@ export default function PaperGeneration() {
       console.error("Error updating answer:", error);
       toast.error("Failed to update answer");
     } finally {
-      // Clear editing state
       setEditingQuestion(null);
       setEditedAnswer("");
     }
@@ -655,37 +664,6 @@ export default function PaperGeneration() {
                 
                 <TabsContent value="theory" className="space-y-4 pt-4">
                   <div className="space-y-4">
-                    {(Object.keys(theoryQuestionConfig) as Array<keyof TheoryQuestionConfig>).map((markCategory) => (
-                      <div key={markCategory} className="space-y-2">
-                        <Label>{markCategory} Questions</Label>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleTheoryQuestionCountChange(markCategory, -1)}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={theoryQuestionConfig[markCategory]}
-                            onChange={(e) => handleTheoryQuestionInputChange(markCategory, e.target.value)}
-                            className="h-8 w-20 text-center"
-                          />
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleTheoryQuestionCountChange(markCategory, 1)}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    
                     <div className="border-t pt-4 mt-4">
                       <div className="flex items-center">
                         <Label className="text-base font-medium">Course Outcome Mapping</Label>
@@ -704,51 +682,67 @@ export default function PaperGeneration() {
                       ) : (
                         <div className="space-y-3 mt-3">
                           {courseOutcomes.map((co) => (
-                            <div key={co.id} className="flex items-start gap-3 border-b pb-2">
-                              <Checkbox 
-                                id={`co-${co.id}`}
-                                checked={co.selected}
-                                onCheckedChange={() => toggleCourseOutcome(co.id)}
-                              />
-                              <div className="flex-1">
-                                <Label htmlFor={`co-${co.id}`} className="text-sm">
-                                  CO{co.co_number}: {co.description}
-                                </Label>
+                            <Collapsible key={co.id} className="border rounded-md">
+                              <div className="flex items-center p-3 border-b">
+                                <Checkbox 
+                                  id={`co-${co.id}`}
+                                  checked={co.selected}
+                                  onCheckedChange={() => toggleCourseOutcome(co.id)}
+                                  className="mr-3"
+                                />
+                                <div className="flex-1">
+                                  <Label htmlFor={`co-${co.id}`} className="font-medium">
+                                    CO{co.co_number}: {co.description}
+                                  </Label>
+                                </div>
+                                
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="p-1 h-8 w-8">
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                              </div>
+                              
+                              <CollapsibleContent>
                                 {co.selected && (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Label className="text-xs">Questions:</Label>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => handleCourseOutcomeCountChange(co.id, co.questionCount - 1)}
-                                    >
-                                      <Minus className="h-3 w-3" />
-                                    </Button>
-                                    <Input
-                                      type="number"
-                                      min={1}
-                                      value={co.questionCount}
-                                      onChange={(e) => {
-                                        const count = parseInt(e.target.value);
-                                        if (!isNaN(count) && count >= 1) {
-                                          handleCourseOutcomeCountChange(co.id, count);
-                                        }
-                                      }}
-                                      className="h-7 w-12 text-center"
-                                    />
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => handleCourseOutcomeCountChange(co.id, co.questionCount + 1)}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
+                                  <div className="p-3 space-y-3">
+                                    <div className="text-sm font-medium">Question Distribution</div>
+                                    
+                                    {(Object.keys(co.questionDistribution) as Array<keyof TheoryQuestionConfig>).map((markCategory) => (
+                                      <div key={markCategory} className="flex items-center justify-between">
+                                        <Label className="text-sm">{markCategory} Questions</Label>
+                                        <div className="flex items-center gap-2">
+                                          <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-6 w-6 p-0"
+                                            onClick={() => updateCourseOutcomeDistribution(co.id, markCategory, -1)}
+                                          >
+                                            <Minus className="h-3 w-3" />
+                                          </Button>
+                                          <span className="text-sm w-6 text-center">
+                                            {co.questionDistribution[markCategory]}
+                                          </span>
+                                          <Button 
+                                            size="sm" 
+                                            variant="outline" 
+                                            className="h-6 w-6 p-0"
+                                            onClick={() => updateCourseOutcomeDistribution(co.id, markCategory, 1)}
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    
+                                    <div className="flex items-center justify-between pt-2 border-t text-sm font-medium">
+                                      <span>Total Questions:</span>
+                                      <span>{co.questionCount}</span>
+                                    </div>
                                   </div>
                                 )}
-                              </div>
-                            </div>
+                              </CollapsibleContent>
+                            </Collapsible>
                           ))}
                         </div>
                       )}
@@ -847,7 +841,6 @@ export default function PaperGeneration() {
                         Q{index + 1}. {question.text}
                       </p>
                       
-                      {/* Display multiple choice options if available */}
                       {question.options && (
                         <div className="mt-2 space-y-1 pl-4">
                           {question.options.map((option, idx) => (
@@ -859,7 +852,6 @@ export default function PaperGeneration() {
                         </div>
                       )}
                       
-                      {/* Display answer if available */}
                       {question.answer && (
                         <div className="mt-2 pl-4">
                           <div className="flex items-center justify-between">
@@ -937,7 +929,6 @@ export default function PaperGeneration() {
                               Q{idx + 1}. {question.text}
                             </p>
                             
-                            {/* Display multiple choice options if available */}
                             {question.options && (
                               <div className="mt-2 space-y-1 pl-4">
                                 {question.options.map((option, idx) => (
@@ -949,52 +940,49 @@ export default function PaperGeneration() {
                               </div>
                             )}
                             
-                            {/* Display answer section with edit option */}
-                            <div className="mt-2 pl-4">
-                              {editingQuestion?.id === question.id ? (
-                                <div className="space-y-2">
-                                  <Label htmlFor="edit-answer">Edit Answer:</Label>
-                                  <Textarea
-                                    id="edit-answer"
-                                    value={editedAnswer}
-                                    onChange={(e) => setEditedAnswer(e.target.value)}
-                                    className="min-h-[100px] w-full"
-                                  />
-                                  <div className="flex justify-end gap-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => setEditingQuestion(null)}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button 
-                                      size="sm"
-                                      onClick={saveEditedAnswer}
-                                    >
-                                      <Check className="mr-1 h-4 w-4" />
-                                      Save
-                                    </Button>
-                                  </div>
+                            {editingQuestion?.id === question.id ? (
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-answer">Edit Answer:</Label>
+                                <Textarea
+                                  id="edit-answer"
+                                  value={editedAnswer}
+                                  onChange={(e) => setEditedAnswer(e.target.value)}
+                                  className="min-h-[100px] w-full"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => setEditingQuestion(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button 
+                                    size="sm"
+                                    onClick={saveEditedAnswer}
+                                  >
+                                    <Check className="mr-1 h-4 w-4" />
+                                    Save
+                                  </Button>
                                 </div>
-                              ) : (
-                                <>
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium">Answer:</p>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      className="h-8 px-2"
-                                      onClick={() => handleEditAnswer(question)}
-                                    >
-                                      <Edit className="h-3 w-3 mr-1" />
-                                      Edit
-                                    </Button>
-                                  </div>
-                                  <p className="text-sm">{question.answer || "No answer provided"}</p>
-                                </>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium">Answer:</p>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    className="h-8 px-2"
+                                    onClick={() => handleEditAnswer(question)}
+                                  >
+                                    <Edit className="h-3 w-3 mr-1" />
+                                    Edit
+                                  </Button>
+                                </div>
+                                <p className="text-sm">{question.answer || "No answer provided"}</p>
+                              </>
+                            )}
                             
                             <div className="mt-1 flex flex-wrap gap-2">
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
