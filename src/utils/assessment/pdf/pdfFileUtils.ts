@@ -6,8 +6,16 @@ import { v4 as uuidv4 } from "uuid";
 
 /**
  * Uploads a PDF file and processes it to ZIP if needed
+ * 
+ * @param file - The PDF file to upload
+ * @param studentId - Optional student ID for answer sheets
+ * @param folderPath - The folder path to store the file (default: 'answer_sheets')
  */
-export const uploadPdfFile = async (file: File, studentId?: string): Promise<{ publicUrl: string, zipUrl?: string }> => {
+export const uploadPdfFile = async (
+  file: File, 
+  studentId?: string, 
+  folderPath: string = 'answer_sheets'
+): Promise<{ publicUrl: string, zipUrl?: string }> => {
   if (!validatePdfFile(file)) {
     throw new Error("Invalid file type. Only PDF files are allowed.");
   }
@@ -15,7 +23,7 @@ export const uploadPdfFile = async (file: File, studentId?: string): Promise<{ p
   // Generate a unique file name
   const fileExt = file.name.split('.').pop();
   const fileName = `${uuidv4()}.${fileExt}`;
-  const filePath = `answer_sheets/${fileName}`;
+  const filePath = `${folderPath}/${fileName}`;
   
   // Upload the original file to Supabase storage
   const { error: uploadError } = await supabase.storage
@@ -37,16 +45,15 @@ export const uploadPdfFile = async (file: File, studentId?: string): Promise<{ p
 
   let zipUrl: string | undefined;
   
-  // If studentId is provided, process PDF to ZIP
-  if (studentId) {
-    try {
-      console.log("Processing PDF to ZIP for student:", studentId);
-      const { zipUrl: newZipUrl } = await processPdfToZip(file, studentId);
-      zipUrl = newZipUrl;
-      console.log("ZIP URL created:", zipUrl);
-    } catch (zipError) {
-      console.error("Error processing PDF to ZIP:", zipError);
-    }
+  // Process PDF to ZIP for better OCR processing
+  try {
+    console.log(`Processing PDF to ZIP for ${folderPath}`);
+    const fileIdentifier = studentId || uuidv4();
+    const { zipUrl: newZipUrl } = await processPdfToZip(file, fileIdentifier, folderPath);
+    zipUrl = newZipUrl;
+    console.log("ZIP URL created:", zipUrl);
+  } catch (zipError) {
+    console.error("Error processing PDF to ZIP:", zipError);
   }
   
   return { 

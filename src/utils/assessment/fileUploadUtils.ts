@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { uploadPdfFile } from "./pdf/pdfFileUtils";
-import { validatePdfFile } from "./fileValidation";
+import { validatePdfFile, validateFileFormat } from "./fileValidation";
 import { deletePreviousFiles } from "./fileCleanup";
 import { 
   saveTestAnswer, 
@@ -18,7 +18,7 @@ export const uploadAnswerSheetFile = async (file: File, studentId?: string): Pro
   try {
     // For PDF files, use the specialized PDF uploader
     if (validatePdfFile(file)) {
-      return await uploadPdfFile(file, studentId);
+      return await uploadPdfFile(file, studentId, 'answer_sheets');
     }
     
     // For other file types, use the regular upload process
@@ -56,9 +56,20 @@ export const uploadAnswerSheetFile = async (file: File, studentId?: string): Pro
 
 /**
  * Uploads a question paper or answer key file to Supabase storage
+ * For PDF files, it processes them into ZIP archives of PNG images for better OCR
  */
 export const uploadTestFile = async (file: File, fileType: string): Promise<string> => {
   try {
+    // For PDF files, use the specialized PDF uploader with batch processing
+    if (validatePdfFile(file)) {
+      const folderPath = `test_${fileType}`;
+      const { publicUrl, zipUrl } = await uploadPdfFile(file, undefined, folderPath);
+      
+      // For question papers and answer keys, we'll prefer the ZIP URL if available
+      return zipUrl || publicUrl;
+    }
+    
+    // For other file types, use the regular upload process
     // Generate a unique file name
     const fileExt = file.name.split('.').pop();
     const fileName = `${uuidv4()}.${fileExt}`;
@@ -92,6 +103,7 @@ export const uploadTestFile = async (file: File, fileType: string): Promise<stri
 // Export all the utility functions
 export {
   validatePdfFile,
+  validateFileFormat,
   deletePreviousFiles,
   saveTestAnswer,
   getAnswerSheetUrl,

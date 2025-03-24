@@ -6,11 +6,15 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Uploads a ZIP file to Supabase storage
  */
-export async function uploadZipFile(zipBlob: Blob, studentId: string): Promise<string> {
+export async function uploadZipFile(
+  zipBlob: Blob, 
+  identifier: string, 
+  folderType: string = 'answer_sheets'
+): Promise<string> {
   try {
     // Generate a unique filename
-    const fileName = `student_${studentId}_${uuidv4()}.zip`;
-    const filePath = `answer_sheets_zip/${fileName}`;
+    const fileName = `${folderType}_${identifier}_${uuidv4()}.zip`;
+    const filePath = `${folderType}_zip/${fileName}`;
     
     console.log(`Uploading ZIP file: ${filePath}, size: ${zipBlob.size} bytes`);
     
