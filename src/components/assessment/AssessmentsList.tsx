@@ -70,7 +70,7 @@ const AssessmentsList: React.FC<AssessmentsListProps> = ({
   }
   
   // Helper function to determine badge variant based on status
-  const getBadgeVariant = (status: string) => {
+  const getBadgeVariant = (status: string): "default" | "outline" | "secondary" => {
     switch (status) {
       case 'published':
         return 'secondary';

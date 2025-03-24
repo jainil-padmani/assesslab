@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -184,8 +185,8 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       
       // Process the questions from the data
       const processedQuestions = (data || []).flatMap(item => {
-        const questionsData = item.questions || [];
-        if (!Array.isArray(questionsData)) return [];
+        const questionsData = item.questions;
+        if (!questionsData || !Array.isArray(questionsData)) return [];
         
         return questionsData.map((q: any) => ({
           ...q,
@@ -850,11 +851,15 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Topics</SelectItem>
-                          {topics.map((topic) => (
-                            <SelectItem key={topic} value={topic}>
-                              {topic}
-                            </SelectItem>
-                          ))}
+                          {topics && topics.length > 0 ? (
+                            topics.map((topic) => (
+                              <SelectItem key={topic} value={topic}>
+                                {topic}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="none" disabled>No topics available</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -991,4 +996,213 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                   <Textarea 
                     id="questionText"
                     placeholder="Enter the question"
-                    className="min-h-[
+                    className="min-h-[80px]"
+                    value={newQuestion.questionText}
+                    onChange={(e) => setNewQuestion({...newQuestion, questionText: e.target.value})}
+                  />
+                </div>
+                
+                {newQuestion.questionType === 'multiple_choice' && (
+                  <div>
+                    <Label>Answer Options*</Label>
+                    <div className="space-y-2 mt-2">
+                      {newQuestion.options && newQuestion.options.map((option, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input 
+                            placeholder={`Option ${index + 1}`}
+                            value={option}
+                            onChange={(e) => {
+                              const newOptions = [...newQuestion.options];
+                              newOptions[index] = e.target.value;
+                              setNewQuestion({...newQuestion, options: newOptions});
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNewQuestion({
+                              ...newQuestion,
+                              correctAnswer: option
+                            })}
+                            className={newQuestion.correctAnswer === option ? "border-green-500 bg-green-50" : ""}
+                          >
+                            Correct
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const newOptions = [...newQuestion.options];
+                              newOptions.splice(index, 1);
+                              setNewQuestion({
+                                ...newQuestion, 
+                                options: newOptions,
+                                correctAnswer: newQuestion.correctAnswer === option ? '' : newQuestion.correctAnswer
+                              });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => {
+                          setNewQuestion({
+                            ...newQuestion,
+                            options: [...newQuestion.options, '']
+                          });
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Option
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {newQuestion.questionType === 'true_false' && (
+                  <div>
+                    <Label>Correct Answer*</Label>
+                    <div className="flex gap-4 mt-2">
+                      <Button
+                        type="button"
+                        variant={newQuestion.correctAnswer === 'true' ? "default" : "outline"}
+                        onClick={() => setNewQuestion({...newQuestion, correctAnswer: 'true'})}
+                      >
+                        True
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={newQuestion.correctAnswer === 'false' ? "default" : "outline"}
+                        onClick={() => setNewQuestion({...newQuestion, correctAnswer: 'false'})}
+                      >
+                        False
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {(newQuestion.questionType === 'short_answer' || newQuestion.questionType === 'essay') && (
+                  <div>
+                    <Label htmlFor="correctAnswer">Correct Answer {newQuestion.questionType === 'short_answer' ? '*' : '(Optional)'}</Label>
+                    <Textarea 
+                      id="correctAnswer"
+                      placeholder={`Enter the ${newQuestion.questionType === 'short_answer' ? 'correct answer' : 'model answer (optional)'}`}
+                      className="min-h-[80px]"
+                      value={newQuestion.correctAnswer}
+                      onChange={(e) => setNewQuestion({...newQuestion, correctAnswer: e.target.value})}
+                    />
+                  </div>
+                )}
+                
+                <div>
+                  <Label htmlFor="points">Points</Label>
+                  <Input 
+                    id="points"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={newQuestion.points}
+                    onChange={(e) => setNewQuestion({...newQuestion, points: parseInt(e.target.value) || 1})}
+                  />
+                </div>
+                
+                <Button type="button" onClick={addQuestion}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Question
+                </Button>
+              </div>
+            </div>
+            
+            {questions.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Added Questions</h3>
+                
+                {questions.map((q, index) => (
+                  <div key={q.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{index + 1}.</span>
+                        <Badge variant="outline">{q.questionType.replace('_', ' ')}</Badge>
+                        <Badge variant="secondary">{q.points} {q.points === 1 ? 'point' : 'points'}</Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeQuestion(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <p className="mt-2">{q.questionText}</p>
+                    
+                    {q.questionType === 'multiple_choice' && q.options && (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {q.options.map((option, i) => (
+                          <div 
+                            key={i} 
+                            className={`px-3 py-2 border rounded ${option === q.correctAnswer ? 'bg-green-50 border-green-500' : ''}`}
+                          >
+                            {option}
+                            {option === q.correctAnswer && ' (Correct)'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {(q.questionType === 'short_answer' || q.questionType === 'essay' || q.questionType === 'true_false') && (
+                      <div className="mt-2">
+                        <p className="text-sm text-muted-foreground">Correct answer: <span className="font-medium text-foreground">{q.correctAnswer}</span></p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-8 border rounded-lg bg-muted/30">
+                <p className="text-muted-foreground">No questions added yet. Add your first question above or import from the question bank.</p>
+              </div>
+            )}
+            
+            <div className="flex justify-between pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => setActiveTab('details')}
+              >
+                Back to Details
+              </Button>
+              
+              <div className="space-x-4">
+                <Button 
+                  variant="outline"
+                  onClick={() => handleSubmit(form.getValues(), true)}
+                  disabled={!form.getValues().title || questions.length === 0}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save as Draft
+                </Button>
+                
+                <Button 
+                  onClick={() => handleSubmit(form.getValues(), false)}
+                  disabled={!form.getValues().title || questions.length === 0}
+                >
+                  Publish Assessment
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
+  );
+};
+
+export default AssessmentForm;
