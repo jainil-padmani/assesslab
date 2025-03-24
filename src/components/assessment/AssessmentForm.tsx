@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,17 +10,19 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Assessment, AssessmentOption, AssessmentRestriction } from '@/types/assessments';
-import { Calendar as CalendarIcon, Clock, Save } from 'lucide-react';
+import { Assessment, AssessmentOption, AssessmentQuestion, AssessmentRestriction } from '@/types/assessments';
+import { Calendar as CalendarIcon, Clock, Save, Plus, Trash2 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { createAssessment, updateAssessmentStatus } from '@/utils/assessment/assessmentService';
+import { createAssessment, updateAssessmentStatus, addQuestionsToAssessment } from '@/utils/assessment/assessmentService';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useQuery } from '@tanstack/react-query';
 
-// Define the form schema
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long'),
   instructions: z.string().optional(),
@@ -66,8 +67,37 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('details');
   const navigate = useNavigate();
+  const [temporaryId, setTemporaryId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+  const [newQuestion, setNewQuestion] = useState<{
+    questionText: string;
+    questionType: 'multiple_choice' | 'short_answer' | 'essay' | 'true_false';
+    options: string[];
+    correctAnswer: string;
+    points: number;
+  }>({
+    questionText: '',
+    questionType: 'multiple_choice',
+    options: ['', '', '', ''],
+    correctAnswer: '',
+    points: 1
+  });
 
-  // Initialize the form with existing data or defaults
+  const { data: generatedQuestions, isLoading: loadingGeneratedQuestions } = useQuery({
+    queryKey: ['generated-questions', subjectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('generated_questions')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!subjectId
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: existingAssessment ? {
@@ -109,13 +139,11 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     }
   });
 
-  // Get current user ID
   const getCurrentUserId = async () => {
     const { data } = await supabase.auth.getUser();
     return data.user?.id;
   };
 
-  // Handle form submission
   const handleSubmit = async (values: FormValues, saveAsDraft: boolean = false) => {
     try {
       const userId = await getCurrentUserId();
@@ -125,7 +153,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
         return;
       }
 
-      // Prepare assessment data
       const assessmentData = {
         title: values.title,
         instructions: values.instructions || null,
@@ -140,16 +167,25 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
         status: saveAsDraft ? 'draft' : 'published' as Assessment['status'],
       };
 
-      // Create the assessment
       const assessmentId = await createAssessment(assessmentData);
+      setTemporaryId(assessmentId);
+      
+      if (questions.length > 0) {
+        await addQuestionsToAssessment(assessmentId, questions.map(q => ({
+          questionText: q.questionText,
+          questionType: q.questionType,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          points: q.points,
+          questionOrder: q.questionOrder
+        })));
+      }
       
       toast.success(`Assessment ${saveAsDraft ? 'saved as draft' : 'published'} successfully`);
       
-      // Call onSubmit callback if provided
       if (onSubmit) {
         onSubmit(assessmentId);
       } else {
-        // Navigate to the assessment details page
         navigate(`/dashboard/assessments/detail/${assessmentId}`);
       }
     } catch (error) {
@@ -158,7 +194,65 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     }
   };
 
-  // Component for time input field
+  const addQuestion = () => {
+    if (!newQuestion.questionText) {
+      toast.error("Question text is required");
+      return;
+    }
+
+    if (newQuestion.questionType === 'multiple_choice') {
+      const nonEmptyOptions = newQuestion.options.filter(option => option.trim() !== '');
+      if (nonEmptyOptions.length < 2) {
+        toast.error("You need at least 2 options for a multiple choice question");
+        return;
+      }
+      if (!newQuestion.correctAnswer) {
+        toast.error("Please select a correct answer");
+        return;
+      }
+    }
+
+    if (newQuestion.questionType === 'true_false' && !['true', 'false'].includes(newQuestion.correctAnswer.toLowerCase())) {
+      toast.error("Correct answer must be 'true' or 'false'");
+      return;
+    }
+
+    const questionToAdd: AssessmentQuestion = {
+      id: `temp-${Date.now()}`,
+      assessmentId: temporaryId || '',
+      questionText: newQuestion.questionText,
+      questionType: newQuestion.questionType,
+      options: newQuestion.questionType === 'multiple_choice' ? newQuestion.options : null,
+      correctAnswer: newQuestion.correctAnswer,
+      points: newQuestion.points,
+      questionOrder: questions.length + 1,
+      createdAt: new Date().toISOString()
+    };
+
+    setQuestions([...questions, questionToAdd]);
+
+    setNewQuestion({
+      questionText: '',
+      questionType: 'multiple_choice',
+      options: ['', '', '', ''],
+      correctAnswer: '',
+      points: 1
+    });
+
+    toast.success("Question added");
+  };
+
+  const removeQuestion = (index: number) => {
+    const updatedQuestions = [...questions];
+    updatedQuestions.splice(index, 1);
+    const reorderedQuestions = updatedQuestions.map((q, idx) => ({
+      ...q,
+      questionOrder: idx + 1
+    }));
+    setQuestions(reorderedQuestions);
+    toast.success("Question removed");
+  };
+
   const TimeInput = ({ value, onChange }: { value: number; onChange: (value: number) => void }) => {
     return (
       <div className="flex items-center space-x-2">
@@ -175,7 +269,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     );
   };
 
-  // Component for date picker
   const DatePicker = ({ value, onChange }: { value: string | null; onChange: (value: string | null) => void }) => {
     return (
       <Popover>
@@ -609,7 +702,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                   </Button>
                   
                   <Button 
-                    type="submit"
+                    type="button"
                     onClick={() => setActiveTab('questions')}
                   >
                     Continue to Questions
@@ -629,13 +722,193 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
               Add questions to your assessment
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {/* Questions content will be added here in a future update */}
-            <div className="text-center py-10">
-              <p className="text-muted-foreground">
-                Please save your assessment details first to add questions
-              </p>
+          <CardContent className="space-y-6">
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="text-lg font-medium">Add New Question</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="questionType">Question Type</Label>
+                  <Select 
+                    value={newQuestion.questionType} 
+                    onValueChange={(value: 'multiple_choice' | 'short_answer' | 'essay' | 'true_false') => {
+                      setNewQuestion({
+                        ...newQuestion,
+                        questionType: value,
+                        options: value === 'multiple_choice' ? ['', '', '', ''] : [],
+                        correctAnswer: value === 'true_false' ? 'true' : ''
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="questionType">
+                      <SelectValue placeholder="Select question type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                      <SelectItem value="short_answer">Short Answer</SelectItem>
+                      <SelectItem value="essay">Essay</SelectItem>
+                      <SelectItem value="true_false">True/False</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="questionText">Question Text*</Label>
+                  <Textarea 
+                    id="questionText"
+                    placeholder="Enter the question"
+                    className="min-h-[80px]"
+                    value={newQuestion.questionText}
+                    onChange={(e) => setNewQuestion({...newQuestion, questionText: e.target.value})}
+                  />
+                </div>
+                
+                {newQuestion.questionType === 'multiple_choice' && (
+                  <div className="space-y-3">
+                    <Label>Answer Options</Label>
+                    {newQuestion.options.map((option, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Input
+                          placeholder={`Option ${index + 1}`}
+                          value={option}
+                          onChange={(e) => {
+                            const newOptions = [...newQuestion.options];
+                            newOptions[index] = e.target.value;
+                            setNewQuestion({...newQuestion, options: newOptions});
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setNewQuestion({
+                              ...newQuestion,
+                              correctAnswer: option
+                            });
+                          }}
+                          className={
+                            newQuestion.correctAnswer === option 
+                              ? "bg-green-100 border-green-400" 
+                              : ""
+                          }
+                        >
+                          Correct
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setNewQuestion({
+                          ...newQuestion,
+                          options: [...newQuestion.options, '']
+                        });
+                      }}
+                    >
+                      Add Option
+                    </Button>
+                  </div>
+                )}
+                
+                {newQuestion.questionType === 'true_false' && (
+                  <div>
+                    <Label>Correct Answer</Label>
+                    <Select 
+                      value={newQuestion.correctAnswer} 
+                      onValueChange={(value) => setNewQuestion({...newQuestion, correctAnswer: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select correct answer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">True</SelectItem>
+                        <SelectItem value="false">False</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                {(newQuestion.questionType === 'short_answer' || newQuestion.questionType === 'essay') && (
+                  <div>
+                    <Label htmlFor="correctAnswer">Correct Answer/Keywords (for grading)</Label>
+                    <Textarea 
+                      id="correctAnswer"
+                      placeholder="Enter the correct answer or keywords"
+                      value={newQuestion.correctAnswer}
+                      onChange={(e) => setNewQuestion({...newQuestion, correctAnswer: e.target.value})}
+                    />
+                  </div>
+                )}
+                
+                <div>
+                  <Label htmlFor="points">Points</Label>
+                  <Input 
+                    id="points"
+                    type="number"
+                    min="1"
+                    value={newQuestion.points}
+                    onChange={(e) => setNewQuestion({...newQuestion, points: parseInt(e.target.value) || 1})}
+                    className="w-20"
+                  />
+                </div>
+                
+                <Button 
+                  type="button"
+                  onClick={addQuestion}
+                  className="w-full"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Question
+                </Button>
+              </div>
             </div>
+            
+            {questions.length > 0 ? (
+              <div className="border rounded-lg p-4 space-y-4">
+                <h3 className="text-lg font-medium">Added Questions ({questions.length})</h3>
+                <div className="space-y-4">
+                  {questions.map((question, index) => (
+                    <div key={index} className="border rounded p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm bg-primary/10 text-primary rounded-full h-6 w-6 flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="font-medium">
+                            {question.questionText.length > 50 
+                              ? `${question.questionText.substring(0, 50)}...` 
+                              : question.questionText}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-secondary/10 text-secondary rounded-full px-2 py-1">
+                            {question.questionType}
+                          </span>
+                          <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-1">
+                            {question.points} pts
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeQuestion(index)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 border rounded-lg">
+                <p className="text-muted-foreground">No questions added yet</p>
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button 
@@ -645,12 +918,22 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
               Back to Details
             </Button>
             
-            <Button 
-              type="button" 
-              onClick={() => form.handleSubmit((values) => handleSubmit(values, false))()}
-            >
-              Save & Publish
-            </Button>
+            <div className="space-x-2">
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={() => handleSubmit(form.getValues(), true)}
+              >
+                Save Draft
+              </Button>
+              <Button 
+                type="button"
+                onClick={() => handleSubmit(form.getValues(), false)}
+                disabled={questions.length === 0}
+              >
+                Save & Publish
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       </TabsContent>
