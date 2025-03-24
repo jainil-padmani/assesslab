@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -12,7 +13,8 @@ import {
   Notebook,
   FileUp,
   School,
-  FileText
+  FileText,
+  PenTool
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -52,6 +54,11 @@ const links = [
     title: "File Management",
     icon: FileUp,
     href: "/dashboard/file-management",
+  },
+  {
+    title: "Take Test",
+    icon: PenTool,
+    href: "/dashboard/take-test",
   },
   {
     title: "Analysis",

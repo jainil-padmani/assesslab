@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { BookOpen, Brain, CheckCircle, FileText } from "lucide-react";
+import { BookOpen, Brain, CheckCircle, FileText, PenTool } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const features = [
@@ -10,6 +10,12 @@ const features = [
     description: "Generate comprehensive question papers from your study materials in minutes.",
     icon: FileText,
     href: "/dashboard/paper-generation",
+  },
+  {
+    title: "Take Test",
+    description: "Take online tests and submit your answers electronically.",
+    icon: PenTool,
+    href: "/dashboard/take-test",
   },
   {
     title: "Smart Analysis",

@@ -29,6 +29,8 @@ import PaperGeneration from "./pages/dashboard/PaperGeneration";
 import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
 import GeneratedQuestionsHistory from "./pages/dashboard/GeneratedQuestionsHistory";
+import TakeTest from "./pages/dashboard/TakeTest";
+import TakeTestDetail from "./pages/dashboard/TakeTestDetail";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +56,8 @@ function App() {
                 <Route path="tests" element={<Tests />} />
                 <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
                 <Route path="tests/detail/:testId" element={<TestDetail />} />
+                <Route path="take-test" element={<TakeTest />} />
+                <Route path="take-test/:testId" element={<TakeTestDetail />} />
                 <Route path="analysis" element={<Analysis />} />
                 <Route path="analysis-result" element={<AnalysisResult />} />
                 <Route path="analysis-history" element={<AnalysisHistory />} />
