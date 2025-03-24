@@ -1,13 +1,13 @@
 
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { FilePlus, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   uploadAnswerSheetFile,
   saveTestAnswer 
 } from "@/utils/assessment/fileUploadUtils";
+import { validateFileFormat } from "@/utils/assessment/fileValidation";
 
 interface UploadAnswerSheetProps {
   studentId: string;
@@ -22,9 +22,7 @@ export function UploadAnswerSheet({
   isEvaluating,
   testId
 }: UploadAnswerSheetProps) {
-  const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,17 +36,13 @@ export function UploadAnswerSheet({
     }
     
     // Valid file types: PDF, PNG, JPG
-    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
-    if (!validTypes.includes(selectedFile.type)) {
+    if (!validateFileFormat(selectedFile)) {
       toast.error('Please upload PDF, PNG, or JPG files only');
       return;
     }
     
-    setFile(selectedFile);
-    
     // Auto-upload as soon as file is selected
     setIsUploading(true);
-    setIsProcessing(true);
     setProcessingStep("Uploading file...");
     
     try {
@@ -71,7 +65,6 @@ export function UploadAnswerSheet({
       );
       
       // Reset form
-      setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -89,7 +82,6 @@ export function UploadAnswerSheet({
       console.error('Error uploading answer sheet:', error);
     } finally {
       setIsUploading(false);
-      setIsProcessing(false);
       setProcessingStep("");
     }
   };

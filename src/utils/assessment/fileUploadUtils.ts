@@ -54,6 +54,41 @@ export const uploadAnswerSheetFile = async (file: File, studentId?: string): Pro
   }
 };
 
+/**
+ * Uploads a question paper or answer key file to Supabase storage
+ */
+export const uploadTestFile = async (file: File, fileType: string): Promise<string> => {
+  try {
+    // Generate a unique file name
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const filePath = `test_${fileType}/${fileName}`;
+    
+    // Upload the file to Supabase storage
+    const { error: uploadError } = await supabase.storage
+      .from('files')
+      .upload(filePath, file);
+    
+    if (uploadError) {
+      throw uploadError;
+    }
+    
+    // Get the public URL
+    const { data: urlData } = await supabase.storage
+      .from('files')
+      .getPublicUrl(filePath);
+    
+    if (!urlData) {
+      throw new Error("Failed to get public URL");
+    }
+    
+    return urlData.publicUrl;
+  } catch (error: any) {
+    console.error(`Error uploading ${fileType} file:`, error);
+    throw new Error(error.message || `Failed to upload ${fileType} file`);
+  }
+};
+
 // Export all the utility functions
 export {
   validatePdfFile,

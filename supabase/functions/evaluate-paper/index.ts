@@ -40,7 +40,7 @@ serve(async (req) => {
     
     // Process the student answer if it's a PDF or image
     let processedStudentAnswer = studentAnswer;
-    let extractedText = null;
+    let extractedStudentText = null;
     
     if (studentAnswer?.zip_url) {
       console.log("Found ZIP URL for enhanced OCR processing:", studentAnswer.zip_url);
@@ -165,7 +165,7 @@ serve(async (req) => {
               isOcrProcessed: false,
               ocrError: errorText
             };
-            extractedText = "OCR extraction failed: " + errorText;
+            extractedStudentText = "OCR extraction failed: " + errorText;
           } else {
             const ocrResult = await ocrResponse.json();
             const extractedOcrText = ocrResult.choices[0]?.message?.content;
@@ -174,7 +174,7 @@ serve(async (req) => {
             console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
             
             // Store the extracted text for updating in the database
-            extractedText = extractedOcrText;
+            extractedStudentText = extractedOcrText;
             
             // Update the student answer with OCR text
             processedStudentAnswer = {
@@ -187,11 +187,11 @@ serve(async (req) => {
           }
         } else {
           console.error("No image files found in ZIP");
-          extractedText = "No image files found in ZIP for OCR processing";
+          extractedStudentText = "No image files found in ZIP for OCR processing";
         }
       } catch (zipError) {
         console.error("Error processing ZIP file:", zipError);
-        extractedText = "Error processing ZIP file: " + zipError.message;
+        extractedStudentText = "Error processing ZIP file: " + zipError.message;
       }
     } else if (studentAnswer?.url && (
         studentAnswer.url.includes('.jpg') || 
@@ -206,10 +206,10 @@ serve(async (req) => {
         // For PDFs, we'll recommend using the ZIP processing path instead
         if (studentAnswer.url.includes('.pdf')) {
           console.log("PDF detected. For better results, please use ZIP processing path.");
-          extractedText = "PDF detected. For better results, please regenerate the assessment to use enhanced OCR via ZIP processing.";
+          extractedStudentText = "PDF detected. For better results, please regenerate the assessment to use enhanced OCR via ZIP processing.";
           processedStudentAnswer = {
             ...studentAnswer,
-            text: extractedText,
+            text: extractedStudentText,
             isOcrProcessed: false
           };
         } else {
@@ -277,7 +277,7 @@ serve(async (req) => {
               isOcrProcessed: false,
               ocrError: errorText
             };
-            extractedText = "OCR extraction failed: " + errorText;
+            extractedStudentText = "OCR extraction failed: " + errorText;
           } else {
             const ocrResult = await ocrResponse.json();
             const extractedOcrText = ocrResult.choices[0]?.message?.content;
@@ -286,7 +286,7 @@ serve(async (req) => {
             console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
             
             // Store the extracted text for updating in the database
-            extractedText = extractedOcrText;
+            extractedStudentText = extractedOcrText;
             
             // Update the student answer with OCR text
             processedStudentAnswer = {
@@ -310,8 +310,209 @@ serve(async (req) => {
       }
     }
     
+    // Process question paper and answer key documents to extract text
+    let processedQuestionPaper = questionPaper;
+    let extractedQuestionText = null;
+    
+    // Extract text from question paper
+    if (questionPaper?.url && (
+        questionPaper.url.includes('.pdf') ||
+        questionPaper.url.includes('.jpg') || 
+        questionPaper.url.includes('.jpeg') || 
+        questionPaper.url.includes('.png')
+    )) {
+      console.log("Processing question paper for text extraction:", questionPaper.url);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              { 
+                role: 'system', 
+                content: `You are an OCR expert specialized in extracting text from question papers.
+                
+                For each question in the document:
+                1. Identify the question number clearly.
+                2. Extract the complete question text along with any subparts.
+                3. Format each question on a new line starting with "Q<number>:" followed by the question.
+                4. Preserve the structure of mathematical equations, diagrams descriptions, and any special formatting.
+                5. Include all instructions, marks allocations, and other relevant information.
+                
+                Your response should be structured, accurate, and preserve the original content's organization.`
+              },
+              { 
+                role: 'user', 
+                content: [
+                  { 
+                    type: 'text', 
+                    text: `This is a question paper for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their content:` 
+                  },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: questionPaper.url,
+                      detail: "high" 
+                    } 
+                  }
+                ] 
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 4000,
+          }),
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!ocrResponse.ok) {
+          const errorText = await ocrResponse.text();
+          console.error("OpenAI OCR error for question paper:", errorText);
+          
+          processedQuestionPaper = {
+            ...questionPaper,
+            text: "Unable to extract text from question paper.",
+            isOcrProcessed: false,
+            ocrError: errorText
+          };
+        } else {
+          const ocrResult = await ocrResponse.json();
+          const extractedOcrText = ocrResult.choices[0]?.message?.content;
+          
+          console.log("Question paper OCR successful, extracted text length:", extractedOcrText?.length || 0);
+          console.log("Sample question paper text:", extractedOcrText?.substring(0, 100) + "...");
+          
+          extractedQuestionText = extractedOcrText;
+          
+          processedQuestionPaper = {
+            ...questionPaper,
+            text: extractedOcrText,
+            isOcrProcessed: true
+          };
+        }
+      } catch (ocrError) {
+        console.error("Error during question paper OCR processing:", ocrError);
+        
+        processedQuestionPaper = {
+          ...questionPaper,
+          text: "Error processing question paper document.",
+          isOcrProcessed: false,
+          ocrError: ocrError.message
+        };
+      }
+    }
+    
+    // Process answer key to extract text
+    let processedAnswerKey = answerKey;
+    let extractedAnswerKeyText = null;
+    
+    if (answerKey?.url && (
+        answerKey.url.includes('.pdf') ||
+        answerKey.url.includes('.jpg') || 
+        answerKey.url.includes('.jpeg') || 
+        answerKey.url.includes('.png')
+    )) {
+      console.log("Processing answer key for text extraction:", answerKey.url);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              { 
+                role: 'system', 
+                content: `You are an OCR expert specialized in extracting text from answer keys.
+                
+                For each answer in the document:
+                1. Identify the question number clearly.
+                2. Extract the complete answer text along with any marking guidelines.
+                3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
+                4. Preserve the structure of mathematical equations, diagrams, and any special formatting.
+                5. Include all marking schemes, points allocation, and other evaluation criteria.
+                
+                Your response should be structured, accurate, and preserve the original content's organization.`
+              },
+              { 
+                role: 'user', 
+                content: [
+                  { 
+                    type: 'text', 
+                    text: `This is an answer key for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:` 
+                  },
+                  { 
+                    type: 'image_url', 
+                    image_url: { 
+                      url: answerKey.url,
+                      detail: "high" 
+                    } 
+                  }
+                ] 
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 4000,
+          }),
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!ocrResponse.ok) {
+          const errorText = await ocrResponse.text();
+          console.error("OpenAI OCR error for answer key:", errorText);
+          
+          processedAnswerKey = {
+            ...answerKey,
+            text: "Unable to extract text from answer key.",
+            isOcrProcessed: false,
+            ocrError: errorText
+          };
+        } else {
+          const ocrResult = await ocrResponse.json();
+          const extractedOcrText = ocrResult.choices[0]?.message?.content;
+          
+          console.log("Answer key OCR successful, extracted text length:", extractedOcrText?.length || 0);
+          console.log("Sample answer key text:", extractedOcrText?.substring(0, 100) + "...");
+          
+          extractedAnswerKeyText = extractedOcrText;
+          
+          processedAnswerKey = {
+            ...answerKey,
+            text: extractedOcrText,
+            isOcrProcessed: true
+          };
+        }
+      } catch (ocrError) {
+        console.error("Error during answer key OCR processing:", ocrError);
+        
+        processedAnswerKey = {
+          ...answerKey,
+          text: "Error processing answer key document.",
+          isOcrProcessed: false,
+          ocrError: ocrError.message
+        };
+      }
+    }
+    
     // Update the assessment record with the extracted text
-    if (extractedText && studentInfo?.id) {
+    if (extractedStudentText && studentInfo?.id) {
       try {
         // Create Supabase client
         const supabaseClient = createClient(
@@ -323,7 +524,7 @@ serve(async (req) => {
         // Find and update the assessment with the extracted text
         const { error } = await supabaseClient
           .from('test_answers')
-          .update({ text_content: extractedText })
+          .update({ text_content: extractedStudentText })
           .eq('student_id', studentInfo.id)
           .eq('test_id', testId);
           
@@ -343,8 +544,8 @@ You are an AI evaluator responsible for grading a student's answer sheet for tes
 The user will provide you with the question paper, answer key, and the student's answer sheet.
 Follow these steps:
 
-1. Analyze the question paper to understand the questions and their marks allocation.
-2. Analyze the answer key to understand the correct answers and valuation criteria.
+1. Analyze the question paper text to understand the questions and their marks allocation.
+2. Analyze the answer key text to understand the correct answers and valuation criteria.
 3. Extract questions and answers from the student's submission, matching questions by number where possible.
 4. For each question:
    - Identify the question number
@@ -360,10 +561,10 @@ Your evaluation must be returned in a structured JSON format.
 
     const userPrompt = `
 Question Paper for Test ID ${testId}:
-${JSON.stringify(questionPaper)}
+${JSON.stringify(processedQuestionPaper)}
 
 Answer Key for Test ID ${testId}:
-${JSON.stringify(answerKey)}
+${JSON.stringify(processedAnswerKey)}
 
 Student Answer Sheet for Test ID ${testId}:
 ${JSON.stringify(processedStudentAnswer)}
@@ -467,14 +668,22 @@ Return ONLY the JSON object without any additional text or markdown formatting.
       evaluation.test_id = testId;
       evaluation.answer_sheet_url = studentAnswer.url;
       
-      // Add the extracted text if available
-      if (extractedText) {
-        evaluation.text = extractedText;
+      // Add the extracted texts if available
+      if (extractedStudentText) {
+        evaluation.text = extractedStudentText;
         evaluation.isOcrProcessed = true;
         if (studentAnswer?.zip_url) {
           evaluation.zipProcessed = true;
           evaluation.zip_url = studentAnswer.zip_url;
         }
+      }
+      
+      if (extractedQuestionText) {
+        evaluation.questionPaperText = extractedQuestionText;
+      }
+      
+      if (extractedAnswerKeyText) {
+        evaluation.answerKeyText = extractedAnswerKeyText;
       }
       
       console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
