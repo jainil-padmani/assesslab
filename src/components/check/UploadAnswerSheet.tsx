@@ -64,11 +64,13 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file for enhanced OCR...');
       
-      // Fetch existing assessments
+      // Fetch existing assessments - Fix table name to assessments_master
       const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
       
-      // Extract previous URLs for cleanup later
-      const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
+      // Extract previous URLs for cleanup later - Add type safety check
+      const previousUrls = existingAssessments && Array.isArray(existingAssessments) 
+        ? existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) 
+        : [];
       
       // Process the file for enhanced OCR
       const zipUrl = await processPdfFile(file, 'student');
@@ -94,8 +96,8 @@ export function UploadAnswerSheet({
         Object.assign(assessmentData, { test_id: testId });
       }
 
-      // Update or create assessment
-      if (existingAssessments && existingAssessments.length > 0) {
+      // Update or create assessment - Fix for type safety
+      if (existingAssessments && existingAssessments.length > 0 && existingAssessments[0] && existingAssessments[0].id) {
         const primaryAssessmentId = existingAssessments[0].id;
         
         // Update the primary assessment
@@ -103,16 +105,23 @@ export function UploadAnswerSheet({
         
         // Remove any duplicate assessments if they exist
         if (existingAssessments.length > 1) {
-          const duplicateIds = existingAssessments.slice(1).map(a => a.id);
-          await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
+          const duplicateIds = existingAssessments.slice(1)
+            .filter(a => a && typeof a === 'object' && 'id' in a)
+            .map(a => a.id as string);
+          
+          if (duplicateIds.length > 0) {
+            await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
+          }
         }
       } else {
         // Create a new assessment
         await createAssessment(assessmentData);
       }
       
-      // Delete previous files
-      await deletePreviousFiles(previousUrls);
+      // Delete previous files - Fix the function call to match expected parameters
+      if (previousUrls.length > 0) {
+        await deletePreviousFiles(previousUrls);
+      }
       
       // Reset evaluations and grades
       await resetEvaluations(studentId, selectedSubject, testId);

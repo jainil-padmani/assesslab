@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AssessmentData {
   student_id: string;
@@ -8,7 +9,7 @@ interface AssessmentData {
   updated_at: string;
   test_id?: string;
   text_content?: string | null;
-  zip_url?: string | null; // ZIP URL is now properly typed
+  zip_url?: string | null;
 }
 
 interface AssessmentOptions {
@@ -53,7 +54,7 @@ export const fetchExistingAssessments = async (
   testId?: string
 ) => {
   let query = supabase
-    .from('assessments')
+    .from('assessments_master')
     .select('id, answer_sheet_url, text_content, zip_url');
   
   query = query.eq('student_id', studentId).eq('subject_id', subjectId);
@@ -166,7 +167,6 @@ export const createAssessment = async (assessmentDetails: AssessmentDetails, que
   try {
     console.log('Creating assessment with details:', assessmentDetails);
     
-    // Insert the assessment master record
     const { data: assessmentData, error: assessmentError } = await supabase
       .from('assessments_master')
       .insert({
@@ -198,7 +198,6 @@ export const createAssessment = async (assessmentDetails: AssessmentDetails, que
     const assessmentId = assessmentData.id;
     console.log('Created assessment with ID:', assessmentId);
     
-    // Insert questions for the assessment
     if (questions.length > 0) {
       const questionsWithAssessmentId = questions.map((question, index) => ({
         assessment_id: assessmentId,
@@ -216,7 +215,6 @@ export const createAssessment = async (assessmentDetails: AssessmentDetails, que
         
       if (questionsError) {
         console.error('Error adding questions to assessment:', questionsError);
-        // We won't throw here to avoid failing the entire operation
         toast.error('Assessment created but some questions could not be added');
       }
     }
@@ -238,7 +236,7 @@ export const updateAssessment = async (
   assessmentData: AssessmentData
 ) => {
   const { error } = await supabase
-    .from('assessments')
+    .from('assessments_master')
     .update(assessmentData)
     .eq('id', assessmentId);
     
@@ -269,7 +267,6 @@ export const submitAssessmentAnswers = async (
   timeSpent: number
 ) => {
   try {
-    // First, check if the student has already submitted this assessment
     const { data: existingSubmission, error: checkError } = await supabase
       .from('student_assessment_attempts')
       .select('id')
@@ -282,10 +279,8 @@ export const submitAssessmentAnswers = async (
       throw checkError;
     }
     
-    // If student has already submitted, create a new attempt
     let attemptNumber = 1;
     if (existingSubmission) {
-      // Get the highest attempt number
       const { data: attemptData, error: attemptError } = await supabase
         .from('student_assessment_attempts')
         .select('attempt_number')
@@ -304,11 +299,9 @@ export const submitAssessmentAnswers = async (
       }
     }
     
-    // Calculate scores
     let totalScore = 0;
     let totalPossibleScore = 0;
     
-    // Get the questions with correct answers
     const { data: questions, error: questionsError } = await supabase
       .from('assessment_questions')
       .select('id, correct_answer, points')
@@ -319,7 +312,6 @@ export const submitAssessmentAnswers = async (
       throw questionsError;
     }
     
-    // Calculate score based on correct answers
     if (questions) {
       const questionMap = new Map(questions.map(q => [q.id, q]));
       
@@ -328,16 +320,13 @@ export const submitAssessmentAnswers = async (
         if (question) {
           totalPossibleScore += question.points;
           
-          // For MCQ, check exact match
           if (String(answer.answer).toLowerCase() === String(question.correct_answer).toLowerCase()) {
             totalScore += question.points;
           }
-          // For other types, we'll need more sophisticated checking or manual grading
         }
       });
     }
     
-    // Save the submission
     const { data: submission, error: submissionError } = await supabase
       .from('student_assessment_attempts')
       .insert({

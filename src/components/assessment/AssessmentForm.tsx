@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -220,7 +219,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       assessmentId: temporaryId || '',
       questionText: q.question,
       questionType: q.type === 'mcq' ? 'multiple_choice' : 'short_answer',
-      options: q.type === 'mcq' ? q.options : null,
+      options: q.type === 'mcq' && Array.isArray(q.options) ? q.options : null,
       correctAnswer: q.answer || '',
       points: 1,
       questionOrder: questions.length + index + 1,
@@ -1173,3 +1172,4 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
 };
 
 export default AssessmentForm;
+

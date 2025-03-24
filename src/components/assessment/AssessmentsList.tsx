@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,13 +79,7 @@ const AssessmentsList: React.FC<AssessmentsListProps> = ({
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">{assessment.title}</CardTitle>
-              <Badge variant={
-                assessment.status === 'draft' ? 'outline' :
-                assessment.status === 'published' ? 'success' :
-                'secondary'
-              }>
-                {assessment.status.charAt(0).toUpperCase() + assessment.status.slice(1)}
-              </Badge>
+              <Badge variant="secondary">{assessment.status}</Badge>
             </div>
             <CardDescription className="flex items-center">
               <Calendar className="h-4 w-4 mr-1" />

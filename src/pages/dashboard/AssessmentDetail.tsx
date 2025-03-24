@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -183,13 +182,7 @@ const AssessmentDetail = () => {
         </Button>
         <h1 className="text-2xl font-bold">{assessment.title}</h1>
         
-        <Badge variant={
-          assessment.status === 'draft' ? 'outline' :
-          assessment.status === 'published' ? 'success' :
-          'secondary'
-        } className="ml-2">
-          {assessment.status.charAt(0).toUpperCase() + assessment.status.slice(1)}
-        </Badge>
+        <Badge variant="secondary">{assessment.status}</Badge>
       </div>
       
       <div className="flex justify-between items-start mb-6">

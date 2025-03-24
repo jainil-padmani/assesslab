@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,10 +70,10 @@ export function useTestDetail(testId: string | undefined) {
 
       // Get assessments (uploaded answer sheets) for students in this test
       const { data: assessments, error: assessmentsError } = await supabase
-        .from("assessments")
-        .select("*")
-        .eq("subject_id", test.subject_id)
-        .eq("test_id", testId); // This ensures we get test-specific answer sheets
+        .from('assessments_master')
+        .select('*')
+        .eq('subject_id', test.subject_id)
+        .eq('test_id', testId); // This ensures we get test-specific answer sheets
         
       if (assessmentsError) {
         toast.error("Failed to load assessments");
@@ -98,9 +97,14 @@ export function useTestDetail(testId: string | undefined) {
         );
         
         // Find assessment for this student if it exists
-        const studentAssessment = assessments ? assessments.find(
-          assessment => assessment.student_id === student.id
-        ) : null;
+        const studentAssessment = assessments 
+          ? assessments.find(assessment => 
+              assessment && 
+              typeof assessment === 'object' && 
+              'student_id' in assessment && 
+              assessment.student_id === student.id
+            ) 
+          : null;
         
         // Find evaluation for this student if it exists
         const studentEvaluation = evaluations ? evaluations.find(
@@ -111,7 +115,11 @@ export function useTestDetail(testId: string | undefined) {
           return {
             ...existingGrade,
             student,
-            answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+            answer_sheet_url: studentAssessment && 
+              typeof studentAssessment === 'object' && 
+              'answer_sheet_url' in studentAssessment 
+                ? studentAssessment.answer_sheet_url 
+                : null,
             evaluation: studentEvaluation
           };
         } else {
@@ -123,7 +131,11 @@ export function useTestDetail(testId: string | undefined) {
             remarks: null,
             created_at: new Date().toISOString(),
             student,
-            answer_sheet_url: studentAssessment?.answer_sheet_url || null,
+            answer_sheet_url: studentAssessment && 
+              typeof studentAssessment === 'object' && 
+              'answer_sheet_url' in studentAssessment 
+                ? studentAssessment.answer_sheet_url 
+                : null,
             evaluation: studentEvaluation
           } as TestGrade & { 
             answer_sheet_url: string | null;

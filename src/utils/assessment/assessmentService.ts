@@ -16,7 +16,22 @@ export async function fetchAssessmentsBySubject(subjectId: string): Promise<Asse
       throw error;
     }
     
-    return data as Assessment[];
+    // Fix the type conversion by mapping the database schema to the expected TypeScript types
+    return (data || []).map(item => ({
+      id: item.id,
+      title: item.title,
+      instructions: item.instructions,
+      options: item.options,
+      restrictions: item.restrictions,
+      assignTo: item.assign_to,
+      dueDate: item.due_date,
+      availableFrom: item.available_from,
+      availableUntil: item.available_until,
+      subjectId: item.subject_id,
+      createdBy: item.created_by,
+      status: item.status,
+      createdAt: item.created_at
+    })) as Assessment[];
   } catch (error) {
     console.error("Failed to fetch assessments:", error);
     throw error;
@@ -52,9 +67,32 @@ export async function fetchAssessmentById(assessmentId: string): Promise<Assessm
       throw questionsError;
     }
     
+    // Map the data to the expected TypeScript types
     return {
-      ...data,
-      questions: questionsData || []
+      id: data.id,
+      title: data.title,
+      instructions: data.instructions,
+      options: data.options,
+      restrictions: data.restrictions,
+      assignTo: data.assign_to,
+      dueDate: data.due_date,
+      availableFrom: data.available_from,
+      availableUntil: data.available_until,
+      subjectId: data.subject_id,
+      createdBy: data.created_by,
+      status: data.status,
+      createdAt: data.created_at,
+      questions: questionsData ? questionsData.map(q => ({
+        id: q.id,
+        assessmentId: q.assessment_id,
+        questionText: q.question_text,
+        questionType: q.question_type,
+        options: q.options,
+        correctAnswer: q.correct_answer,
+        points: q.points,
+        questionOrder: q.question_order,
+        createdAt: q.created_at
+      })) : []
     } as Assessment;
   } catch (error) {
     console.error("Failed to fetch assessment details:", error);
@@ -64,6 +102,7 @@ export async function fetchAssessmentById(assessmentId: string): Promise<Assessm
 
 export async function createAssessment(assessment: Omit<Assessment, 'id' | 'createdAt'>): Promise<string> {
   try {
+    // Map the TypeScript types to the database schema
     const { data, error } = await supabase
       .from('assessments_master')
       .insert({
@@ -146,12 +185,13 @@ export async function submitAssessmentAttempt(
   attempt: Omit<StudentAssessmentAttempt, 'id' | 'submittedAt'>
 ): Promise<void> {
   try {
+    // Convert the TypeScript types to match the database schema
     const { error } = await supabase
       .from('student_assessment_attempts')
       .insert({
         assessment_id: attempt.assessmentId,
         student_id: attempt.studentId,
-        answers: attempt.answers,
+        answers: attempt.answers as any, // Type casting to handle JSON conversion
         score: attempt.score,
         possible_score: attempt.possibleScore,
         time_spent: attempt.timeSpent,
@@ -189,7 +229,19 @@ export async function getStudentAttempts(
       throw error;
     }
     
-    return data as StudentAssessmentAttempt[];
+    // Map the database schema to the expected TypeScript types
+    return (data || []).map(item => ({
+      id: item.id,
+      assessmentId: item.assessment_id,
+      studentId: item.student_id,
+      answers: item.answers,
+      score: item.score,
+      possibleScore: item.possible_score,
+      timeSpent: item.time_spent,
+      status: item.status,
+      attemptNumber: item.attempt_number,
+      submittedAt: item.submitted_at
+    })) as StudentAssessmentAttempt[];
   } catch (error) {
     console.error("Failed to fetch student attempts:", error);
     throw error;

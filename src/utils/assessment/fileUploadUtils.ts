@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as pdfjs from 'pdfjs-dist';
@@ -30,24 +29,30 @@ export const uploadAnswerSheetFile = async (file: File, textContent?: string) =>
  * Deletes previous files from storage
  */
 export const deletePreviousFiles = async (previousUrls: string[]) => {
-  for (const prevUrl of previousUrls) {
-    try {
-      if (prevUrl) {
-        const urlPath = new URL(prevUrl).pathname;
-        const pathParts = urlPath.split('/');
-        const oldFileName = pathParts[pathParts.length - 1];
-        
-        if (oldFileName) {
-          await supabase.storage
-            .from('documents')
-            .remove([`answer-sheets/${oldFileName}`]);
+  if (previousUrls.length === 0) return;
+  
+  try {
+    for (const prevUrl of previousUrls) {
+      try {
+        if (prevUrl) {
+          const urlPath = new URL(prevUrl).pathname;
+          const pathParts = urlPath.split('/');
+          const oldFileName = pathParts[pathParts.length - 1];
           
-          console.log('Successfully deleted previous file from storage:', oldFileName);
+          if (oldFileName) {
+            await supabase.storage
+              .from('documents')
+              .remove([`answer-sheets/${oldFileName}`]);
+            
+            console.log('Successfully deleted previous file from storage:', oldFileName);
+          }
         }
+      } catch (deleteError) {
+        console.error('Error deleting previous file:', deleteError);
       }
-    } catch (deleteError) {
-      console.error('Error deleting previous file:', deleteError);
     }
+  } catch (error) {
+    console.error("Error deleting previous files:", error);
   }
 };
 

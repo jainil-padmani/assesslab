@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -63,40 +62,36 @@ export function StudentEvaluationDetails({
   
   const { testFiles } = useTestFiles(test?.id);
 
-  // Fetch the latest answer sheet URL directly from the database
   useEffect(() => {
     const fetchLatestAnswerSheet = async () => {
       if (!selectedStudentGrade?.student_id || !test?.subject_id) return;
       
       try {
-        // Get the latest assessment for this student and subject
-        const { data, error } = await supabase
-          .from('assessments')
-          .select('answer_sheet_url, text_content')
+        const { data: assessmentData, error: assessmentError } = await supabase
+          .from('assessments_master')
+          .select('*')
           .eq('student_id', selectedStudentGrade.student_id)
           .eq('subject_id', test.subject_id)
           .eq('test_id', test.id)
-          .order('updated_at', { ascending: false })
-          .limit(1)
           .single();
         
-        if (error) {
-          console.error('Error fetching latest answer sheet:', error);
+        if (assessmentError) {
+          console.error('Error fetching latest answer sheet:', assessmentError);
           return;
         }
         
-        if (data?.answer_sheet_url) {
-          // Add a cache-busting parameter to avoid browser caching
-          const url = new URL(data.answer_sheet_url);
-          url.searchParams.set('t', Date.now().toString());
-          setLatestAnswerSheetUrl(url.toString());
-        }
-
-        // Set the extracted text from OCR if available
-        if (data?.text_content) {
-          setExtractedText(data.text_content);
-        } else {
-          setExtractedText(null);
+        if (assessmentData && typeof assessmentData === 'object') {
+          if ('answer_sheet_url' in assessmentData && assessmentData.answer_sheet_url) {
+            const url = new URL(assessmentData.answer_sheet_url);
+            url.searchParams.set('t', Date.now().toString());
+            setLatestAnswerSheetUrl(url.toString());
+          }
+          
+          if ('text_content' in assessmentData && assessmentData.text_content) {
+            setExtractedText(assessmentData.text_content);
+          } else {
+            setExtractedText(null);
+          }
         }
       } catch (error) {
         console.error('Error in fetchLatestAnswerSheet:', error);
@@ -120,7 +115,6 @@ export function StudentEvaluationDetails({
     ? testFiles[0].answer_key_url 
     : test?.files?.find((file: any) => file.answer_key_url)?.answer_key_url;
     
-  // Prioritize the latest answer sheet URL from the database
   const studentPaperUrl = latestAnswerSheetUrl || 
                          evaluation?.answer_sheet_url || 
                          selectedStudentGrade.answer_sheet_url;
@@ -137,14 +131,12 @@ export function StudentEvaluationDetails({
     setZoomLevel(100);
   };
   
-  // Add cache-busting parameters to PDF URLs
   const addCacheBuster = (url: string | null | undefined) => {
     if (!url) return null;
     const cacheBuster = `t=${Date.now()}`;
     return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
   };
   
-  // Get the OCR extracted text
   const ocrText = extractedText || 
                   evaluation?.isOcrProcessed ? evaluation.text : 
                   "No OCR text available for this answer sheet";

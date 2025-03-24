@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -299,7 +298,7 @@ export function useEvaluations(
   const getStudentAnswerSheetUrl = async (studentId: string): Promise<string | null> => {
     try {
       const { data, error } = await supabase
-        .from('assessments')
+        .from('assessments_master')
         .select('answer_sheet_url')
         .eq('student_id', studentId)
         .eq('subject_id', selectedSubject)
@@ -312,7 +311,9 @@ export function useEvaluations(
         return null;
       }
       
-      return data?.answer_sheet_url || null;
+      return data && typeof data === 'object' && 'answer_sheet_url' in data 
+        ? data.answer_sheet_url as string
+        : null;
     } catch (error) {
       console.error('Error in getStudentAnswerSheetUrl:', error);
       return null;

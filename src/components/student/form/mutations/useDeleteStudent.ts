@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,9 +45,9 @@ export const useDeleteStudent = () => {
         // Step 3: Delete assessments
         console.log("Deleting assessments...");
         const { error: assessmentsError } = await supabase
-          .from("assessments")
+          .from('assessments_master')
           .delete()
-          .eq("student_id", studentId);
+          .eq('student_id', studentId);
           
         if (assessmentsError) {
           console.error("Error deleting assessments:", assessmentsError);

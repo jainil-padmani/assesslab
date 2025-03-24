@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -31,7 +30,6 @@ const TakeAssessment = () => {
   const [studentId, setStudentId] = useState<string | null>(null);
   const [studentName, setStudentName] = useState("");
   
-  // Check if user is logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -43,26 +41,23 @@ const TakeAssessment = () => {
     checkUser();
   }, []);
   
-  // Fetch assessment details
   useEffect(() => {
     if (assessmentId) {
       fetchAssessment();
     }
   }, [assessmentId]);
   
-  // Initialize timer if time limit is set
   useEffect(() => {
     if (assessment?.options.timeLimit.enabled) {
       const minutes = assessment.options.timeLimit.minutes;
-      setTimeLeft(minutes * 60); // Convert to seconds
+      setTimeLeft(minutes * 60);
     }
   }, [assessment]);
   
-  // Timer countdown
   useEffect(() => {
     if (timeLeft === null) return;
     
-    if (timeLeft <= 300 && !showTimeWarning) { // 5 minutes warning
+    if (timeLeft <= 300 && !showTimeWarning) {
       setShowTimeWarning(true);
       toast.warning("5 minutes remaining!");
     }
@@ -90,7 +85,6 @@ const TakeAssessment = () => {
       if (data) {
         setAssessment(data);
         
-        // Initialize answers object with empty strings
         if (data.questions && data.questions.length > 0) {
           const initialAnswers: Record<string, string> = {};
           data.questions.forEach(q => {
@@ -169,15 +163,12 @@ const TakeAssessment = () => {
       setIsSubmitting(true);
       setShowConfirmSubmit(false);
       
-      // Calculate score
       const [score, possibleScore, studentAnswers] = calculateScore();
       
-      // Calculate time spent (in seconds)
       const timeSpent = assessment.options.timeLimit.enabled
         ? (assessment.options.timeLimit.minutes * 60) - (timeLeft || 0)
         : 0;
       
-      // Submit the attempt
       await submitAssessmentAttempt({
         assessmentId,
         studentId,
@@ -191,7 +182,6 @@ const TakeAssessment = () => {
       
       toast.success("Assessment submitted successfully!");
       
-      // Navigate back to the assessment details
       navigate(`/dashboard/assessments/detail/${assessmentId}`);
     } catch (error) {
       console.error("Error submitting assessment:", error);
@@ -201,7 +191,6 @@ const TakeAssessment = () => {
     }
   };
   
-  // Render question based on type
   const renderQuestion = (question: AssessmentQuestion) => {
     switch (question.questionType) {
       case 'multiple_choice':
@@ -326,7 +315,6 @@ const TakeAssessment = () => {
     );
   }
   
-  // Check if assessment has questions
   if (!assessment.questions || assessment.questions.length === 0) {
     return (
       <div className="container mx-auto p-4">
@@ -374,7 +362,6 @@ const TakeAssessment = () => {
         <h1 className="text-2xl font-bold">{assessment.title}</h1>
       </div>
       
-      {/* Time remaining */}
       {timeLeft !== null && (
         <div className="mb-4">
           <div className="flex justify-between items-center mb-1">
@@ -387,7 +374,6 @@ const TakeAssessment = () => {
         </div>
       )}
       
-      {/* Progress bar */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-1">
           <span className="text-sm">
@@ -400,7 +386,6 @@ const TakeAssessment = () => {
         <Progress value={progressPercentage} className="h-2" />
       </div>
       
-      {/* Question card */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Question {currentQuestionIndex + 1}</CardTitle>
@@ -442,7 +427,6 @@ const TakeAssessment = () => {
         </CardFooter>
       </Card>
       
-      {/* Question navigation */}
       {!assessment.options.showOneQuestionAtTime && (
         <div className="flex flex-wrap gap-2 mb-6">
           {assessment.questions.map((_, index) => (
@@ -460,7 +444,6 @@ const TakeAssessment = () => {
         </div>
       )}
       
-      {/* Submit confirmation dialog */}
       <Dialog open={showConfirmSubmit} onOpenChange={setShowConfirmSubmit}>
         <DialogContent>
           <DialogHeader>
@@ -474,7 +457,7 @@ const TakeAssessment = () => {
             <p><strong>Questions answered:</strong> {Object.values(answers).filter(a => a).length} of {assessment.questions.length}</p>
             
             {Object.values(answers).some(a => !a) && (
-              <Alert variant="warning" className="text-amber-600 bg-amber-50">
+              <Alert variant="destructive" className="text-amber-600 bg-amber-50">
                 <AlertTitle>Some questions are unanswered</AlertTitle>
                 <AlertDescription>
                   You have {assessment.questions.length - Object.values(answers).filter(a => a).length} unanswered questions.
