@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { FilePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
-  validatePdfFile, 
   uploadAnswerSheetFile,
   saveTestAnswer 
 } from "@/utils/assessment/fileUploadUtils";
@@ -29,42 +28,36 @@ export function UploadAnswerSheet({
   const [processingStep, setProcessingStep] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (!validatePdfFile(selectedFile)) {
-        toast.error('Please upload PDF files only');
-        return;
-      }
-      
-      setFile(selectedFile);
-    }
-  };
-
-  const handleUpload = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+    if (!selectedFile) return;
     
-    if (!file) {
-      toast.error('Please select a file to upload');
-      return;
-    }
-
     if (!testId) {
       toast.error('No test selected');
       return;
     }
-
+    
+    // Valid file types: PDF, PNG, JPG
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+    if (!validTypes.includes(selectedFile.type)) {
+      toast.error('Please upload PDF, PNG, or JPG files only');
+      return;
+    }
+    
+    setFile(selectedFile);
+    
+    // Auto-upload as soon as file is selected
     setIsUploading(true);
     setIsProcessing(true);
-    setProcessingStep("Uploading PDF file...");
+    setProcessingStep("Uploading file...");
     
     try {
       // Show processing toast
-      toast.info('Processing PDF file...');
+      toast.info('Processing file...');
       
       // Upload the file to storage
-      setProcessingStep("Converting PDF to images...");
-      const { publicUrl, zipUrl } = await uploadAnswerSheetFile(file, studentId);
+      setProcessingStep("Converting file...");
+      const { publicUrl, zipUrl } = await uploadAnswerSheetFile(selectedFile, studentId);
       
       setProcessingStep("Saving to database...");
       // Save to test_answers table
@@ -73,7 +66,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId,
         publicUrl,
-        'PDF uploaded - awaiting OCR extraction',
+        selectedFile.type === 'application/pdf' ? 'PDF uploaded - awaiting OCR extraction' : 'Image uploaded',
         zipUrl
       );
       
@@ -106,30 +99,18 @@ export function UploadAnswerSheet({
       <Input
         type="file"
         id={`file-${studentId}`}
-        accept=".pdf"
+        accept=".pdf,.png,.jpg,.jpeg"
         onChange={handleFileChange}
         className="max-w-sm"
         disabled={isEvaluating || isUploading}
         ref={fileInputRef}
       />
-      <Button 
-        size="sm" 
-        onClick={handleUpload}
-        disabled={!file || isUploading || isEvaluating}
-        type="button"
-      >
-        {isUploading ? (
-          <div className="flex items-center">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {processingStep || "Processing..."}
-          </div>
-        ) : (
-          <>
-            <FilePlus className="mr-2 h-4 w-4" />
-            Upload
-          </>
-        )}
-      </Button>
+      {isUploading && (
+        <div className="flex items-center text-sm text-muted-foreground">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          {processingStep || "Processing..."}
+        </div>
+      )}
     </div>
   );
 }

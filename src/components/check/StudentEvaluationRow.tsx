@@ -2,7 +2,7 @@
 import React from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Upload, Check, AlertCircle, File, Loader2 } from "lucide-react";
+import { Check, AlertCircle, File, Loader2 } from "lucide-react";
 import { useUploadAssessment } from "@/hooks/useUploadAssessment";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +31,8 @@ export function StudentEvaluationRow({
   onEvaluate
 }: StudentEvaluationRowProps) {
   const { 
-    isUploading, 
     hasAnswerSheet, 
-    answerSheetUrl, 
-    openFileUpload
+    answerSheetUrl
   } = useUploadAssessment(student.id, selectedSubject, selectedTest);
 
   const renderStatus = () => {
@@ -87,22 +85,13 @@ export function StudentEvaluationRow({
             </a>
           </Button>
         ) : (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={openFileUpload}
-            disabled={isUploading}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {isUploading ? 'Uploading...' : 'Upload'}
-          </Button>
+          <UploadAnswerSheet 
+            studentId={student.id} 
+            selectedSubject={selectedSubject} 
+            testId={selectedTest}
+            isEvaluating={isEvaluating}
+          />
         )}
-        <UploadAnswerSheet 
-          studentId={student.id} 
-          selectedSubject={selectedSubject} 
-          testId={selectedTest}
-          isEvaluating={isEvaluating}
-        />
       </TableCell>
       <TableCell>
         {renderStatus()}
