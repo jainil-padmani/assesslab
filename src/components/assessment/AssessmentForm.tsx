@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Assessment, AssessmentOption, AssessmentQuestion, AssessmentRestriction } from '@/types/assessments';
-import { Calendar as CalendarIcon, Clock, Save, Plus, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Save, Plus, Trash2, Database, ImportIcon, RefreshCw } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -22,6 +23,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long'),
@@ -83,17 +86,31 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
     points: 1
   });
 
-  const { data: generatedQuestions, isLoading: loadingGeneratedQuestions } = useQuery({
-    queryKey: ['generated-questions', subjectId],
+  // States for question import
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<string>('all');
+  const [questionMode, setQuestionMode] = useState<'theory' | 'practical'>('theory');
+  const [importableQuestions, setImportableQuestions] = useState<any[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+
+  // Fetch available topics for the subject
+  const { data: topics = [], isLoading: loadingTopics } = useQuery({
+    queryKey: ['question-topics', subjectId],
     queryFn: async () => {
+      if (!subjectId) return [];
+      
       const { data, error } = await supabase
         .from('generated_questions')
-        .select('*')
+        .select('topic')
         .eq('subject_id', subjectId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      // Extract unique topics
+      const uniqueTopics = [...new Set(data.map(item => item.topic))];
+      return uniqueTopics;
     },
     enabled: !!subjectId
   });
@@ -142,6 +159,78 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
   const getCurrentUserId = async () => {
     const { data } = await supabase.auth.getUser();
     return data.user?.id;
+  };
+
+  // Function to fetch importable questions based on topic and mode
+  const fetchImportableQuestions = async () => {
+    if (!subjectId) return;
+    
+    setIsLoadingQuestions(true);
+    try {
+      // Create the query
+      let query = supabase
+        .from('generated_questions')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .eq('question_mode', questionMode);
+      
+      if (selectedTopic !== 'all') {
+        query = query.eq('topic', selectedTopic);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Process the questions from the data
+      const processedQuestions = data.flatMap(item => {
+        const questionsData = item.questions || [];
+        return questionsData.map((q: any) => ({
+          ...q,
+          topic: item.topic,
+          id: q.id || `${item.id}-${Math.random().toString(36).substring(2, 9)}`,
+          generatedQuestionId: item.id
+        }));
+      });
+      
+      setImportableQuestions(processedQuestions);
+    } catch (error) {
+      console.error("Error fetching questions:", error);
+      toast.error("Failed to fetch questions");
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
+  // Function to handle question selection for import
+  const toggleQuestionSelection = (questionId: string) => {
+    setSelectedQuestions(prev => 
+      prev.includes(questionId) 
+        ? prev.filter(id => id !== questionId)
+        : [...prev, questionId]
+    );
+  };
+
+  // Function to import selected questions
+  const importSelectedQuestions = () => {
+    const questionsToImport = importableQuestions.filter(q => selectedQuestions.includes(q.id));
+    
+    const formattedQuestions: AssessmentQuestion[] = questionsToImport.map((q, index) => ({
+      id: `imported-${Date.now()}-${index}`,
+      assessmentId: temporaryId || '',
+      questionText: q.question,
+      questionType: q.type === 'mcq' ? 'multiple_choice' : 'short_answer',
+      options: q.type === 'mcq' ? q.options : null,
+      correctAnswer: q.answer || '',
+      points: 1,
+      questionOrder: questions.length + index + 1,
+      createdAt: new Date().toISOString()
+    }));
+    
+    setQuestions(prev => [...prev, ...formattedQuestions]);
+    setSelectedQuestions([]);
+    setShowImportDialog(false);
+    toast.success(`Imported ${formattedQuestions.length} question(s)`);
   };
 
   const handleSubmit = async (values: FormValues, saveAsDraft: boolean = false) => {
@@ -295,6 +384,13 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       </Popover>
     );
   };
+
+  // Effect to fetch questions when dialog opens
+  useEffect(() => {
+    if (showImportDialog) {
+      fetchImportableQuestions();
+    }
+  }, [showImportDialog, selectedTopic, questionMode]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -723,6 +819,142 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Questions ({questions.length})</h3>
+              <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Database className="mr-2 h-4 w-4" />
+                    Import from Question Bank
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>Import Questions from Question Bank</DialogTitle>
+                    <DialogDescription>
+                      Select questions from your question bank to add to this assessment.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid grid-cols-2 gap-4 py-4">
+                    <div>
+                      <Label htmlFor="topic">Topic</Label>
+                      <Select 
+                        value={selectedTopic} 
+                        onValueChange={(value) => setSelectedTopic(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select topic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Topics</SelectItem>
+                          {topics.map((topic) => (
+                            <SelectItem key={topic} value={topic}>
+                              {topic}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="questionMode">Question Type</Label>
+                      <Select 
+                        value={questionMode} 
+                        onValueChange={(value: 'theory' | 'practical') => setQuestionMode(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="theory">Theory</SelectItem>
+                          <SelectItem value="practical">Practical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end mb-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchImportableQuestions}
+                      disabled={isLoadingQuestions}
+                    >
+                      <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingQuestions ? "animate-spin" : ""}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                  
+                  <div className="max-h-[400px] overflow-y-auto border rounded">
+                    {isLoadingQuestions ? (
+                      <div className="flex justify-center items-center h-40">
+                        <p className="text-muted-foreground">Loading questions...</p>
+                      </div>
+                    ) : importableQuestions.length === 0 ? (
+                      <div className="flex justify-center items-center h-40">
+                        <p className="text-muted-foreground">No questions found. Try selecting a different topic or generate questions first.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 p-2">
+                        {importableQuestions.map((question) => (
+                          <div 
+                            key={question.id} 
+                            className={`p-3 border rounded flex justify-between items-start cursor-pointer hover:bg-muted transition-colors ${
+                              selectedQuestions.includes(question.id) ? "border-primary bg-primary/10" : ""
+                            }`}
+                            onClick={() => toggleQuestionSelection(question.id)}
+                          >
+                            <div>
+                              <div className="font-medium">{question.question}</div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                <Badge variant="outline" className="mr-2">
+                                  {question.topic}
+                                </Badge>
+                                <Badge variant="secondary">
+                                  {question.type === 'mcq' ? 'Multiple Choice' : 'Short Answer'}
+                                </Badge>
+                              </div>
+                              {question.type === 'mcq' && question.options?.length > 0 && (
+                                <div className="mt-2 grid grid-cols-2 gap-1 text-sm">
+                                  {question.options.map((option: string, index: number) => (
+                                    <div key={index} className={`px-2 py-1 rounded ${option === question.answer ? "bg-green-100 text-green-800" : ""}`}>
+                                      {option}
+                                      {option === question.answer && " ✓"}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-shrink-0">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedQuestions.includes(question.id)}
+                                readOnly
+                                className="h-5 w-5"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={importSelectedQuestions} 
+                      disabled={selectedQuestions.length === 0}
+                    >
+                      Import Selected ({selectedQuestions.length})
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="text-lg font-medium">Add New Question</h3>
               
@@ -885,7 +1117,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs bg-secondary/10 text-secondary rounded-full px-2 py-1">
-                            {question.questionType}
+                            {question.questionType.replace('_', ' ')}
                           </span>
                           <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-1">
                             {question.points} pts
@@ -929,7 +1161,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
               <Button 
                 type="button"
                 onClick={() => handleSubmit(form.getValues(), false)}
-                disabled={questions.length === 0}
               >
                 Save & Publish
               </Button>
