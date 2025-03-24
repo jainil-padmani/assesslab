@@ -8,7 +8,7 @@ import { FileCheck, AlertCircle } from "lucide-react";
 import { StudentEvaluationRow } from "./StudentEvaluationRow";
 import type { Student, Subject } from "@/types/dashboard";
 import type { TestFile } from "@/hooks/useTestSelection";
-import { EvaluationStatus } from "@/types/assessments";
+import type { PaperEvaluation } from "@/hooks/useEvaluations";
 
 interface StudentAnswerSheetsCardProps {
   selectedTest: string;
@@ -16,7 +16,7 @@ interface StudentAnswerSheetsCardProps {
   testFiles: TestFile[];
   classStudents: Student[];
   subjects: Subject[];
-  evaluations: any[];
+  evaluations: PaperEvaluation[];
   evaluatingStudents: string[];
   evaluationProgress: number;
   onEvaluateSingle: (studentId: string) => void;
@@ -46,7 +46,7 @@ export function StudentAnswerSheetsCard({
 
   // Find evaluation data for a specific student
   const getEvaluationData = (studentId: string) => {
-    const evaluation = evaluations.find(e => e.student_id === studentId && e.status === EvaluationStatus.EVALUATED);
+    const evaluation = evaluations.find(e => e.student_id === studentId && e.status === 'completed');
     return evaluation?.evaluation_data;
   };
 
@@ -58,7 +58,7 @@ export function StudentAnswerSheetsCard({
   // Get the status of a student's evaluation
   const getStudentStatus = (studentId: string) => {
     const evaluation = evaluations.find(e => e.student_id === studentId);
-    return evaluation?.status || EvaluationStatus.PENDING;
+    return evaluation?.status || 'pending';
   };
 
   // Check if test files are available for evaluation

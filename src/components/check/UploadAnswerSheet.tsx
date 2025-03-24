@@ -11,7 +11,12 @@ import {
   extractTextFromPdf,
   processPdfFile
 } from "@/utils/assessment/fileUploadUtils";
-import { saveUploadedAnswerSheet } from "@/utils/assessment/testAnswerService";
+import { 
+  fetchExistingAssessments, 
+  updateAssessment, 
+  createAssessment,
+  removeDuplicateAssessments
+} from "@/utils/assessment/assessmentManager";
 import { resetEvaluations } from "@/utils/assessment/evaluationReset";
 
 interface UploadAnswerSheetProps {
@@ -59,6 +64,12 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file for enhanced OCR...');
       
+      // Fetch existing assessments
+      const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
+      
+      // Extract previous URLs for cleanup later
+      const previousUrls = existingAssessments.map(assessment => assessment.answer_sheet_url).filter(Boolean) || [];
+      
       // Process the file for enhanced OCR
       const zipUrl = await processPdfFile(file, 'student');
       
@@ -68,20 +79,43 @@ export function UploadAnswerSheet({
       // Upload the original PDF file to storage
       const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
 
-      // Save the answer sheet information
+      // Prepare the assessment data
+      const assessmentData = {
+        student_id: studentId,
+        subject_id: selectedSubject,
+        answer_sheet_url: publicUrl,
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+        text_content: textContent,
+        zip_url: zipUrl // Store the ZIP URL for OCR processing
+      };
+      
       if (testId) {
-        const success = await saveUploadedAnswerSheet(
-          studentId, 
-          testId, 
-          selectedSubject, 
-          publicUrl, 
-          textContent
-        );
-        
-        if (!success) {
-          throw new Error('Failed to save answer sheet information');
-        }
+        Object.assign(assessmentData, { test_id: testId });
       }
+
+      // Update or create assessment
+      if (existingAssessments && existingAssessments.length > 0) {
+        const primaryAssessmentId = existingAssessments[0].id;
+        
+        // Update the primary assessment
+        await updateAssessment(primaryAssessmentId, assessmentData);
+        
+        // Remove any duplicate assessments if they exist
+        if (existingAssessments.length > 1) {
+          const duplicateIds = existingAssessments.slice(1).map(a => a.id);
+          await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
+        }
+      } else {
+        // Create a new assessment
+        await createAssessment(assessmentData);
+      }
+      
+      // Delete previous files
+      await deletePreviousFiles(previousUrls);
+      
+      // Reset evaluations and grades
+      await resetEvaluations(studentId, selectedSubject, testId);
       
       // Reset form
       setFile(null);

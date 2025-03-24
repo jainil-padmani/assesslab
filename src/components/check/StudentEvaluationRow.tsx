@@ -6,15 +6,15 @@ import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Student } from "@/types/dashboard";
-import { EvaluationStatus } from "@/types/assessments";
+import type { EvaluationStatus } from "@/hooks/useEvaluations";
 
 interface StudentEvaluationRowProps {
   student: Student;
-  status: string;
+  status: EvaluationStatus;
   evaluationData: any;
   isEvaluating: boolean;
   selectedSubject: string;
-  selectedTest: string;
+  selectedTest: string; // Add selected test prop
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
 }
@@ -25,13 +25,13 @@ export function StudentEvaluationRow({
   evaluationData,
   isEvaluating, 
   selectedSubject,
-  selectedTest,
+  selectedTest, // Receive selected test
   testFilesAvailable,
   onEvaluate
 }: StudentEvaluationRowProps) {
   // Function to render the status badge with appropriate color
   const renderStatusBadge = () => {
-    if (status === EvaluationStatus.EVALUATED) {
+    if (status === 'completed') {
       const score = evaluationData?.summary?.percentage || 0;
       
       return (
@@ -44,14 +44,14 @@ export function StudentEvaluationRow({
           </span>
         </div>
       );
-    } else if (status === EvaluationStatus.IN_PROGRESS || isEvaluating) {
+    } else if (status === 'in_progress' || isEvaluating) {
       return (
         <div className="flex items-center text-amber-600 dark:text-amber-500">
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           <span>Evaluating...</span>
         </div>
       );
-    } else if (status === EvaluationStatus.FAILED) {
+    } else if (status === 'failed') {
       return (
         <div className="flex items-center text-red-600 dark:text-red-500">
           <FileX className="h-4 w-4 mr-2" />
@@ -77,7 +77,7 @@ export function StudentEvaluationRow({
           studentId={student.id}
           selectedSubject={selectedSubject}
           isEvaluating={isEvaluating}
-          testId={selectedTest} 
+          testId={selectedTest} // Pass the test ID to ensure papers are synced with tests
         />
       </TableCell>
       <TableCell>
@@ -85,13 +85,14 @@ export function StudentEvaluationRow({
       </TableCell>
       <TableCell>
         <div className="flex space-x-2">
-          {(status !== EvaluationStatus.IN_PROGRESS && !isEvaluating) && (
+          {/* Always show Evaluate button, but with different styles based on status */}
+          {(status !== 'in_progress' && !isEvaluating) && (
             <Button 
               size="sm"
-              variant={status === EvaluationStatus.FAILED ? "outline" : (status === EvaluationStatus.EVALUATED ? "secondary" : "outline")}
+              variant={status === 'failed' ? "outline" : (status === 'completed' ? "secondary" : "outline")}
               onClick={() => onEvaluate(student.id)}
               disabled={isEvaluating || !testFilesAvailable}
-              className={status === EvaluationStatus.FAILED ? "text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" : ""}
+              className={status === 'failed' ? "text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950" : ""}
             >
               <FileCheck className="h-4 w-4 mr-2" />
               Evaluate

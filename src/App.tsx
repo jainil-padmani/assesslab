@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,20 +29,13 @@ import PaperGeneration from "./pages/dashboard/PaperGeneration";
 import PaperCreation from "./pages/dashboard/PaperCreation";
 import PaperHistory from "./pages/dashboard/PaperHistory";
 import GeneratedQuestionsHistory from "./pages/dashboard/GeneratedQuestionsHistory";
-import Assessments from "./pages/dashboard/Assessments";
-import SubjectAssessments from "./pages/dashboard/SubjectAssessments";
-import CreateAssessment from "./pages/dashboard/CreateAssessment";
-import AssessmentDetail from "./pages/dashboard/AssessmentDetail";
-import TakeAssessment from "./pages/dashboard/TakeAssessment";
-import { AssessmentMigrations } from "./components/assessment/AssessmentMigrations";
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
-    <>
-      <ThemeProvider defaultTheme="light" storageKey="theme">
-        <AssessmentMigrations />
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -60,11 +54,6 @@ function App() {
                 <Route path="tests" element={<Tests />} />
                 <Route path="tests/subject/:subjectId" element={<SubjectTests />} />
                 <Route path="tests/detail/:testId" element={<TestDetail />} />
-                <Route path="assessments" element={<Assessments />} />
-                <Route path="assessments/subject/:subjectId" element={<SubjectAssessments />} />
-                <Route path="assessments/create" element={<CreateAssessment />} />
-                <Route path="assessments/detail/:assessmentId" element={<AssessmentDetail />} />
-                <Route path="assessments/take/:assessmentId" element={<TakeAssessment />} />
                 <Route path="analysis" element={<Analysis />} />
                 <Route path="analysis-result" element={<AnalysisResult />} />
                 <Route path="analysis-history" element={<AnalysisHistory />} />
@@ -81,7 +70,7 @@ function App() {
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
-    </>
+    </QueryClientProvider>
   );
 }
 

@@ -1,85 +1,119 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { PaperEvaluation } from '@/types/assessments';
+import { Button } from "@/components/ui/button";
+import { FileText, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import type { Student } from "@/types/dashboard";
+import type { PaperEvaluation } from "@/hooks/useEvaluations";
 
 interface EvaluationResultsCardProps {
-  currentEvaluation: PaperEvaluation | null;
-  onUpdateScore: (questionIndex: number, newScore: number) => void;
+  evaluations: PaperEvaluation[];
+  classStudents: Student[];
+  selectedTest: string;
+  refetchEvaluations: () => void;
 }
 
-export default function EvaluationResultsCard({ 
-  currentEvaluation,
-  onUpdateScore 
+export function EvaluationResultsCard({ 
+  evaluations, 
+  classStudents,
+  selectedTest,
+  refetchEvaluations
 }: EvaluationResultsCardProps) {
-  if (!currentEvaluation || !currentEvaluation.evaluation_data) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Evaluation Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-center py-8">
-            Select a student to view evaluation results
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
+  
+  // Initialize and update local evaluations when props change
+  useEffect(() => {
+    setLocalEvaluations(evaluations.filter(e => e.status === 'completed'));
+  }, [evaluations]);
 
-  const { answers, summary } = currentEvaluation.evaluation_data;
+  // Filter completed evaluations
+  const completedEvaluations = localEvaluations.filter(e => 
+    e.status === 'completed' && 
+    e.evaluation_data?.answers && 
+    e.evaluation_data?.summary?.totalScore
+  );
+
+  // Calculate average score if available
+  const averageScore = (() => {
+    if (completedEvaluations.length === 0) return null;
+    
+    let totalPercentage = 0;
+    completedEvaluations.forEach(e => {
+      totalPercentage += e.evaluation_data.summary.percentage;
+    });
+    
+    return Math.round(totalPercentage / completedEvaluations.length);
+  })();
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Evaluation Results</CardTitle>
+        <CardDescription>
+          View evaluation results for all students
+          {averageScore !== null && (
+            <span className="ml-2 text-sm font-medium">
+              (Class Average: {averageScore}%)
+            </span>
+          )}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        {summary && (
-          <div className="mb-6 space-y-2">
-            <div className="flex justify-between items-center">
-              <span>Total Score:</span>
-              <span className="font-medium">
-                {summary.totalScore?.[0]}/{summary.totalScore?.[1]} ({summary.percentage}%)
-              </span>
-            </div>
+        {completedEvaluations.length === 0 ? (
+          <div className="p-4 border rounded-md flex items-center justify-center text-muted-foreground">
+            <AlertCircle className="h-4 w-4 mr-2" />
+            No completed evaluations available
           </div>
-        )}
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50px]">Q#</TableHead>
-              <TableHead>Question</TableHead>
-              <TableHead>Student Answer</TableHead>
-              <TableHead className="w-[120px] text-right">Score</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {answers?.map((answer, index) => (
-              <TableRow key={index}>
-                <TableCell className="font-medium">{index + 1}</TableCell>
-                <TableCell>{answer.question}</TableCell>
-                <TableCell>{answer.answer}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end space-x-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      max={answer.score[1]}
-                      value={answer.score[0]}
-                      onChange={(e) => onUpdateScore(index, Number(e.target.value))}
-                      className="w-16 text-right"
-                    />
-                    <span>/{answer.score[1]}</span>
-                  </div>
-                </TableCell>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Student Name</TableHead>
+                <TableHead>Score</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {completedEvaluations.map((evaluation) => {
+                const student = classStudents.find(s => s.id === evaluation.student_id);
+                const data = evaluation.evaluation_data;
+                
+                return (
+                  <TableRow key={evaluation.id}>
+                    <TableCell className="font-medium">{student?.name || 'Unknown'}</TableCell>
+                    <TableCell>
+                      {data?.summary?.totalScore ? (
+                        <div>
+                          <span className={`font-medium ${data.summary.percentage >= 60 ? 'text-green-600 dark:text-green-500' : data.summary.percentage >= 40 ? 'text-amber-600 dark:text-amber-500' : 'text-red-600 dark:text-red-500'}`}>
+                            {data.summary.percentage}%
+                          </span>
+                          <span className="text-muted-foreground ml-2">
+                            ({data.summary.totalScore[0]}/{data.summary.totalScore[1]})
+                          </span>
+                        </div>
+                      ) : (
+                        'N/A'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        asChild
+                      >
+                        <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2" />
+                          View Details
+                        </a>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </CardContent>
     </Card>
   );

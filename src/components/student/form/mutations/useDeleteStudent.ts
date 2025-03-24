@@ -46,9 +46,9 @@ export const useDeleteStudent = () => {
         // Step 3: Delete assessments
         console.log("Deleting assessments...");
         const { error: assessmentsError } = await supabase
-          .from('assessments_master')
+          .from("assessments")
           .delete()
-          .eq('student_id', studentId);
+          .eq("student_id", studentId);
           
         if (assessmentsError) {
           console.error("Error deleting assessments:", assessmentsError);

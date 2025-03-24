@@ -60,102 +60,65 @@ export type Database = {
         }
         Relationships: []
       }
-      assessment_questions: {
+      assessments: {
         Row: {
-          assessment_id: string
-          correct_answer: string
+          answer_key_id: string | null
+          answer_sheet_url: string | null
+          co_analysis: Json | null
           created_at: string
           id: string
-          options: string[] | null
-          points: number
-          question_order: number
-          question_text: string
-          question_type: string
+          score: number | null
+          status: string | null
+          student_id: string | null
+          subject_id: string | null
+          test_id: string | null
+          text_content: string | null
+          updated_at: string | null
+          zip_url: string | null
         }
         Insert: {
-          assessment_id: string
-          correct_answer: string
+          answer_key_id?: string | null
+          answer_sheet_url?: string | null
+          co_analysis?: Json | null
           created_at?: string
           id?: string
-          options?: string[] | null
-          points?: number
-          question_order?: number
-          question_text: string
-          question_type: string
+          score?: number | null
+          status?: string | null
+          student_id?: string | null
+          subject_id?: string | null
+          test_id?: string | null
+          text_content?: string | null
+          updated_at?: string | null
+          zip_url?: string | null
         }
         Update: {
-          assessment_id?: string
-          correct_answer?: string
+          answer_key_id?: string | null
+          answer_sheet_url?: string | null
+          co_analysis?: Json | null
           created_at?: string
           id?: string
-          options?: string[] | null
-          points?: number
-          question_order?: number
-          question_text?: string
-          question_type?: string
+          score?: number | null
+          status?: string | null
+          student_id?: string | null
+          subject_id?: string | null
+          test_id?: string | null
+          text_content?: string | null
+          updated_at?: string | null
+          zip_url?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "assessment_questions_assessment_id_fkey"
-            columns: ["assessment_id"]
+            foreignKeyName: "assessments_answer_key_id_fkey"
+            columns: ["answer_key_id"]
             isOneToOne: false
-            referencedRelation: "assessments_master"
+            referencedRelation: "answer_keys"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      assessments_master: {
-        Row: {
-          assign_to: string[] | null
-          available_from: string | null
-          available_until: string | null
-          created_at: string
-          created_by: string
-          due_date: string | null
-          id: string
-          instructions: string | null
-          options: Json
-          restrictions: Json
-          status: string
-          subject_id: string
-          title: string
-        }
-        Insert: {
-          assign_to?: string[] | null
-          available_from?: string | null
-          available_until?: string | null
-          created_at?: string
-          created_by: string
-          due_date?: string | null
-          id?: string
-          instructions?: string | null
-          options?: Json
-          restrictions?: Json
-          status?: string
-          subject_id: string
-          title: string
-        }
-        Update: {
-          assign_to?: string[] | null
-          available_from?: string | null
-          available_until?: string | null
-          created_at?: string
-          created_by?: string
-          due_date?: string | null
-          id?: string
-          instructions?: string | null
-          options?: Json
-          restrictions?: Json
-          status?: string
-          subject_id?: string
-          title?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "assessments_master_subject_id_fkey"
-            columns: ["subject_id"]
+            foreignKeyName: "assessments_test_id_fkey"
+            columns: ["test_id"]
             isOneToOne: false
-            referencedRelation: "subjects"
+            referencedRelation: "tests"
             referencedColumns: ["id"]
           },
         ]
@@ -475,102 +438,6 @@ export type Database = {
         }
         Relationships: []
       }
-      student_assessment_attempts: {
-        Row: {
-          answers: Json
-          assessment_id: string
-          attempt_number: number
-          id: string
-          possible_score: number
-          score: number
-          status: string
-          student_id: string
-          submitted_at: string
-          time_spent: number
-        }
-        Insert: {
-          answers?: Json
-          assessment_id: string
-          attempt_number?: number
-          id?: string
-          possible_score?: number
-          score?: number
-          status?: string
-          student_id: string
-          submitted_at?: string
-          time_spent?: number
-        }
-        Update: {
-          answers?: Json
-          assessment_id?: string
-          attempt_number?: number
-          id?: string
-          possible_score?: number
-          score?: number
-          status?: string
-          student_id?: string
-          submitted_at?: string
-          time_spent?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_assessment_attempts_assessment_id_fkey"
-            columns: ["assessment_id"]
-            isOneToOne: false
-            referencedRelation: "assessments_master"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_assessment_attempts_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      student_notifications: {
-        Row: {
-          created_at: string | null
-          id: string
-          message: string
-          read: boolean | null
-          student_id: string
-          test_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          message: string
-          read?: boolean | null
-          student_id: string
-          test_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          message?: string
-          read?: boolean | null
-          student_id?: string
-          test_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_notifications_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_notifications_test_id_fkey"
-            columns: ["test_id"]
-            isOneToOne: false
-            referencedRelation: "tests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       student_subjects: {
         Row: {
           created_at: string
@@ -619,13 +486,10 @@ export type Database = {
           email: string | null
           gr_number: string
           id: string
-          login_enabled: boolean | null
-          login_id_type: string | null
           name: string
           overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
-          password: string | null
           roll_number: string | null
           user_id: string | null
           year: number | null
@@ -638,13 +502,10 @@ export type Database = {
           email?: string | null
           gr_number: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -657,13 +518,10 @@ export type Database = {
           email?: string | null
           gr_number?: string
           id?: string
-          login_enabled?: boolean | null
-          login_id_type?: string | null
           name?: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
-          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -788,36 +646,6 @@ export type Database = {
         }
         Relationships: []
       }
-      test_answers: {
-        Row: {
-          answer_sheet_url: string | null
-          created_at: string
-          id: string
-          student_id: string
-          subject_id: string
-          test_id: string
-          text_content: string | null
-        }
-        Insert: {
-          answer_sheet_url?: string | null
-          created_at?: string
-          id?: string
-          student_id: string
-          subject_id: string
-          test_id: string
-          text_content?: string | null
-        }
-        Update: {
-          answer_sheet_url?: string | null
-          created_at?: string
-          id?: string
-          student_id?: string
-          subject_id?: string
-          test_id?: string
-          text_content?: string | null
-        }
-        Relationships: []
-      }
       test_grades: {
         Row: {
           created_at: string
@@ -913,41 +741,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      add_column: {
-        Args: {
-          table_name_param: string
-          column_name_param: string
-          column_type_param: string
-        }
-        Returns: undefined
-      }
-      check_column_exists: {
-        Args: {
-          table_name_param: string
-          column_name_param: string
-        }
-        Returns: boolean
-      }
-      check_table_exists: {
-        Args: {
-          table_name_param: string
-        }
-        Returns: boolean
-      }
-      select_all_test_answers_for_test: {
-        Args: {
-          test_id_param: string
-        }
-        Returns: {
-          answer_sheet_url: string | null
-          created_at: string
-          id: string
-          student_id: string
-          subject_id: string
-          test_id: string
-          text_content: string | null
-        }[]
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
