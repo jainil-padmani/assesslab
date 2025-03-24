@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -34,13 +33,15 @@ import SubjectAssessments from "./pages/dashboard/SubjectAssessments";
 import CreateAssessment from "./pages/dashboard/CreateAssessment";
 import AssessmentDetail from "./pages/dashboard/AssessmentDetail";
 import TakeAssessment from "./pages/dashboard/TakeAssessment";
+import { AssessmentMigrations } from "./components/assessment/AssessmentMigrations";
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
+    <>
+      <ThemeProvider defaultTheme="light" storageKey="theme">
+        <AssessmentMigrations />
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -80,7 +81,7 @@ function App() {
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </>
   );
 }
 

@@ -5,8 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Eye, FileText, Loader2 } from "lucide-react";
+import { Eye, FileText, Loader2, Edit, Save } from "lucide-react";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import type { Json } from '@/integrations/supabase/types';
 
 interface StudentEvaluationDetailsProps {
   studentId: string;
@@ -22,6 +24,8 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
   const [answerSheetUrl, setAnswerSheetUrl] = useState<string>("");
   const [textContent, setTextContent] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editedContent, setEditedContent] = useState<string>("");
 
   const { data: evaluation, isLoading: evaluationLoading } = useQuery({
     queryKey: ["student-evaluation", studentId, testId],
@@ -31,9 +35,9 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
         .select("*")
         .eq("student_id", studentId)
         .eq("test_id", testId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error("Error fetching evaluation:", error);
         return null;
       }
@@ -49,24 +53,47 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
         // Fetch the assessment record that contains the answer sheet URL
         const { data, error } = await supabase
           .from("assessments_master")
-          .select("*")
+          .select("*, answer_sheet_url, text_content")
           .eq("student_id", studentId)
           .eq("subject_id", subjectId)
           .eq("test_id", testId)
           .maybeSingle();
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error("Error fetching answer sheet:", error);
           toast.error("Failed to load answer sheet");
           return;
         }
 
-        if (data && data.answer_sheet_url) {
-          setAnswerSheetUrl(data.answer_sheet_url as string);
-        }
+        // Try alternative method if not found
+        if (!data || (!data.answer_sheet_url && !data.text_content)) {
+          const { data: altData, error: altError } = await supabase
+            .from("test_answers")
+            .select("*")
+            .eq("student_id", studentId)
+            .eq("test_id", testId)
+            .maybeSingle();
 
-        if (data && data.text_content) {
-          setTextContent(data.text_content as string);
+          if (altError && altError.code !== 'PGRST116') {
+            console.error("Error fetching test answers:", altError);
+          } else if (altData) {
+            if (altData.answer_sheet_url) {
+              setAnswerSheetUrl(altData.answer_sheet_url);
+            }
+            if (altData.text_content) {
+              setTextContent(altData.text_content);
+              setEditedContent(altData.text_content);
+            }
+            return;
+          }
+        } else {
+          if (data.answer_sheet_url) {
+            setAnswerSheetUrl(data.answer_sheet_url);
+          }
+          if (data.text_content) {
+            setTextContent(data.text_content);
+            setEditedContent(data.text_content);
+          }
         }
       } catch (error) {
         console.error("Error in fetchAnswerSheet:", error);
@@ -79,6 +106,69 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     fetchAnswerSheet();
   }, [studentId, subjectId, testId]);
 
+  const handleSaveContent = async () => {
+    try {
+      setLoading(true);
+      
+      // First try to update in assessments_master
+      let { error } = await supabase
+        .from("assessments_master")
+        .update({ text_content: editedContent })
+        .eq("student_id", studentId)
+        .eq("test_id", testId);
+      
+      // If that fails, try test_answers
+      if (error) {
+        // Check if record exists in test_answers
+        const { data: existingData, error: checkError } = await supabase
+          .from("test_answers")
+          .select("id")
+          .eq("student_id", studentId)
+          .eq("test_id", testId)
+          .maybeSingle();
+          
+        if (checkError && checkError.code !== 'PGRST116') {
+          console.error("Error checking test answers:", checkError);
+          throw checkError;
+        }
+          
+        if (existingData) {
+          // Update existing record
+          const { error: updateError } = await supabase
+            .from("test_answers")
+            .update({ text_content: editedContent })
+            .eq("id", existingData.id);
+              
+          if (updateError) throw updateError;
+        } else {
+          // Insert new record
+          const { error: insertError } = await supabase
+            .from("test_answers")
+            .insert({
+              student_id: studentId,
+              test_id: testId,
+              subject_id: subjectId,
+              text_content: editedContent,
+              created_at: new Date().toISOString(),
+            });
+              
+          if (insertError) throw insertError;
+        }
+      }
+      
+      // Update local state
+      setTextContent(editedContent);
+      setIsEditing(false);
+      toast.success("Answer content saved successfully");
+      
+    } catch (error) {
+      console.error("Error saving content:", error);
+      toast.error("Failed to save content");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading || evaluationLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -89,7 +179,7 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
 
   const openAnswerSheet = () => {
     if (answerSheetUrl) {
-      window.open(answerSheetUrl, "_blank");
+      window.open(answerSheetUrl as string, "_blank");
     } else {
       toast.error("No answer sheet available");
     }
@@ -98,7 +188,22 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Evaluation Details</CardTitle>
+        <CardTitle className="flex justify-between items-center">
+          <span>Evaluation Details</span>
+          {isEditing ? (
+            <Button variant="outline" size="sm" onClick={handleSaveContent}>
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </Button>
+          ) : (
+            textContent && (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Answers
+              </Button>
+            )
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="answer-sheet">
@@ -123,15 +228,24 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
                 )}
               </div>
 
-              {answerSheetUrl ? (
+              {answerSheetUrl || textContent ? (
                 <>
                   <div className="bg-muted rounded-md p-4 max-h-96 overflow-y-auto">
                     <h4 className="text-sm font-medium mb-2">
-                      Extracted Text Content:
+                      {isEditing ? "Edit Answer Content:" : "Answer Content:"}
                     </h4>
-                    <p className="whitespace-pre-wrap text-sm">
-                      {textContent || "No text content extracted"}
-                    </p>
+                    {isEditing ? (
+                      <Textarea
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        className="min-h-[200px]"
+                        placeholder="Enter answer content here..."
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap text-sm">
+                        {textContent || "No text content available"}
+                      </p>
+                    )}
                   </div>
                 </>
               ) : (

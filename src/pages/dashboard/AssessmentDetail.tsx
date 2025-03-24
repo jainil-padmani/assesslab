@@ -15,6 +15,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { AnswerManagement } from "@/components/assessment/AnswerManagement";
 
 const AssessmentDetail = () => {
   const { assessmentId } = useParams<{ assessmentId: string }>();
@@ -171,7 +172,7 @@ const AssessmentDetail = () => {
   }
   
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto py-6">
       <div className="flex items-center gap-2 mb-6">
         <Button 
           variant="ghost" 
@@ -266,14 +267,15 @@ const AssessmentDetail = () => {
         </div>
       </div>
       
-      <Tabs defaultValue="details" className="w-full">
+      <Tabs defaultValue="overview" className="mt-6">
         <TabsList>
-          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
-          <TabsTrigger value="responses">Responses</TabsTrigger>
+          <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="answers">Answer Management</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="details">
+        <TabsContent value="overview">
           <Card>
             <CardHeader>
               <CardTitle>Assessment Details</CardTitle>
@@ -442,10 +444,10 @@ const AssessmentDetail = () => {
           </Card>
         </TabsContent>
         
-        <TabsContent value="responses">
+        <TabsContent value="results">
           <Card>
             <CardHeader>
-              <CardTitle>Student Responses</CardTitle>
+              <CardTitle>Assessment Results</CardTitle>
               <CardDescription>
                 View all student attempts for this assessment
               </CardDescription>
@@ -458,6 +460,34 @@ const AssessmentDetail = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="answers">
+          {assessment && assessment.questions ? (
+            <AnswerManagement 
+              assessmentId={assessmentId!} 
+              questions={assessment.questions} 
+              refreshQuestions={() => refetchAssessment()}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Answer Management</CardTitle>
+                <CardDescription>
+                  Manage answer sheets for this assessment
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center p-6">
+                  {isLoading ? (
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  ) : (
+                    <p className="text-muted-foreground">No questions are available for this assessment</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
