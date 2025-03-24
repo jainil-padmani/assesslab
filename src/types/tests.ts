@@ -9,6 +9,7 @@ export interface Test {
   test_date: string;
   max_marks: number;
   created_at: string;
+  status?: 'draft' | 'published' | 'archived';
 }
 
 export interface TestGrade {
@@ -36,5 +37,17 @@ export interface TestAnswer {
   subject_id: string;
   answer_sheet_url?: string | null;
   text_content?: string | null;
+  created_at: string;
+}
+
+export interface TestQuestion {
+  id: string;
+  test_id: string;
+  question_text: string;
+  correct_answer: string;
+  options?: string[];
+  marks: number;
+  topic?: string;
+  status: 'draft' | 'published';
   created_at: string;
 }

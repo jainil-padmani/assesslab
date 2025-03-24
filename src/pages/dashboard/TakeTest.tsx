@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { PenTool, Clock } from "lucide-react";
+import { PenTool, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 export default function TakeTest() {
   const { data: availableTests, isLoading } = useQuery({
@@ -26,6 +27,7 @@ export default function TakeTest() {
           name, 
           test_date, 
           max_marks,
+          status,
           subjects(name, subject_code),
           classes(name)
         `)
@@ -39,6 +41,30 @@ export default function TakeTest() {
       return data;
     }
   });
+
+  const getStatusBadge = (status) => {
+    if (!status || status === 'draft') {
+      return (
+        <Badge variant="outline" className="flex items-center gap-1 text-yellow-600 bg-yellow-50">
+          <AlertCircle className="h-3 w-3" />
+          Draft
+        </Badge>
+      );
+    } else if (status === 'published') {
+      return (
+        <Badge variant="outline" className="flex items-center gap-1 text-green-600 bg-green-50">
+          <CheckCircle className="h-3 w-3" />
+          Published
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="flex items-center gap-1">
+          {status}
+        </Badge>
+      );
+    }
+  };
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Loading tests...</div>;
@@ -65,6 +91,7 @@ export default function TakeTest() {
                     </div>
                     <CardTitle className="text-xl">{test.name}</CardTitle>
                   </div>
+                  {getStatusBadge(test.status)}
                 </div>
               </CardHeader>
               <CardContent>
@@ -84,9 +111,9 @@ export default function TakeTest() {
                   
                   <Separator />
                   
-                  <Button asChild className="w-full">
+                  <Button asChild className="w-full" disabled={test.status !== 'published'}>
                     <Link to={`/dashboard/take-test/${test.id}`}>
-                      Start Test
+                      {test.status === 'published' ? 'Start Test' : 'Not Available'}
                     </Link>
                   </Button>
                 </div>
