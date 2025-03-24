@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Json } from '@supabase/supabase-js';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long'),
@@ -108,7 +109,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       if (error) throw error;
       
       // Extract unique topics
-      const uniqueTopics = [...new Set(data.map(item => item.topic))];
+      const uniqueTopics = [...new Set((data || []).map(item => item.topic))];
       return uniqueTopics;
     },
     enabled: !!subjectId
@@ -182,8 +183,10 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
       if (error) throw error;
       
       // Process the questions from the data
-      const processedQuestions = data.flatMap(item => {
+      const processedQuestions = (data || []).flatMap(item => {
         const questionsData = item.questions || [];
+        if (!Array.isArray(questionsData)) return [];
+        
         return questionsData.map((q: any) => ({
           ...q,
           topic: item.topic,
@@ -914,7 +917,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                                   {question.type === 'mcq' ? 'Multiple Choice' : 'Short Answer'}
                                 </Badge>
                               </div>
-                              {question.type === 'mcq' && question.options?.length > 0 && (
+                              {question.type === 'mcq' && question.options && Array.isArray(question.options) && question.options.length > 0 && (
                                 <div className="mt-2 grid grid-cols-2 gap-1 text-sm">
                                   {question.options.map((option: string, index: number) => (
                                     <div key={index} className={`px-2 py-1 rounded ${option === question.answer ? "bg-green-100 text-green-800" : ""}`}>
@@ -988,188 +991,4 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({
                   <Textarea 
                     id="questionText"
                     placeholder="Enter the question"
-                    className="min-h-[80px]"
-                    value={newQuestion.questionText}
-                    onChange={(e) => setNewQuestion({...newQuestion, questionText: e.target.value})}
-                  />
-                </div>
-                
-                {newQuestion.questionType === 'multiple_choice' && (
-                  <div className="space-y-3">
-                    <Label>Answer Options</Label>
-                    {newQuestion.options.map((option, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <Input
-                          placeholder={`Option ${index + 1}`}
-                          value={option}
-                          onChange={(e) => {
-                            const newOptions = [...newQuestion.options];
-                            newOptions[index] = e.target.value;
-                            setNewQuestion({...newQuestion, options: newOptions});
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setNewQuestion({
-                              ...newQuestion,
-                              correctAnswer: option
-                            });
-                          }}
-                          className={
-                            newQuestion.correctAnswer === option 
-                              ? "bg-green-100 border-green-400" 
-                              : ""
-                          }
-                        >
-                          Correct
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setNewQuestion({
-                          ...newQuestion,
-                          options: [...newQuestion.options, '']
-                        });
-                      }}
-                    >
-                      Add Option
-                    </Button>
-                  </div>
-                )}
-                
-                {newQuestion.questionType === 'true_false' && (
-                  <div>
-                    <Label>Correct Answer</Label>
-                    <Select 
-                      value={newQuestion.correctAnswer} 
-                      onValueChange={(value) => setNewQuestion({...newQuestion, correctAnswer: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select correct answer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="true">True</SelectItem>
-                        <SelectItem value="false">False</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                {(newQuestion.questionType === 'short_answer' || newQuestion.questionType === 'essay') && (
-                  <div>
-                    <Label htmlFor="correctAnswer">Correct Answer/Keywords (for grading)</Label>
-                    <Textarea 
-                      id="correctAnswer"
-                      placeholder="Enter the correct answer or keywords"
-                      value={newQuestion.correctAnswer}
-                      onChange={(e) => setNewQuestion({...newQuestion, correctAnswer: e.target.value})}
-                    />
-                  </div>
-                )}
-                
-                <div>
-                  <Label htmlFor="points">Points</Label>
-                  <Input 
-                    id="points"
-                    type="number"
-                    min="1"
-                    value={newQuestion.points}
-                    onChange={(e) => setNewQuestion({...newQuestion, points: parseInt(e.target.value) || 1})}
-                    className="w-20"
-                  />
-                </div>
-                
-                <Button 
-                  type="button"
-                  onClick={addQuestion}
-                  className="w-full"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Question
-                </Button>
-              </div>
-            </div>
-            
-            {questions.length > 0 ? (
-              <div className="border rounded-lg p-4 space-y-4">
-                <h3 className="text-lg font-medium">Added Questions ({questions.length})</h3>
-                <div className="space-y-4">
-                  {questions.map((question, index) => (
-                    <div key={index} className="border rounded p-3 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm bg-primary/10 text-primary rounded-full h-6 w-6 flex items-center justify-center">
-                            {index + 1}
-                          </span>
-                          <span className="font-medium">
-                            {question.questionText.length > 50 
-                              ? `${question.questionText.substring(0, 50)}...` 
-                              : question.questionText}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs bg-secondary/10 text-secondary rounded-full px-2 py-1">
-                            {question.questionType.replace('_', ' ')}
-                          </span>
-                          <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-1">
-                            {question.points} pts
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeQuestion(index)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 border rounded-lg">
-                <p className="text-muted-foreground">No questions added yet</p>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button 
-              variant="outline" 
-              onClick={() => setActiveTab('details')}
-            >
-              Back to Details
-            </Button>
-            
-            <div className="space-x-2">
-              <Button 
-                type="button"
-                variant="outline"
-                onClick={() => handleSubmit(form.getValues(), true)}
-              >
-                Save Draft
-              </Button>
-              <Button 
-                type="button"
-                onClick={() => handleSubmit(form.getValues(), false)}
-              >
-                Save & Publish
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
-      </TabsContent>
-    </Tabs>
-  );
-};
-
-export default AssessmentForm;
-
+                    className="min-h-[

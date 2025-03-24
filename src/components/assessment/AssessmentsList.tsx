@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,20 @@ const AssessmentsList: React.FC<AssessmentsListProps> = ({
     );
   }
   
+  // Helper function to determine badge variant based on status
+  const getBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'published':
+        return 'secondary';
+      case 'draft':
+        return 'outline';
+      case 'archived':
+        return 'default';
+      default:
+        return 'secondary';
+    }
+  };
+  
   return (
     <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {assessments.map((assessment) => (
@@ -79,7 +94,7 @@ const AssessmentsList: React.FC<AssessmentsListProps> = ({
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">{assessment.title}</CardTitle>
-              <Badge variant="secondary">{assessment.status}</Badge>
+              <Badge variant={getBadgeVariant(assessment.status)}>{assessment.status}</Badge>
             </div>
             <CardDescription className="flex items-center">
               <Calendar className="h-4 w-4 mr-1" />
