@@ -1,10 +1,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { TestAnswer } from "@/types/assessments";
-import { resetEvaluations } from "./evaluationReset";
 import { toast } from "sonner";
+import { resetEvaluations } from "./evaluationReset";
+import { checkTableExists } from "./rpcFunctions";
 
-// Function to save uploaded answer sheet
+/**
+ * Save an uploaded answer sheet
+ */
 export async function saveUploadedAnswerSheet(
   studentId: string,
   testId: string,
@@ -13,91 +15,49 @@ export async function saveUploadedAnswerSheet(
   textContent?: string
 ): Promise<boolean> {
   try {
-    // First, check if test_answers table exists
-    const { data: tableExists, error: tableError } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_name', 'test_answers')
-      .maybeSingle();
-    
-    if (tableError) {
-      console.error("Error checking if test_answers table exists:", tableError);
-      return false;
-    }
+    // Check if test_answers table exists using the RPC function
+    const tableExists = await checkTableExists('test_answers');
     
     let success = false;
     
     if (tableExists) {
-      // Check if record already exists
-      const { data: existingAnswer, error: existingError } = await supabase
+      // First try to directly use UPSERT which is safer than checking and then inserting
+      const { error: upsertError } = await supabase
         .from('test_answers')
-        .select('id')
-        .eq('student_id', studentId)
-        .eq('test_id', testId)
-        .maybeSingle();
+        .upsert({
+          student_id: studentId,
+          test_id: testId,
+          subject_id: subjectId,
+          answer_sheet_url: answerSheetUrl,
+          text_content: textContent || null
+        }, {
+          onConflict: 'student_id,test_id'
+        });
       
-      if (existingError && existingError.code !== 'PGRST116') {
-        console.error("Error checking for existing answer:", existingError);
+      if (upsertError) {
+        console.error("Error saving test answer:", upsertError);
         return false;
       }
       
-      if (existingAnswer) {
-        // Update existing record
-        const { error: updateError } = await supabase
-          .from('test_answers')
-          .update({
-            answer_sheet_url: answerSheetUrl,
-            text_content: textContent || null
-          })
-          .eq('id', existingAnswer.id);
-        
-        if (updateError) {
-          console.error("Error updating test answer:", updateError);
-          return false;
-        }
-        
-        success = true;
-      } else {
-        // Insert new record
-        const { error: insertError } = await supabase
-          .from('test_answers')
-          .insert({
-            student_id: studentId,
-            test_id: testId,
-            subject_id: subjectId,
-            answer_sheet_url: answerSheetUrl,
-            text_content: textContent || null
-          });
-        
-        if (insertError) {
-          console.error("Error inserting test answer:", insertError);
-          return false;
-        }
-        
-        success = true;
-      }
+      success = true;
     } else {
       // Fallback to storing in assessments_master
-      const { data: assessment, error: assessmentError } = await supabase
+      const { data: assessment, error: fetchError } = await supabase
         .from('assessments_master')
         .select('id, options')
         .eq('created_by', studentId)
         .eq('subject_id', subjectId)
+        .is('test_id', testId ? testId : null)
         .maybeSingle();
       
-      if (assessmentError && assessmentError.code !== 'PGRST116') {
-        console.error("Error fetching assessment:", assessmentError);
+      if (fetchError) {
+        console.error("Error fetching assessment:", fetchError);
         return false;
       }
       
-      const options = assessment?.options || {};
-      if (typeof options !== 'object') {
-        console.error("Invalid options format in assessment");
-        return false;
-      }
-      
+      const currentOptions = assessment?.options || {};
       const updatedOptions = {
-        ...options,
+        ...currentOptions,
         answerSheetUrl,
         textContent: textContent || null
       };
@@ -106,7 +66,10 @@ export async function saveUploadedAnswerSheet(
         // Update existing assessment
         const { error: updateError } = await supabase
           .from('assessments_master')
-          .update({ options: updatedOptions })
+          .update({ 
+            options: updatedOptions,
+            test_id: testId
+          })
           .eq('id', assessment.id);
         
         if (updateError) {
@@ -122,6 +85,7 @@ export async function saveUploadedAnswerSheet(
           .insert({
             created_by: studentId,
             subject_id: subjectId,
+            test_id: testId,
             options: updatedOptions,
             title: `Answer for test ${testId}`,
             status: 'draft',
@@ -152,44 +116,37 @@ export async function saveUploadedAnswerSheet(
   }
 }
 
-// Function to retrieve answer sheet
+/**
+ * Get an answer sheet by student, test, and subject
+ */
 export async function getAnswerSheet(
   studentId: string,
   testId: string,
   subjectId: string
 ): Promise<{ answerSheetUrl?: string; textContent?: string } | null> {
   try {
-    // First check test_answers table
-    const { data: tableExists, error: tableError } = await supabase
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_name', 'test_answers')
-      .maybeSingle();
-    
-    if (tableError) {
-      console.error("Error checking if test_answers table exists:", tableError);
-      return null;
-    }
+    // First check if test_answers table exists
+    const tableExists = await checkTableExists('test_answers');
     
     if (tableExists) {
-      // Get from test_answers table
-      const { data, error } = await supabase
-        .from('test_answers')
-        .select('*')
-        .eq('student_id', studentId)
-        .eq('test_id', testId)
-        .maybeSingle();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error("Error getting test answer:", error);
-        return null;
-      }
-      
-      if (data) {
-        return {
-          answerSheetUrl: data.answer_sheet_url,
-          textContent: data.text_content
-        };
+      // Get data from the custom RPC function or direct query depending on availability
+      try {
+        // Try direct query first
+        const { data, error } = await supabase
+          .from('test_answers')
+          .select('answer_sheet_url, text_content')
+          .eq('student_id', studentId)
+          .eq('test_id', testId)
+          .maybeSingle();
+        
+        if (!error && data) {
+          return {
+            answerSheetUrl: data.answer_sheet_url,
+            textContent: data.text_content
+          };
+        }
+      } catch (err) {
+        console.error("Error querying test_answers directly:", err);
       }
     }
     
@@ -199,15 +156,18 @@ export async function getAnswerSheet(
       .select('options')
       .eq('created_by', studentId)
       .eq('subject_id', subjectId)
+      .is('test_id', testId ? testId : null)
       .maybeSingle();
     
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       console.error("Error getting assessment:", error);
       return null;
     }
     
     if (data && data.options) {
-      const options = data.options;
+      // Safely access properties
+      const options = typeof data.options === 'object' ? data.options : {};
+      
       return {
         answerSheetUrl: options.answerSheetUrl,
         textContent: options.textContent

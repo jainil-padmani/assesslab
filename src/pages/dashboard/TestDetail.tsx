@@ -6,6 +6,8 @@ import { TestHeader } from "@/components/test/TestHeader";
 import { TestPapersManagement } from "@/components/test/TestPapersManagement";
 import StudentEvaluationDetails from "@/components/test/StudentEvaluationDetails";
 import { StudentGradesTable } from "@/components/test/StudentGradesTable";
+import { EvaluationStatus, PaperEvaluation } from "@/types/assessments";
+import type { TestGrade } from "@/types/tests";
 
 export default function TestDetail() {
   const { testId } = useParams<{ testId: string }>();
@@ -35,10 +37,19 @@ export default function TestDetail() {
     return <div className="text-center py-12">Test not found</div>;
   }
 
-  // Find the selected student's grade
-  const selectedStudentGrade = studentId 
-    ? grades?.find(grade => grade.student_id === studentId)
+  // Find the selected student's grade - with proper type safety
+  const selectedStudentGrade = studentId && grades 
+    ? grades.find(grade => grade.student_id === studentId)
     : null;
+
+  // Ensure grades are properly typed for the StudentGradesTable
+  const typedGrades = grades?.map(grade => {
+    return {
+      ...grade,
+      answer_sheet_url: grade.answer_sheet_url || '',
+      evaluation: grade.evaluation as PaperEvaluation
+    };
+  }) || [];
 
   return (
     <div className="container mx-auto">
@@ -60,7 +71,7 @@ export default function TestDetail() {
       {/* Student Grades Table */}
       <StudentGradesTable 
         test={test}
-        grades={grades || []}
+        grades={typedGrades}
         editingStudentId={editingStudentId}
         editMarks={editMarks}
         setEditingStudentId={setEditingStudentId}

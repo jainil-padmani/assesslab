@@ -6,7 +6,7 @@ import { checkTableExists, checkColumnExists } from "./rpcFunctions";
 // Function to check if the model_answer and explanation columns exist
 export async function ensureAssessmentColumnsExist() {
   try {
-    // Check if model_answer column exists with client-side function
+    // Check if model_answer column exists with RPC function
     const modelAnswerExists = await checkColumnExists(
       'assessment_questions', 
       'model_answer'
@@ -20,7 +20,7 @@ export async function ensureAssessmentColumnsExist() {
     
     // Add the model_answer column if it doesn't exist
     if (!modelAnswerExists) {
-      const { error: addModelAnswerError } = await supabase.rpc(
+      const { data, error: addModelAnswerError } = await supabase.rpc(
         'add_column',
         { 
           table_name_param: 'assessment_questions', 
@@ -37,7 +37,7 @@ export async function ensureAssessmentColumnsExist() {
     
     // Add the explanation column if it doesn't exist
     if (!explanationExists) {
-      const { error: addExplanationError } = await supabase.rpc(
+      const { data, error: addExplanationError } = await supabase.rpc(
         'add_column',
         { 
           table_name_param: 'assessment_questions', 
@@ -57,7 +57,7 @@ export async function ensureAssessmentColumnsExist() {
     
     if (!tableExists) {
       // Create test_answers table using RPC function
-      const { error: createTableError } = await supabase.rpc(
+      const { data, error: createTableError } = await supabase.rpc(
         'create_test_answers_table'
       );
       

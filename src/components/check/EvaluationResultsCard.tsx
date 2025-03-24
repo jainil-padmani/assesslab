@@ -1,120 +1,90 @@
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, AlertCircle } from "lucide-react";
-import { useState, useEffect } from "react";
-import type { Student } from "@/types/dashboard";
-import type { PaperEvaluation } from "@/hooks/useEvaluations";
+import { EvaluationStatus, PaperEvaluation } from '@/types/assessments';
 
 interface EvaluationResultsCardProps {
-  evaluations: PaperEvaluation[];
-  classStudents: Student[];
-  selectedTest: string;
-  refetchEvaluations: () => void;
+  currentEvaluation: PaperEvaluation | null;
+  onUpdateScore: (questionIndex: number, newScore: number) => void;
 }
 
-export function EvaluationResultsCard({ 
-  evaluations, 
-  classStudents,
-  selectedTest,
-  refetchEvaluations
-}: EvaluationResultsCardProps) {
-  const [localEvaluations, setLocalEvaluations] = useState<PaperEvaluation[]>([]);
+const EvaluationResultsCard: React.FC<EvaluationResultsCardProps> = ({ 
+  currentEvaluation,
+  onUpdateScore
+}) => {
+  if (!currentEvaluation) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Evaluation Results</CardTitle>
+          <CardDescription>Select a student to view evaluation results</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  // Extract evaluation data
+  const evaluationData = currentEvaluation.evaluation_data;
   
-  // Initialize and update local evaluations when props change
-  useEffect(() => {
-    setLocalEvaluations(evaluations.filter(e => e.status === 'completed'));
-  }, [evaluations]);
+  // Check if evaluation has been completed
+  const isEvaluated = currentEvaluation.status === EvaluationStatus.EVALUATED;
 
-  // Filter completed evaluations
-  const completedEvaluations = localEvaluations.filter(e => 
-    e.status === 'completed' && 
-    e.evaluation_data?.answers && 
-    e.evaluation_data?.summary?.totalScore
-  );
-
-  // Calculate average score if available
-  const averageScore = (() => {
-    if (completedEvaluations.length === 0) return null;
-    
-    let totalPercentage = 0;
-    completedEvaluations.forEach(e => {
-      totalPercentage += e.evaluation_data.summary.percentage;
-    });
-    
-    return Math.round(totalPercentage / completedEvaluations.length);
-  })();
+  if (!evaluationData || !evaluationData.answers) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Evaluation Results</CardTitle>
+          <CardDescription>No evaluation data available</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Evaluation Results</CardTitle>
         <CardDescription>
-          View evaluation results for all students
-          {averageScore !== null && (
-            <span className="ml-2 text-sm font-medium">
-              (Class Average: {averageScore}%)
-            </span>
-          )}
+          {isEvaluated ? 'Evaluation completed' : 'Evaluation in progress'}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {completedEvaluations.length === 0 ? (
-          <div className="p-4 border rounded-md flex items-center justify-center text-muted-foreground">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            No completed evaluations available
+      <CardContent className="space-y-4">
+        {evaluationData.answers.map((answer: any, index: number) => (
+          <div key={index} className="border rounded-md p-4">
+            <h4 className="text-sm font-medium">Question {index + 1}</h4>
+            <p className="text-muted-foreground">
+              Confidence Score: {answer.score ? answer.score[0] : 'N/A'} / {answer.score ? answer.score[1] : 'N/A'}
+            </p>
+            <div className="flex space-x-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => onUpdateScore(index, Math.max(0, (answer.score ? answer.score[0] : 0) - 1))}
+              >
+                Decrease Score
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => onUpdateScore(index, Math.min(answer.score ? answer.score[1] : 100, (answer.score ? answer.score[0] : 0) + 1))}
+              >
+                Increase Score
+              </Button>
+            </div>
           </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student Name</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {completedEvaluations.map((evaluation) => {
-                const student = classStudents.find(s => s.id === evaluation.student_id);
-                const data = evaluation.evaluation_data;
-                
-                return (
-                  <TableRow key={evaluation.id}>
-                    <TableCell className="font-medium">{student?.name || 'Unknown'}</TableCell>
-                    <TableCell>
-                      {data?.summary?.totalScore ? (
-                        <div>
-                          <span className={`font-medium ${data.summary.percentage >= 60 ? 'text-green-600 dark:text-green-500' : data.summary.percentage >= 40 ? 'text-amber-600 dark:text-amber-500' : 'text-red-600 dark:text-red-500'}`}>
-                            {data.summary.percentage}%
-                          </span>
-                          <span className="text-muted-foreground ml-2">
-                            ({data.summary.totalScore[0]}/{data.summary.totalScore[1]})
-                          </span>
-                        </div>
-                      ) : (
-                        'N/A'
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        asChild
-                      >
-                        <a href={`/dashboard/tests/detail/${selectedTest}?student=${evaluation.student_id}`} className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          View Details
-                        </a>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
+        ))}
+        <div className="border rounded-md p-4">
+          <h4 className="text-sm font-medium">Summary</h4>
+          <p className="text-muted-foreground">
+            Total Score: {evaluationData.summary?.totalScore?.[0]} / {evaluationData.summary?.totalScore?.[1]}
+          </p>
+          <p className="text-muted-foreground">
+            Percentage: {evaluationData.summary?.percentage}%
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
-}
+};
+
+export default EvaluationResultsCard;

@@ -87,7 +87,7 @@ export interface TestAnswer {
   created_at: string;
 }
 
-// Enum for paper evaluation status
+// Enum for paper evaluation status - for consistent reference
 export enum EvaluationStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',

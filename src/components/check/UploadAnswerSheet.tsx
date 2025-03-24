@@ -11,12 +11,7 @@ import {
   extractTextFromPdf,
   processPdfFile
 } from "@/utils/assessment/fileUploadUtils";
-import { 
-  fetchExistingAssessments, 
-  updateAssessment, 
-  createAssessment,
-  removeDuplicateAssessments
-} from "@/utils/assessment/assessmentManager";
+import { saveUploadedAnswerSheet } from "@/utils/assessment/testAnswerService";
 import { resetEvaluations } from "@/utils/assessment/evaluationReset";
 
 interface UploadAnswerSheetProps {
@@ -64,17 +59,6 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing PDF file for enhanced OCR...');
       
-      // Fetch existing assessments
-      const existingAssessments = await fetchExistingAssessments(studentId, selectedSubject, testId);
-      
-      // Extract previous URLs for cleanup later - Add type safety check
-      const previousUrls = existingAssessments && Array.isArray(existingAssessments) 
-        ? existingAssessments
-            .filter(assessment => assessment && typeof assessment === 'object' && 'answer_sheet_url' in assessment)
-            .map(assessment => assessment.answer_sheet_url as string)
-            .filter(Boolean) 
-        : [];
-      
       // Process the file for enhanced OCR
       const zipUrl = await processPdfFile(file, 'student');
       
@@ -84,56 +68,20 @@ export function UploadAnswerSheet({
       // Upload the original PDF file to storage
       const { publicUrl } = await uploadAnswerSheetFile(file, textContent);
 
-      // Prepare the assessment data
-      const assessmentData = {
-        student_id: studentId,
-        subject_id: selectedSubject,
-        answer_sheet_url: publicUrl,
-        status: 'pending',
-        updated_at: new Date().toISOString(),
-        text_content: textContent,
-        zip_url: zipUrl // Store the ZIP URL for OCR processing
-      };
-      
+      // Save the answer sheet information
       if (testId) {
-        Object.assign(assessmentData, { test_id: testId });
-      }
-
-      // Update or create assessment - Fix for type safety
-      if (existingAssessments && 
-          Array.isArray(existingAssessments) && 
-          existingAssessments.length > 0 && 
-          existingAssessments[0] && 
-          typeof existingAssessments[0] === 'object' && 
-          'id' in existingAssessments[0]) {
+        const success = await saveUploadedAnswerSheet(
+          studentId, 
+          testId, 
+          selectedSubject, 
+          publicUrl, 
+          textContent
+        );
         
-        const primaryAssessmentId = existingAssessments[0].id as string;
-        
-        // Update the primary assessment
-        await updateAssessment(primaryAssessmentId, assessmentData);
-        
-        // Remove any duplicate assessments if they exist
-        if (existingAssessments.length > 1) {
-          const duplicateIds = existingAssessments.slice(1)
-            .filter(a => a && typeof a === 'object' && 'id' in a)
-            .map(a => a.id as string);
-          
-          if (duplicateIds.length > 0) {
-            await removeDuplicateAssessments(primaryAssessmentId, duplicateIds);
-          }
+        if (!success) {
+          throw new Error('Failed to save answer sheet information');
         }
-      } else {
-        // Create a new assessment
-        await createAssessment(assessmentData);
       }
-      
-      // Delete previous files
-      if (previousUrls.length > 0) {
-        await deletePreviousFiles(previousUrls, 'assessments');
-      }
-      
-      // Reset evaluations and grades
-      await resetEvaluations(studentId, selectedSubject, testId);
       
       // Reset form
       setFile(null);

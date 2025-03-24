@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
-import { PaperEvaluation, EvaluationStatus } from '@/types/assessments';
+import { EvaluationStatus, PaperEvaluation } from '@/types/assessments';
 import { selectAllTestAnswersForTest } from '@/utils/assessment/rpcFunctions';
 
 export interface EvaluationData {
@@ -27,28 +27,45 @@ export type { PaperEvaluation };
 export { EvaluationStatus };
 
 // Add proper type checks and null handling to fetchAllStudentEvaluations function
-const fetchAllStudentEvaluations = async (testId: string) => {
+const fetchAllStudentEvaluations = async (testId: string): Promise<EvaluationData[]> => {
+  if (!testId) return [];
+  
   try {
     console.log("Fetching all student evaluations for test:", testId);
     
-    // First, get list of students who have assessments for this test
+    // Get assessments with test_id or fallback to subject_id matching
     const { data: assessmentsData, error: assessmentsError } = await supabase
       .from('assessments_master')
       .select(`
-        *,
-        student:student_id(*)
+        id,
+        created_by,
+        subject_id,
+        options,
+        created_at
       `)
-      .eq('test_id', testId)
-      .order('created_at', { ascending: false });
+      .eq('test_id', testId);
     
     if (assessmentsError) {
       console.error("Error fetching assessments:", assessmentsError);
       throw assessmentsError;
     }
     
-    console.log(`Found ${assessmentsData?.length || 0} assessments`);
+    // Get all students related to these assessments
+    const studentIds = assessmentsData
+      ?.map(assessment => assessment.created_by)
+      .filter(Boolean) || [];
     
-    // Now get all evaluations for this test
+    const { data: studentsData, error: studentsError } = await supabase
+      .from('students')
+      .select('id, name, gr_number, roll_number')
+      .in('id', studentIds.length > 0 ? studentIds : ['no-students']);
+    
+    if (studentsError) {
+      console.error("Error fetching students:", studentsError);
+      throw studentsError;
+    }
+    
+    // Get all evaluations for this test
     const { data: evaluationsData, error: evaluationsError } = await supabase
       .from('paper_evaluations')
       .select('*')
@@ -58,8 +75,6 @@ const fetchAllStudentEvaluations = async (testId: string) => {
       console.error("Error fetching evaluations:", evaluationsError);
       throw evaluationsError;
     }
-    
-    console.log(`Found ${evaluationsData?.length || 0} evaluations`);
     
     // Get all grades for this test
     const { data: gradesData, error: gradesError } = await supabase
@@ -72,76 +87,76 @@ const fetchAllStudentEvaluations = async (testId: string) => {
       throw gradesError;
     }
     
-    console.log(`Found ${gradesData?.length || 0} grades`);
-    
     // Check for test_answers data
     let testAnswers: any[] = [];
     
     try {
       // Use RPC function to get test answers
-      const answersData = await selectAllTestAnswersForTest(testId);
-          
-      if (answersData) {
-        testAnswers = answersData;
-        console.log(`Found ${testAnswers.length} test answers`);
-      }
+      testAnswers = await selectAllTestAnswersForTest(testId) || [];
+      console.log(`Found ${testAnswers.length} test answers`);
     } catch (err) {
       console.error("Error checking for test_answers:", err);
     }
     
     // Combine the data
-    const studentData = assessmentsData && assessmentsData.length > 0 
-      ? assessmentsData.map(assessment => {
-          const studentId = assessment.created_by || assessment.student?.id;
-          
-          if (!studentId) {
-            console.warn("Assessment without student ID:", assessment);
-            return null;
-          }
-          
-          // Find matching evaluation if it exists
-          const evaluation = evaluationsData?.find(e => 
-            e.student_id === studentId
-          );
-          
-          // Find matching grade if it exists
-          const grade = gradesData?.find(g => 
-            g.student_id === studentId
-          );
-          
-          // Find matching test answer if it exists
-          const testAnswer = testAnswers.find(a =>
-            a.student_id === studentId
-          );
-          
-          // Extract the student data safely
-          const student = assessment.student || { id: studentId, name: 'Unknown' };
-          
-          // Get answer sheet URL from options or test_answers
-          let answerSheetUrl = null;
-          let textContent = null;
-          
-          if (testAnswer) {
-            answerSheetUrl = testAnswer.answer_sheet_url;
-            textContent = testAnswer.text_content;
-          } else if (assessment.options && typeof assessment.options === 'object') {
-            // Try to get from options
-            const options = assessment.options as any;
-            answerSheetUrl = options.answerSheetUrl || null;
-            textContent = options.textContent || null;
-          }
-          
-          return {
-            student,
-            assessment_id: assessment.id,
-            answer_sheet_url: answerSheetUrl,
-            text_content: textContent,
-            evaluation: evaluation || null,
-            grade: grade || null,
-            created_at: assessment.created_at
-          };
-        }).filter(Boolean) as EvaluationData[]
-      : [];
+    const studentData: EvaluationData[] = [];
+    
+    // Process each assessment
+    assessmentsData?.forEach(assessment => {
+      const studentId = assessment.created_by;
+      
+      if (!studentId) {
+        console.warn("Assessment without student ID:", assessment);
+        return;
+      }
+      
+      // Find matching student
+      const student = studentsData?.find(s => s.id === studentId);
+      
+      if (!student) {
+        console.warn("Student not found for ID:", studentId);
+        return;
+      }
+      
+      // Find matching evaluation if it exists
+      const evaluation = evaluationsData?.find(e => 
+        e.student_id === studentId
+      );
+      
+      // Find matching grade if it exists
+      const grade = gradesData?.find(g => 
+        g.student_id === studentId
+      );
+      
+      // Find matching test answer if it exists
+      const testAnswer = testAnswers.find(a =>
+        a.student_id === studentId
+      );
+      
+      // Get answer sheet URL from options or test_answers
+      let answerSheetUrl = null;
+      let textContent = null;
+      
+      if (testAnswer) {
+        answerSheetUrl = testAnswer.answer_sheet_url;
+        textContent = testAnswer.text_content;
+      } else if (assessment.options && typeof assessment.options === 'object') {
+        // Try to get from options
+        const options = assessment.options as Record<string, any>;
+        answerSheetUrl = options.answerSheetUrl || null;
+        textContent = options.textContent || null;
+      }
+      
+      studentData.push({
+        student,
+        assessment_id: assessment.id,
+        answer_sheet_url: answerSheetUrl,
+        text_content: textContent,
+        evaluation: evaluation || null,
+        grade: grade || null,
+        created_at: assessment.created_at
+      });
+    });
     
     return studentData;
   } catch (error) {
@@ -159,7 +174,7 @@ const fetchStudentEvaluation = async (testId: string, studentId: string) => {
       .select('*')
       .eq('test_id', testId)
       .eq('student_id', studentId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching evaluation:", error);
@@ -180,13 +195,11 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
   const [evaluationData, setEvaluationData] = useState<EvaluationData[]>([]);
   const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluatingStudents, setEvaluatingStudents] = useState<string[]>([]);
-  const [evaluationProgress, setEvaluationProgress] = useState(0);
-  const [showResults, setShowResults] = useState(false);
-
+  
   const { data, isLoading, error, refetch: refetchEvaluations } = useQuery({
     queryKey: ['all-student-evaluations', testId],
     queryFn: () => fetchAllStudentEvaluations(testId),
+    enabled: !!testId,
     meta: {
       onError: (err: Error) => {
         toast.error(`Failed to fetch student evaluations: ${err.message}`);
@@ -214,10 +227,10 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
   }, [currentStudentId, evaluationData]);
 
   // Function to get a student's answer sheet URL
-  const getStudentAnswerSheetUrl = async (studentId: string) => {
+  const getStudentAnswerSheetUrl = useCallback(async (studentId: string) => {
     const studentData = evaluationData.find(item => item.student.id === studentId);
     return studentData?.answer_sheet_url || null;
-  };
+  }, [evaluationData]);
 
   const { mutate: updateEvaluation, isPending: isUpdateLoading } = useMutation({
     mutationFn: async ({ evaluation, studentId }: { evaluation: Json; studentId: string }) => {
@@ -229,7 +242,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
           .select('*')
           .eq('test_id', testId)
           .eq('student_id', studentId)
-          .single();
+          .maybeSingle();
 
         if (existingError && existingError.code !== 'PGRST116') {
           console.error("Error fetching existing evaluation:", existingError);
@@ -285,13 +298,6 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     }
   });
 
-  const evaluatePaperMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      // Implement API call to evaluate paper
-      return { success: true };
-    }
-  });
-
   const handleEvaluate = useCallback(async (studentId: string) => {
     setCurrentStudentId(studentId);
     setIsEvaluating(true);
@@ -322,16 +328,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     updateEvaluation,
     isUpdateLoading,
     handleEvaluate,
-    // Additional properties
-    evaluations: evaluationData.map(item => item.evaluation).filter(Boolean),
-    evaluatingStudents,
-    setEvaluatingStudents,
-    evaluationProgress,
-    setEvaluationProgress,
-    showResults,
-    setShowResults,
     refetchEvaluations,
-    evaluatePaperMutation,
     getStudentAnswerSheetUrl
   };
 }

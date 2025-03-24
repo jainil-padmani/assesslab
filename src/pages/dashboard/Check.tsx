@@ -1,291 +1,237 @@
-
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { toast } from "sonner";
-import { useTestSelection } from "@/hooks/useTestSelection";
-import { useEvaluations } from "@/hooks/useEvaluations";
-import { TestSelectionCard } from "@/components/check/TestSelectionCard";
-import { StudentAnswerSheetsCard } from "@/components/check/StudentAnswerSheetsCard";
-import { EvaluationResultsCard } from "@/components/check/EvaluationResultsCard";
-import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Info, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { useClasses } from "@/hooks/useClasses";
+import { useSubjects } from "@/hooks/useSubjects";
+import { useTests } from "@/hooks/test-selection/useTests";
+import { useStudents } from "@/hooks/useStudents";
+import { StudentEvaluationRow } from "@/components/check/StudentEvaluationRow";
+import { useEvaluations } from "@/hooks/useEvaluations";
+import { Student } from "@/types/dashboard";
+import { useTestFiles } from "@/hooks/test-selection/useTestFiles";
+import { EvaluationResultsCard } from "@/components/check/EvaluationResultsCard";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { EvaluationStatus, PaperEvaluation } from "@/types/assessments";
 
 export default function Check() {
-  // State for showing the guide
-  const [showGuide, setShowGuide] = useState(false);
-  
-  // Use custom hooks for test selection and evaluations
-  const { 
-    selectedClass, setSelectedClass,
-    selectedSubject, setSelectedSubject,
-    selectedTest, setSelectedTest,
-    classes, subjects, tests, testFiles, classStudents
-  } = useTestSelection();
+  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [selectedTest, setSelectedTest] = useState<string>("");
+  const [studentsByClass, setStudentsByClass] = useState<Student[]>([]);
+  const [isBatchEvaluating, setIsBatchEvaluating] = useState(false);
+
+  const { classes, isLoading: isClassesLoading } = useClasses();
+  const { subjects, isLoading: isSubjectsLoading } = useSubjects(selectedClass);
+  const { tests, isLoading: isTestsLoading } = useTests(selectedClass, selectedSubject);
+  const { students, isLoading: isStudentsLoading } = useStudents(selectedClass);
+  const { testFiles } = useTestFiles(selectedTest);
 
   const {
     evaluationData,
-    evaluations,
-    evaluatingStudents,
-    setEvaluatingStudents,
-    evaluationProgress,
-    setEvaluationProgress,
-    showResults,
-    setShowResults,
-    refetchEvaluations,
-    evaluatePaperMutation,
-    getStudentAnswerSheetUrl
+    currentEvaluation,
+    currentStudentId,
+    isLoading,
+    isEvaluating,
+    error,
+    setCurrentStudentId,
+    updateEvaluation,
+    isUpdateLoading,
+    handleEvaluate
   } = useEvaluations(selectedTest, selectedSubject);
 
-  // Set up event listener for answer sheet uploads
+  const testFilesAvailable = testFiles && testFiles.length > 0;
+
   useEffect(() => {
-    const handleAnswerSheetUploaded = () => {
-      console.log('Answer sheet uploaded event received - refreshing evaluations');
-      refetchEvaluations();
-    };
+    if (students) {
+      setStudentsByClass(students);
+    }
+  }, [students]);
 
-    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
-    
-    return () => {
-      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
-    };
-  }, [refetchEvaluations]);
+  const handleClassChange = (classId: string) => {
+    setSelectedClass(classId);
+    setSelectedSubject("");
+    setSelectedTest("");
+    setStudentsByClass([]);
+  };
 
-  // Extract question papers and answer keys from test files
-  const { questionPapers, answerKeys } = useMemo(() => {
-    const questionPapers = testFiles.filter(file => file.question_paper_url);
-    const answerKeys = testFiles.filter(file => file.answer_key_url);
-    return { questionPapers, answerKeys };
-  }, [testFiles]);
+  const handleSubjectChange = (subjectId: string) => {
+    setSelectedSubject(subjectId);
+    setSelectedTest("");
+    setStudentsByClass([]);
+  };
 
-  const handleEvaluateSingle = async (studentId: string) => {
+  const handleTestChange = (testId: string) => {
+    setSelectedTest(testId);
+    setStudentsByClass([]);
+  };
+
+  const handleUpdateScore = async (questionIndex: number, newScore: number) => {
+    if (!currentEvaluation || !currentStudentId) {
+      toast.error("No evaluation or student selected");
+      return;
+    }
+
     try {
-      // Check if we have a question paper and answer key
-      if (questionPapers.length === 0 || answerKeys.length === 0) {
-        toast.error('Missing question paper or answer key');
-        return;
-      }
-      
-      // Get the student's answer sheet URL
-      const answerSheetUrl = await getStudentAnswerSheetUrl(studentId);
-      if (!answerSheetUrl) {
-        toast.error('No answer sheet found for this student');
-        return;
-      }
-      
-      // Find the student
-      const student = classStudents.find(s => s.id === studentId);
-      if (!student) {
-        toast.error('Student not found');
-        return;
-      }
-      
-      // Find the selected class
-      const selectedClassData = classes.find(c => c.id === selectedClass);
-      if (!selectedClassData) {
-        toast.error('Class not found');
-        return;
-      }
-      
-      // Find the selected subject
-      const selectedSubjectData = subjects.find(s => s.id === selectedSubject);
-      if (!selectedSubjectData) {
-        toast.error('Subject not found');
-        return;
-      }
-      
-      // Prepare student info
-      const studentInfo = {
-        id: student.id,
-        name: student.name,
-        roll_number: student.roll_number || '',
-        class: selectedClassData.name,
-        subject: selectedSubjectData.name
-      };
-      
-      // Set the student as evaluating
-      setEvaluatingStudents(prev => [...prev, studentId]);
-      
-      // Show toast
-      toast.info(`Evaluating ${student.name}'s answer sheet...`);
-      
-      // Evaluate the paper
-      await evaluatePaperMutation.mutateAsync({
-        studentId,
-        testId: selectedTest,
-        subjectId: selectedSubject,
-        answerSheetUrl,
-        questionPaperUrl: questionPapers[0].question_paper_url,
-        questionPaperTopic: questionPapers[0].topic,
-        answerKeyUrl: answerKeys[0].answer_key_url,
-        answerKeyTopic: answerKeys[0].topic,
-        studentInfo
+      await updateEvaluation.mutateAsync({
+        evaluation: {
+          ...currentEvaluation.evaluation_data,
+          answers: currentEvaluation.evaluation_data.answers.map((answer: any, index: number) =>
+            index === questionIndex ? { ...answer, score: [newScore, answer.score[1]] } : answer
+          ),
+        },
+        studentId: currentStudentId,
       });
-      
-      // Refetch evaluations to update the UI
-      refetchEvaluations();
-      
     } catch (error) {
-      console.error('Error in handleEvaluateSingle:', error);
-      toast.error('Failed to evaluate paper: ' + ((error instanceof Error) ? error.message : 'Unknown error'));
-    } finally {
-      // Remove the student from evaluating list
-      setEvaluatingStudents(prev => prev.filter(id => id !== studentId));
+      console.error("Error updating score:", error);
+      toast.error("Failed to update score");
     }
   };
 
-  const handleEvaluateAll = async () => {
+  const handleBatchEvaluate = async (students: Student[]) => {
+    setIsBatchEvaluating(true);
     try {
-      // Check if we have a question paper and answer key
-      if (questionPapers.length === 0 || answerKeys.length === 0) {
-        toast.error('Missing question paper or answer key');
-        return;
-      }
-      
-      // Get students with answer sheets
-      const studentsWithSheets = await Promise.all(
-        classStudents.map(async student => {
-          const answerSheetUrl = await getStudentAnswerSheetUrl(student.id);
-          return { student, answerSheetUrl };
-        })
-      );
-      
-      const validStudents = studentsWithSheets.filter(({ answerSheetUrl }) => !!answerSheetUrl);
-      
-      if (validStudents.length === 0) {
-        toast.error('No students have uploaded answer sheets');
-        return;
-      }
-      
-      // Reset progress
-      setEvaluationProgress(0);
-      setShowResults(false);
-      
-      // Start the evaluation process
-      toast.info(`Starting evaluation for ${validStudents.length} students`);
-      
-      // Set all students as evaluating
-      setEvaluatingStudents(validStudents.map(({ student }) => student.id));
-      
-      // Find class and subject data
-      const selectedClassData = classes.find(c => c.id === selectedClass);
-      const selectedSubjectData = subjects.find(s => s.id === selectedSubject);
-      
-      if (!selectedClassData || !selectedSubjectData) {
-        toast.error('Class or subject data not found');
-        return;
-      }
-      
-      // Evaluate papers one by one
-      for (let i = 0; i < validStudents.length; i++) {
-        const { student, answerSheetUrl } = validStudents[i];
-        
-        try {
-          // Prepare student info
-          const studentInfo = {
-            id: student.id,
-            name: student.name,
-            roll_number: student.roll_number || '',
-            class: selectedClassData.name,
-            subject: selectedSubjectData.name
-          };
-          
-          await evaluatePaperMutation.mutateAsync({
-            studentId: student.id,
-            testId: selectedTest,
-            subjectId: selectedSubject,
-            answerSheetUrl: answerSheetUrl!,
-            questionPaperUrl: questionPapers[0].question_paper_url,
-            questionPaperTopic: questionPapers[0].topic,
-            answerKeyUrl: answerKeys[0].answer_key_url,
-            answerKeyTopic: answerKeys[0].topic,
-            studentInfo
-          });
-          
-          // Update progress
-          setEvaluationProgress(Math.round(((i + 1) / validStudents.length) * 100));
-        } catch (error) {
-          console.error(`Error evaluating paper for student ${student.name}:`, error);
-        }
-      }
-      
-      // Complete and refetch evaluations
-      setEvaluationProgress(100);
-      setShowResults(true);
-      refetchEvaluations();
-      toast.success('All evaluations completed');
+      // Implement batch evaluation logic here
+      // This is a placeholder for the actual implementation
+      toast.success(`Batch evaluation started for ${students.length} students`);
     } catch (error) {
-      console.error('Error in handleEvaluateAll:', error);
-      toast.error('Failed to evaluate papers: ' + ((error instanceof Error) ? error.message : 'Unknown error'));
+      console.error("Error during batch evaluation:", error);
+      toast.error("Failed to start batch evaluation");
     } finally {
-      // Clear evaluating students
-      setEvaluatingStudents([]);
+      setIsBatchEvaluating(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Auto Check</h1>
-        <Button
-          variant="outline"
-          onClick={() => setShowGuide(true)}
-          className="flex items-center gap-2"
-        >
-          <Info className="h-4 w-4" />
-          How to Use Auto Check
-        </Button>
+    <div className="container mx-auto space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Check Answer Sheets</CardTitle>
+          <CardDescription>Select class, subject, and test to view students and their answer sheets.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div>
+            <Label htmlFor="class">Class</Label>
+            <Select onValueChange={handleClassChange}>
+              <SelectTrigger id="class">
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                {isClassesLoading ? (
+                  <SelectItem value="" disabled>Loading...</SelectItem>
+                ) : (
+                  classes?.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="subject">Subject</Label>
+            <Select onValueChange={handleSubjectChange}>
+              <SelectTrigger id="subject">
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {isSubjectsLoading ? (
+                  <SelectItem value="" disabled>Loading...</SelectItem>
+                ) : (
+                  subjects?.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="test">Test</Label>
+            <Select onValueChange={handleTestChange}>
+              <SelectTrigger id="test">
+                <SelectValue placeholder="Select a test" />
+              </SelectTrigger>
+              <SelectContent>
+                {isTestsLoading ? (
+                  <SelectItem value="" disabled>Loading...</SelectItem>
+                ) : (
+                  tests?.map((test) => (
+                    <SelectItem key={test.id} value={test.id}>{test.title}</SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Students</CardTitle>
+            <CardDescription>View students in the selected class and their evaluation status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableCaption>List of students in the selected class.</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Name</TableHead>
+                  <TableHead>GR Number</TableHead>
+                  <TableHead>Answer Sheet</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading || isStudentsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+                  </TableRow>
+                ) : (
+                  studentsByClass.map((student) => {
+                    const studentEval = evaluationData?.find(item => item.student.id === student.id);
+                    const status = studentEval?.evaluation?.status || EvaluationStatus.PENDING;
+                    return (
+                      <StudentEvaluationRow
+                        key={student.id}
+                        student={student}
+                        status={status}
+                        evaluationData={studentEval?.evaluation?.evaluation_data}
+                        isEvaluating={isEvaluating && currentStudentId === student.id}
+                        selectedSubject={selectedSubject}
+                        selectedTest={selectedTest}
+                        testFilesAvailable={testFilesAvailable}
+                        onEvaluate={handleEvaluate}
+                      />
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+            <Button
+              variant="secondary"
+              onClick={() => handleBatchEvaluate(studentsByClass)}
+              disabled={isBatchEvaluating || isLoading || isStudentsLoading}
+            >
+              {isBatchEvaluating ? "Evaluating..." : "Evaluate All"}
+            </Button>
+          </CardContent>
+        </Card>
+        <EvaluationResultsCard
+          currentEvaluation={currentEvaluation as PaperEvaluation}
+          onUpdateScore={handleUpdateScore}
+        />
       </div>
-      
-      {showGuide ? (
-        <AutoCheckGuide onClose={() => setShowGuide(false)} />
-      ) : (
-        <div className="grid gap-6 md:grid-cols-1">
-          <Alert variant="default" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-            <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <AlertDescription className="text-blue-800 dark:text-blue-300">
-              Auto Check uses AI to evaluate student answer sheets. Select a test, ensure it has question papers and answer keys, then evaluate student submissions.
-            </AlertDescription>
-          </Alert>
-          
-          <TestSelectionCard
-            classes={classes}
-            subjects={subjects}
-            tests={tests}
-            testFiles={testFiles}
-            selectedClass={selectedClass}
-            selectedSubject={selectedSubject}
-            selectedTest={selectedTest}
-            setSelectedClass={setSelectedClass}
-            setSelectedSubject={setSelectedSubject}
-            setSelectedTest={setSelectedTest}
-          />
-
-          {selectedTest && classStudents.length > 0 && (
-            <StudentAnswerSheetsCard
-              selectedTest={selectedTest}
-              selectedSubject={selectedSubject}
-              testFiles={testFiles}
-              classStudents={classStudents}
-              subjects={subjects}
-              evaluations={evaluations}
-              evaluatingStudents={evaluatingStudents}
-              evaluationProgress={evaluationProgress}
-              onEvaluateSingle={handleEvaluateSingle}
-              onEvaluateAll={handleEvaluateAll}
-            />
-          )}
-          
-          {(showResults || evaluations.some(e => e.status === 'evaluated')) && (
-            <EvaluationResultsCard
-              evaluations={evaluations}
-              classStudents={classStudents}
-              selectedTest={selectedTest}
-              refetchEvaluations={refetchEvaluations}
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 }

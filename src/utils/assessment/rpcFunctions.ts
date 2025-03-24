@@ -1,12 +1,15 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Function to check if a table exists
-export const checkTableExists = async (tableName: string): Promise<boolean> => {
+/**
+ * Check if a table exists in the database
+ * @param tableName The name of the table to check
+ */
+export async function checkTableExists(tableName: string): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc(
       'check_table_exists',
-      { table_name: tableName }
+      { table_name_param: tableName }
     );
     
     if (error) {
@@ -16,19 +19,26 @@ export const checkTableExists = async (tableName: string): Promise<boolean> => {
     
     return !!data;
   } catch (error) {
-    console.error(`Error in checkTableExists for ${tableName}:`, error);
+    console.error(`Error checking if table ${tableName} exists:`, error);
     return false;
   }
-};
+}
 
-// Function to check if a column exists in a table
-export const checkColumnExists = async (tableName: string, columnName: string): Promise<boolean> => {
+/**
+ * Check if a column exists in a table
+ * @param tableName The name of the table
+ * @param columnName The name of the column to check
+ */
+export async function checkColumnExists(
+  tableName: string, 
+  columnName: string
+): Promise<boolean> {
   try {
     const { data, error } = await supabase.rpc(
       'check_column_exists',
       { 
-        table_name_param: tableName, 
-        column_name_param: columnName 
+        table_name_param: tableName,
+        column_name_param: columnName
       }
     );
     
@@ -39,128 +49,30 @@ export const checkColumnExists = async (tableName: string, columnName: string): 
     
     return !!data;
   } catch (error) {
-    console.error(`Error in checkColumnExists for ${columnName} in ${tableName}:`, error);
+    console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
     return false;
   }
-};
+}
 
-// Function to select data from test_answers safely
-export const selectFromTestAnswers = async (studentId: string, testId: string) => {
+/**
+ * Select all test answers for a specific test
+ * @param testId The test ID
+ */
+export async function selectAllTestAnswersForTest(testId: string): Promise<any[]> {
   try {
-    // Check if the table exists first
-    const tableExists = await checkTableExists('test_answers');
-    if (!tableExists) return null;
-    
-    const { data, error } = await supabase.rpc(
-      'select_from_test_answers',
-      {
-        student_id_param: studentId,
-        test_id_param: testId
-      }
-    );
-    
-    if (error) {
-      console.error("Error selecting from test_answers:", error);
-      return null;
-    }
-    
-    return data && Array.isArray(data) && data.length > 0 ? data[0] : null;
-  } catch (error) {
-    console.error("Error in selectFromTestAnswers:", error);
-    return null;
-  }
-};
-
-// Function to select all test answers for a test
-export const selectAllTestAnswersForTest = async (testId: string) => {
-  try {
-    // Check if the table exists first
-    const tableExists = await checkTableExists('test_answers');
-    if (!tableExists) return [];
-    
     const { data, error } = await supabase.rpc(
       'select_all_test_answers_for_test',
-      {
-        test_id_param: testId
-      }
+      { test_id_param: testId }
     );
     
     if (error) {
-      console.error("Error selecting all test_answers for test:", error);
+      console.error(`Error fetching test answers for test ${testId}:`, error);
       return [];
     }
     
     return data || [];
   } catch (error) {
-    console.error("Error in selectAllTestAnswersForTest:", error);
+    console.error(`Error fetching test answers for test ${testId}:`, error);
     return [];
   }
-};
-
-// Function to update test_answers safely
-export const updateTestAnswers = async (
-  studentId: string, 
-  testId: string, 
-  textContent: string
-): Promise<boolean> => {
-  try {
-    // Check if the table exists first
-    const tableExists = await checkTableExists('test_answers');
-    if (!tableExists) return false;
-    
-    const { error } = await supabase.rpc(
-      'update_test_answers',
-      {
-        student_id_param: studentId,
-        test_id_param: testId,
-        text_content_param: textContent
-      }
-    );
-    
-    if (error) {
-      console.error("Error updating test_answers:", error);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Error in updateTestAnswers:", error);
-    return false;
-  }
-};
-
-// Function to insert into test_answers safely
-export const insertTestAnswers = async (
-  studentId: string, 
-  testId: string, 
-  subjectId: string, 
-  textContent: string,
-  answerSheetUrl?: string
-): Promise<boolean> => {
-  try {
-    // Check if the table exists first
-    const tableExists = await checkTableExists('test_answers');
-    if (!tableExists) return false;
-    
-    const { error } = await supabase.rpc(
-      'insert_test_answers',
-      {
-        student_id_param: studentId,
-        test_id_param: testId,
-        subject_id_param: subjectId,
-        text_content_param: textContent,
-        answer_sheet_url_param: answerSheetUrl || null
-      }
-    );
-    
-    if (error) {
-      console.error("Error inserting into test_answers:", error);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Error in insertTestAnswers:", error);
-    return false;
-  }
-};
+}
