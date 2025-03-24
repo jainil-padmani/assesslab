@@ -60,69 +60,6 @@ export type Database = {
         }
         Relationships: []
       }
-      assessments: {
-        Row: {
-          answer_key_id: string | null
-          answer_sheet_url: string | null
-          co_analysis: Json | null
-          created_at: string
-          id: string
-          score: number | null
-          status: string | null
-          student_id: string | null
-          subject_id: string | null
-          test_id: string | null
-          text_content: string | null
-          updated_at: string | null
-          zip_url: string | null
-        }
-        Insert: {
-          answer_key_id?: string | null
-          answer_sheet_url?: string | null
-          co_analysis?: Json | null
-          created_at?: string
-          id?: string
-          score?: number | null
-          status?: string | null
-          student_id?: string | null
-          subject_id?: string | null
-          test_id?: string | null
-          text_content?: string | null
-          updated_at?: string | null
-          zip_url?: string | null
-        }
-        Update: {
-          answer_key_id?: string | null
-          answer_sheet_url?: string | null
-          co_analysis?: Json | null
-          created_at?: string
-          id?: string
-          score?: number | null
-          status?: string | null
-          student_id?: string | null
-          subject_id?: string | null
-          test_id?: string | null
-          text_content?: string | null
-          updated_at?: string | null
-          zip_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "assessments_answer_key_id_fkey"
-            columns: ["answer_key_id"]
-            isOneToOne: false
-            referencedRelation: "answer_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assessments_test_id_fkey"
-            columns: ["test_id"]
-            isOneToOne: false
-            referencedRelation: "tests"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       classes: {
         Row: {
           created_at: string
@@ -438,6 +375,48 @@ export type Database = {
         }
         Relationships: []
       }
+      student_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          student_id: string
+          test_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          student_id: string
+          test_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          student_id?: string
+          test_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_notifications_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_subjects: {
         Row: {
           created_at: string
@@ -486,10 +465,13 @@ export type Database = {
           email: string | null
           gr_number: string
           id: string
+          login_enabled: boolean | null
+          login_id_type: string | null
           name: string
           overall_percentage: number | null
           parent_contact: string | null
           parent_name: string | null
+          password: string | null
           roll_number: string | null
           user_id: string | null
           year: number | null
@@ -502,10 +484,13 @@ export type Database = {
           email?: string | null
           gr_number: string
           id?: string
+          login_enabled?: boolean | null
+          login_id_type?: string | null
           name: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
@@ -518,10 +503,13 @@ export type Database = {
           email?: string | null
           gr_number?: string
           id?: string
+          login_enabled?: boolean | null
+          login_id_type?: string | null
           name?: string
           overall_percentage?: number | null
           parent_contact?: string | null
           parent_name?: string | null
+          password?: string | null
           roll_number?: string | null
           user_id?: string | null
           year?: number | null
