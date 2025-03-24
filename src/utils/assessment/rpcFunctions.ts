@@ -48,6 +48,32 @@ export const selectFromTestAnswers = async (studentId: string, testId: string) =
   }
 };
 
+// Function to select all test answers for a test
+export const selectAllTestAnswersForTest = async (testId: string) => {
+  try {
+    // Check if the table exists first
+    const tableExists = await checkTableExists('test_answers');
+    if (!tableExists) return [];
+    
+    const { data, error } = await supabase.rpc(
+      'select_all_test_answers_for_test',
+      {
+        test_id_param: testId
+      }
+    );
+    
+    if (error) {
+      console.error("Error selecting all test_answers for test:", error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in selectAllTestAnswersForTest:", error);
+    return [];
+  }
+};
+
 // Function to update test_answers safely
 export const updateTestAnswers = async (
   studentId: string, 

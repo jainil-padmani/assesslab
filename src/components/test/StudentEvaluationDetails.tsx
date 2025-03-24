@@ -9,6 +9,7 @@ import { Eye, FileText, Loader2, Edit, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import type { Json } from '@/integrations/supabase/types';
+import { selectFromTestAnswers, updateTestAnswers, insertTestAnswers } from "@/utils/assessment/rpcFunctions";
 
 interface StudentEvaluationDetailsProps {
   studentId: string;
@@ -50,30 +51,17 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     const fetchAnswerSheet = async () => {
       setLoading(true);
       try {
-        // Check if test_answers table exists first
-        const { error: testError } = await supabase.rpc(
-          'check_table_exists',
-          { table_name: 'test_answers' }
-        );
+        // Use the RPC function to get test answers
+        const testAnswer = await selectFromTestAnswers(studentId, testId);
         
-        if (!testError) {
-          // First try test_answers table if it exists
-          const { data: testAnswers, error: answersError } = await supabase
-            .rpc('select_from_test_answers', {
-              student_id_param: studentId,
-              test_id_param: testId
-            });
-            
-          if (!answersError && testAnswers && testAnswers.length > 0) {
-            const answerData = testAnswers[0];
-            if (answerData.answer_sheet_url) setAnswerSheetUrl(answerData.answer_sheet_url);
-            if (answerData.text_content) {
-              setTextContent(answerData.text_content);
-              setEditedContent(answerData.text_content);
-            }
-            setLoading(false);
-            return;
+        if (testAnswer) {
+          if (testAnswer.answer_sheet_url) setAnswerSheetUrl(testAnswer.answer_sheet_url);
+          if (testAnswer.text_content) {
+            setTextContent(testAnswer.text_content);
+            setEditedContent(testAnswer.text_content);
           }
+          setLoading(false);
+          return;
         }
         
         // Fallback to assessments_master
@@ -88,11 +76,11 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
           // Try to extract data from options JSON field
           const options = data.options as Json;
           if (typeof options === 'object' && options) {
-            if ('answerSheetUrl' in options && typeof options.answerSheetUrl === 'string') {
+            if (options.answerSheetUrl && typeof options.answerSheetUrl === 'string') {
               setAnswerSheetUrl(options.answerSheetUrl);
             }
             
-            if ('textContent' in options && typeof options.textContent === 'string') {
+            if (options.textContent && typeof options.textContent === 'string') {
               setTextContent(options.textContent);
               setEditedContent(options.textContent);
             }
@@ -113,82 +101,52 @@ const StudentEvaluationDetails: React.FC<StudentEvaluationDetailsProps> = ({
     try {
       setLoading(true);
       
-      // First check if test_answers table exists
-      const { data: tableExists, error: tableError } = await supabase.rpc(
-        'check_table_exists',
-        { table_name: 'test_answers' }
-      );
+      // First check if existing data in test_answers
+      const testAnswer = await selectFromTestAnswers(studentId, testId);
       
-      if (tableError) {
-        console.error("Error checking if test_answers table exists:", tableError);
-        throw tableError;
-      }
-      
-      if (tableExists) {
-        // Check if record exists in test_answers
-        const { data: existingData } = await supabase.rpc(
-          'select_from_test_answers',
-          {
-            student_id_param: studentId,
-            test_id_param: testId
-          }
-        );
-          
-        if (existingData && existingData.length > 0) {
-          // Update existing record using RPC function
-          const { error: updateError } = await supabase.rpc(
-            'update_test_answers',
-            {
-              student_id_param: studentId,
-              test_id_param: testId,
-              text_content_param: editedContent
-            }
-          );
-              
-          if (updateError) throw updateError;
-        } else {
-          // Insert new record using RPC function
-          const { error: insertError } = await supabase.rpc(
-            'insert_test_answers',
-            {
-              student_id_param: studentId,
-              test_id_param: testId,
-              subject_id_param: subjectId,
-              text_content_param: editedContent
-            }
-          );
-              
-          if (insertError) throw insertError;
+      if (testAnswer) {
+        // Update existing record
+        const success = await updateTestAnswers(studentId, testId, editedContent);
+        
+        if (!success) {
+          throw new Error("Failed to update test answer");
         }
       } else {
-        // Fallback to assessments_master
-        const { data, error } = await supabase
-          .from("assessments_master")
-          .select("id, options")
-          .eq("created_by", studentId)
-          .eq("subject_id", subjectId)
-          .maybeSingle();
+        // Insert new record
+        const success = await insertTestAnswers(studentId, testId, subjectId, editedContent);
         
-        if (error && error.code !== 'PGRST116') throw error;
-        
-        if (data) {
-          // Update existing record
-          let options = data.options as Json;
-          if (typeof options !== 'object' || !options) {
-            options = {};
-          }
-          
-          options = {
-            ...options,
-            textContent: editedContent
-          };
-          
-          const { error: updateError } = await supabase
+        if (!success) {
+          // Fallback to assessments_master
+          const { data, error } = await supabase
             .from("assessments_master")
-            .update({ options })
-            .eq("id", data.id);
+            .select("id, options")
+            .eq("created_by", studentId)
+            .eq("subject_id", subjectId)
+            .maybeSingle();
           
-          if (updateError) throw updateError;
+          if (error && error.code !== 'PGRST116') throw error;
+          
+          if (data) {
+            // Update existing record
+            let options = data.options as Json;
+            if (typeof options !== 'object' || !options) {
+              options = {};
+            }
+            
+            options = {
+              ...options,
+              textContent: editedContent
+            };
+            
+            const { error: updateError } = await supabase
+              .from("assessments_master")
+              .update({ options })
+              .eq("id", data.id);
+            
+            if (updateError) throw updateError;
+          } else {
+            throw new Error("No assessment record found to update");
+          }
         }
       }
       

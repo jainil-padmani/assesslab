@@ -21,7 +21,8 @@ export interface EvaluationData {
 }
 
 // For type safety later
-export { PaperEvaluation, EvaluationStatus };
+export type { PaperEvaluation };
+export { EvaluationStatus };
 
 // Add proper type checks and null handling to fetchAllStudentEvaluations function
 const fetchAllStudentEvaluations = async (testId: string) => {
@@ -75,19 +76,20 @@ const fetchAllStudentEvaluations = async (testId: string) => {
     let testAnswers: any[] = [];
     
     try {
-      const { data: tableExists } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_name', 'test_answers')
-        .maybeSingle();
+      // Use RPC function to check if table exists
+      const { data: tableExists } = await supabase.rpc(
+        'check_table_exists',
+        { table_name: 'test_answers' }
+      );
         
       if (tableExists) {
-        const { data: answersData, error: answersError } = await supabase
-          .from('test_answers')
-          .select('*')
-          .eq('test_id', testId);
+        // Use RPC function to get test answers
+        const { data: answersData } = await supabase.rpc(
+          'select_all_test_answers_for_test',
+          { test_id_param: testId }
+        );
           
-        if (!answersError && answersData) {
+        if (answersData) {
           testAnswers = answersData;
           console.log(`Found ${testAnswers.length} test answers`);
         }
@@ -195,13 +197,14 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
       onError: (err: Error) => {
         toast.error(`Failed to fetch student evaluations: ${err.message}`);
       }
-    },
-    onSuccess: (data) => {
-      if (data) {
-        setEvaluationData(data);
-      }
     }
   });
+
+  useEffect(() => {
+    if (data) {
+      setEvaluationData(data);
+    }
+  }, [data]);
 
   useEffect(() => {
     if (studentId) {
@@ -216,7 +219,7 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
     }
   }, [currentStudentId, evaluationData]);
 
-  const { mutate: updateEvaluation, isLoading: isUpdateLoading } = useMutation({
+  const { mutate: updateEvaluation } = useMutation({
     mutationFn: async ({ evaluation, studentId }: { evaluation: Json; studentId: string }) => {
       try {
         console.log(`Updating evaluation for student ${studentId} in test ${testId}`);
@@ -275,13 +278,6 @@ export function useEvaluations(testId: string, subjectId: string, studentId?: st
         toast.error(`Failed to update evaluation: ${error.message}`);
         throw error;
       }
-    },
-    onSuccess: () => {
-      console.log("Evaluation updated successfully");
-    },
-    onError: (error) => {
-      console.error("Error updating evaluation:", error);
-      toast.error(`Failed to update evaluation: ${error.message}`);
     }
   });
 
