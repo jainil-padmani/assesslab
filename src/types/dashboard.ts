@@ -124,3 +124,13 @@ export interface TeamMember {
   name: string | null;
   email: string | null;
 }
+
+export interface TestFile {
+  id: string;
+  test_id: string;
+  topic: string;
+  question_paper_url: string;
+  answer_key_url: string;
+  handwritten_paper_url: string | null;
+  created_at: string;
+}

@@ -10,32 +10,24 @@ import type { SubjectFile } from "@/types/dashboard";
 export const uploadSubjectFile = async (
   subjectId: string,
   topic: string,
-  questionPaper: File | null,
-  answerKey: File | null
+  file: File,
+  fileType: 'questionPaper' | 'answerKey' | 'handwrittenPaper'
 ): Promise<boolean> => {
   try {
-    let questionPaperUrl = "";
-    let answerKeyUrl = "";
+    if (!file) return false;
     
-    // Upload question paper if provided
-    if (questionPaper) {
-      questionPaperUrl = await uploadService.uploadFile(questionPaper, 'questionPaper');
-    }
+    // Upload the file to UploadThing
+    const fileUrl = await uploadService.uploadFile(file, fileType);
     
-    // Upload answer key if provided
-    if (answerKey) {
-      answerKeyUrl = await uploadService.uploadFile(answerKey, 'answerKey');
-    }
-    
-    // Save file metadata to the database
+    // Save file metadata to the database in the file_uploads table
     const fileId = uuidv4();
-    const { error } = await supabase.from('subject_files').insert({
+    const { error } = await supabase.from('file_uploads').insert({
       id: fileId,
-      subject_id: subjectId,
-      topic,
-      question_paper_url: questionPaperUrl,
-      answer_key_url: answerKeyUrl,
-      created_at: new Date().toISOString()
+      file_name: file.name,
+      file_type: file.type,
+      file_size: file.size,
+      file_url: fileUrl,
+      upload_type: `subject_${fileType}_${subjectId}_${topic}` // Use a consistent pattern for identifying file purpose
     });
     
     if (error) throw error;
@@ -52,15 +44,51 @@ export const uploadSubjectFile = async (
  */
 export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[]> => {
   try {
+    // Query file_uploads table and group by topic
     const { data, error } = await supabase
-      .from('subject_files')
+      .from('file_uploads')
       .select('*')
-      .eq('subject_id', subjectId)
+      .like('upload_type', `subject_%_${subjectId}_%`)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     
-    return data || [];
+    // Convert to SubjectFile format
+    const subjectFiles: Record<string, SubjectFile> = {};
+    
+    if (data) {
+      data.forEach(file => {
+        // Extract topic from upload_type
+        const parts = file.upload_type.split('_');
+        if (parts.length < 4) return;
+        
+        const fileType = parts[1]; // questionPaper, answerKey, or handwrittenPaper
+        const topic = parts.slice(3).join('_'); // Everything after the 3rd underscore is the topic
+        
+        if (!subjectFiles[topic]) {
+          subjectFiles[topic] = {
+            id: `${subjectId}_${topic}`,
+            subject_id: subjectId,
+            topic,
+            question_paper_url: '',
+            answer_key_url: '',
+            handwritten_paper_url: null,
+            created_at: file.created_at
+          };
+        }
+        
+        // Set the appropriate URL based on file type
+        if (fileType === 'questionPaper') {
+          subjectFiles[topic].question_paper_url = file.file_url;
+        } else if (fileType === 'answerKey') {
+          subjectFiles[topic].answer_key_url = file.file_url;
+        } else if (fileType === 'handwrittenPaper') {
+          subjectFiles[topic].handwritten_paper_url = file.file_url;
+        }
+      });
+    }
+    
+    return Object.values(subjectFiles);
   } catch (error) {
     console.error("Error fetching subject files:", error);
     return [];
@@ -72,30 +100,25 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
  */
 export const deleteFileGroup = async (prefix: string, topic: string): Promise<boolean> => {
   try {
-    // With UploadThing, we're just removing the database records
-    // The actual files would need to be managed via UploadThing dashboard
+    // Delete files based on upload_type pattern
+    let uploadTypePattern;
     
     // For test files
     if (prefix.startsWith('test_')) {
       const testId = prefix.replace('test_', '');
-      const { error } = await supabase
-        .from('test_files')
-        .delete()
-        .eq('test_id', testId)
-        .eq('topic', topic);
-      
-      if (error) throw error;
+      uploadTypePattern = `test_%_${testId}_${topic}`;
     } 
     // For subject files
     else {
-      const { error } = await supabase
-        .from('subject_files')
-        .delete()
-        .eq('subject_id', prefix)
-        .eq('topic', topic);
-      
-      if (error) throw error;
+      uploadTypePattern = `subject_%_${prefix}_${topic}`;
     }
+    
+    const { error } = await supabase
+      .from('file_uploads')
+      .delete()
+      .like('upload_type', uploadTypePattern);
+    
+    if (error) throw error;
     
     return true;
   } catch (error) {

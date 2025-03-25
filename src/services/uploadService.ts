@@ -34,37 +34,49 @@ export const uploadService = {
     questionPaper: File | null, 
     answerKey: File | null, 
     handwrittenPaper: File | null
-  ): Promise<boolean> => {
+  ): Promise<{
+    questionPaperUrl: string | null;
+    answerKeyUrl: string | null;
+    handwrittenPaperUrl: string | null;
+  }> => {
     try {
       // Check if required files are provided
       if (!questionPaper || !answerKey) {
         toast.error("Question paper and answer key are required");
-        return false;
+        return {
+          questionPaperUrl: null,
+          answerKeyUrl: null,
+          handwrittenPaperUrl: null
+        };
       }
       
       // Upload each file
-      const uploads = [];
-      
-      if (questionPaper) {
-        uploads.push(uploadService.uploadFile(questionPaper, 'questionPaper'));
-      }
-      
-      if (answerKey) {
-        uploads.push(uploadService.uploadFile(answerKey, 'answerKey'));
-      }
-      
-      if (handwrittenPaper) {
-        uploads.push(uploadService.uploadFile(handwrittenPaper, 'answerSheet'));
-      }
+      const uploads = {
+        questionPaperUrl: questionPaper ? uploadService.uploadFile(questionPaper, 'questionPaper') : Promise.resolve(null),
+        answerKeyUrl: answerKey ? uploadService.uploadFile(answerKey, 'answerKey') : Promise.resolve(null),
+        handwrittenPaperUrl: handwrittenPaper ? uploadService.uploadFile(handwrittenPaper, 'answerSheet') : Promise.resolve(null)
+      };
       
       // Wait for all uploads to complete
-      await Promise.all(uploads);
+      const [questionPaperUrl, answerKeyUrl, handwrittenPaperUrl] = await Promise.all([
+        uploads.questionPaperUrl,
+        uploads.answerKeyUrl,
+        uploads.handwrittenPaperUrl
+      ]);
       
-      return true;
+      return {
+        questionPaperUrl: questionPaperUrl || null,
+        answerKeyUrl: answerKeyUrl || null,
+        handwrittenPaperUrl: handwrittenPaperUrl || null
+      };
     } catch (error) {
       console.error("Error submitting files:", error);
       toast.error("Failed to submit files. Please try again.");
-      return false;
+      return {
+        questionPaperUrl: null,
+        answerKeyUrl: null,
+        handwrittenPaperUrl: null
+      };
     }
   }
 };
