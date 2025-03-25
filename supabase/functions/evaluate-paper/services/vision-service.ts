@@ -158,30 +158,60 @@ export async function processImagesWithVision(
     console.log("Response structure:", JSON.stringify(Object.keys(response)));
     
     // Extract text from the response based on Bedrock/Claude format
-    if (!response || !response.output || !response.output.content) {
-      console.error("Invalid response format from Bedrock:", JSON.stringify(response));
-      throw new Error("Invalid response format from Bedrock API");
+    if (!response) {
+      console.error("Empty response from Bedrock API");
+      throw new Error("Empty response from Bedrock API");
     }
     
-    // Extract text from the response
-    const contents = response.output.content;
-    if (!Array.isArray(contents) || contents.length === 0) {
-      console.error("Invalid content format in response:", JSON.stringify(response.output));
-      throw new Error("Invalid content format in Bedrock API response");
-    }
+    // Log the full response for debugging
+    console.log("Full Bedrock response:", JSON.stringify(response).substring(0, 500) + "...");
     
-    // Find the text content in the array
+    // Handle different response formats from Bedrock API
     let textContent = "";
-    for (const item of contents) {
-      if (item.type === "text") {
-        textContent = item.text;
-        break;
+    
+    // Check for Claude format
+    if (response.output && response.output.content) {
+      const contents = response.output.content;
+      
+      if (Array.isArray(contents)) {
+        // Find the text content in the array
+        for (const item of contents) {
+          if (item.type === "text") {
+            textContent = item.text;
+            break;
+          }
+        }
+      } else if (typeof contents === "string") {
+        textContent = contents;
       }
+    } 
+    // Alternative format - directly in content
+    else if (response.content) {
+      if (Array.isArray(response.content)) {
+        for (const item of response.content) {
+          if (item.type === "text") {
+            textContent = item.text;
+            break;
+          }
+        }
+      } else if (typeof response.content === "string") {
+        textContent = response.content;
+      }
+    }
+    // Try completion format
+    else if (response.completion) {
+      textContent = response.completion;
+    }
+    // Try message format
+    else if (response.message && response.message.content) {
+      textContent = typeof response.message.content === "string" 
+        ? response.message.content
+        : JSON.stringify(response.message.content);
     }
     
     if (!textContent) {
-      console.error("No text content found in response:", JSON.stringify(contents));
-      throw new Error("No text content in Bedrock API response");
+      console.error("Could not extract text content from response format:", JSON.stringify(response));
+      throw new Error("Could not extract text from Bedrock API response");
     }
     
     console.log(`Successfully extracted text: ${textContent.substring(0, 100)}...`);
