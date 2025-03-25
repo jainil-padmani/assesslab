@@ -10,6 +10,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Import required for database operations
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -30,6 +33,44 @@ serve(async (req) => {
     console.log("Test ID for evaluation:", testId);
     console.log("Retry attempt:", retryAttempt);
     
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Check if we already have OCR text for question paper and answer key
+    let existingQuestionText = null;
+    let existingAnswerText = null;
+    let extractedQuestions = null;
+    
+    if (questionPaper?.url) {
+      console.log("Checking for existing OCR text for question paper");
+      const { data: questionDoc } = await supabase
+        .from('subject_documents')
+        .select('ocr_text')
+        .eq('document_url', questionPaper.url)
+        .maybeSingle();
+        
+      if (questionDoc?.ocr_text) {
+        console.log("Found existing OCR text for question paper");
+        existingQuestionText = questionDoc.ocr_text;
+      }
+    }
+    
+    if (answerKey?.url) {
+      console.log("Checking for existing OCR text for answer key");
+      const { data: answerDoc } = await supabase
+        .from('subject_documents')
+        .select('ocr_text')
+        .eq('document_url', answerKey.url)
+        .maybeSingle();
+        
+      if (answerDoc?.ocr_text) {
+        console.log("Found existing OCR text for answer key");
+        existingAnswerText = answerDoc.ocr_text;
+      }
+    }
+    
     // Add cache-busting parameter to URLs to prevent caching issues
     if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
@@ -40,20 +81,87 @@ serve(async (req) => {
     const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
     
     // Process the question paper with special handling to extract structured questions
+    // Pass the existing OCR text if available
     const { 
       processedDocument: processedQuestionPaper, 
       extractedText: extractedQuestionText,
-      questions: extractedQuestions
-    } = await processQuestionPaper(apiKey, questionPaper, testId);
+      questions: extractedQuestionsFromProcess
+    } = await processQuestionPaper(
+      apiKey, 
+      questionPaper, 
+      testId, 
+      existingQuestionText
+    );
     
+    // Process the answer key, using existing OCR text if available
     const { 
       processedDocument: processedAnswerKey, 
       extractedText: extractedAnswerKeyText 
-    } = await processAnswerKey(apiKey, answerKey, testId);
+    } = await processAnswerKey(
+      apiKey, 
+      answerKey, 
+      testId, 
+      existingAnswerText
+    );
+    
+    // Use the extracted questions or request extraction if needed
+    if (existingQuestionText && !extractedQuestionsFromProcess) {
+      console.log("Using existing OCR text to extract questions");
+      // We have OCR text but no questions extracted yet, try to extract them
+      try {
+        const questionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'You are an AI assistant that extracts questions from examination papers. You must identify each question, its number, and the marks allocated to it.' 
+              },
+              { 
+                role: 'user', 
+                content: `Extract all the questions from this question paper. Return a JSON array of question objects with the following format:
+                {
+                  "question_no": "1",
+                  "question": "The full text of the question",
+                  "marks": 5
+                }
+                
+                Question Paper:
+                ${existingQuestionText}`
+              }
+            ],
+            temperature: 0.2,
+            response_format: { type: "json_object" }
+          }),
+        });
+
+        if (questionResponse.ok) {
+          const data = await questionResponse.json();
+          try {
+            const parsedQuestions = JSON.parse(data.choices[0].message.content);
+            if (parsedQuestions.questions && Array.isArray(parsedQuestions.questions)) {
+              extractedQuestions = parsedQuestions.questions;
+              console.log(`Successfully extracted ${extractedQuestions.length} questions from existing OCR text`);
+            }
+          } catch (parseError) {
+            console.error("Error parsing extracted questions:", parseError);
+          }
+        }
+      } catch (extractError) {
+        console.error("Error extracting questions from existing OCR text:", extractError);
+      }
+    } else {
+      extractedQuestions = extractedQuestionsFromProcess;
+    }
     
     let evaluation;
     
-    // If we have extracted questions, use the new question-based evaluation flow
+    // If we have extracted questions, use the question-based evaluation flow
     if (extractedQuestions && processedStudentAnswer.text) {
       console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
       
@@ -61,7 +169,7 @@ serve(async (req) => {
       evaluation = await evaluateWithExtractedQuestions(
         apiKey,
         extractedQuestions,
-        extractedAnswerKeyText,
+        extractedAnswerKeyText || processedAnswerKey?.text,
         processedStudentAnswer.text,
         studentInfo
       );
@@ -85,8 +193,8 @@ serve(async (req) => {
       testId,
       studentAnswer,
       processedStudentAnswer.text,
-      extractedQuestionText,
-      extractedAnswerKeyText
+      extractedQuestionText || existingQuestionText,
+      extractedAnswerKeyText || existingAnswerText
     );
     
     // Return the processed evaluation
@@ -102,6 +210,3 @@ serve(async (req) => {
     );
   }
 });
-
-// Import required for database operations
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';

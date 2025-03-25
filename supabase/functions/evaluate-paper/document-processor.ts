@@ -1,3 +1,4 @@
+
 import { Prompts } from './prompts.ts';
 import { 
   extractTextFromFile, 
@@ -71,10 +72,45 @@ export async function processStudentAnswer(
 export async function processQuestionPaper(
   apiKey: string,
   questionPaper: any,
-  testId: string
+  testId: string,
+  existingOcrText: string | null = null
 ): Promise<{ processedDocument: any, extractedText: string | null, questions?: any }> {
   try {
     console.log(`Processing question paper for test ID ${testId}`);
+    
+    // If existing OCR text is provided, use it
+    if (existingOcrText) {
+      console.log("Using existing OCR text for question paper");
+      
+      // Extract structured questions from the existing OCR text
+      console.log("Extracting structured questions from existing OCR text");
+      try {
+        const extractedQuestions = await extractQuestionsFromPaper(
+          questionPaper.url,
+          apiKey,
+          existingOcrText
+        );
+        
+        return {
+          processedDocument: {
+            ...questionPaper,
+            text: existingOcrText
+          }, 
+          extractedText: existingOcrText,
+          questions: extractedQuestions.questions
+        };
+      } catch (error) {
+        console.error("Error extracting questions from existing OCR text:", error);
+        // Continue with the existing OCR text but no structured questions
+        return {
+          processedDocument: {
+            ...questionPaper,
+            text: existingOcrText
+          }, 
+          extractedText: existingOcrText
+        };
+      }
+    }
     
     // If text is already provided, use it
     if (questionPaper?.text) {
@@ -111,19 +147,32 @@ export async function processQuestionPaper(
       // Extract structured questions from the question paper
       console.log("Extracting structured questions from question paper text");
       const urlToUse = questionPaper?.zip_url || questionPaper.url;
-      const extractedQuestions = await extractQuestionsFromPaper(
-        urlToUse,
-        apiKey
-      );
-      
-      return {
-        processedDocument: {
-          ...questionPaper,
-          text: extractedText
-        }, 
-        extractedText,
-        questions: extractedQuestions.questions
-      };
+      try {
+        const extractedQuestions = await extractQuestionsFromPaper(
+          urlToUse,
+          apiKey,
+          extractedText
+        );
+        
+        return {
+          processedDocument: {
+            ...questionPaper,
+            text: extractedText
+          }, 
+          extractedText,
+          questions: extractedQuestions.questions
+        };
+      } catch (error) {
+        console.error("Error extracting questions:", error);
+        // Return the extracted text without structured questions
+        return {
+          processedDocument: {
+            ...questionPaper,
+            text: extractedText
+          }, 
+          extractedText
+        };
+      }
     }
     
     throw new Error("No question paper text or URL provided");
@@ -144,10 +193,23 @@ export async function processQuestionPaper(
 export async function processAnswerKey(
   apiKey: string,
   answerKey: any,
-  testId: string
+  testId: string,
+  existingOcrText: string | null = null
 ): Promise<{ processedDocument: any, extractedText: string | null }> {
   try {
     console.log(`Processing answer key for test ID ${testId}`);
+    
+    // If existing OCR text is provided, use it
+    if (existingOcrText) {
+      console.log("Using existing OCR text for answer key");
+      return { 
+        processedDocument: {
+          ...answerKey,
+          text: existingOcrText
+        }, 
+        extractedText: existingOcrText 
+      };
+    }
     
     // If no answer key is provided, return null (we'll use LLM-only evaluation)
     if (!answerKey) {
