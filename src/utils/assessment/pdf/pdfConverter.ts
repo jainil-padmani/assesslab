@@ -48,6 +48,7 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
       // Convert to PNG
       try {
         const pngDataUrl = canvas.toDataURL('image/png');
+        console.log(`Converted image to PNG, data URL length: ${pngDataUrl.length}`);
         resolve(pngDataUrl);
       } catch (err) {
         reject(err);
@@ -115,6 +116,7 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
       
       // Convert canvas to PNG image (always use PNG format)
       const pngDataUrl = canvas.toDataURL('image/png');
+      console.log(`Created PNG for page ${i}, data URL length: ${pngDataUrl.length}`);
       
       // Convert data URL to blob
       const pngBlob = dataURLToBlob(pngDataUrl);
@@ -128,6 +130,7 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
     
     // Generate the ZIP file
     const zipBlob = await zip.generateAsync({ type: 'blob' });
+    console.log(`Created ZIP file with size: ${zipBlob.size} bytes`);
     
     // Clean up the PDF URL
     URL.revokeObjectURL(pdfUrl);
@@ -165,6 +168,7 @@ export async function convertImageFileToZip(imageFile: File | Blob): Promise<Blo
     
     // Generate ZIP file
     const zipBlob = await zip.generateAsync({ type: 'blob' });
+    console.log(`Created ZIP file from image, size: ${zipBlob.size} bytes`);
     
     // Clean up the image URL
     URL.revokeObjectURL(imageUrl);

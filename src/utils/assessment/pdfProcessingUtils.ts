@@ -47,7 +47,7 @@ export const downloadPdfFromUrl = async (url: string): Promise<Blob> => {
 
 /**
  * Processes a PDF or image file and converts it to PNG images
- * These images are then compressed into a ZIP file for efficient storage and processing
+ * These images are then compressed into a ZIP file for efficient storage and OpenAI processing
  * Now with improved timeout handling for large files
  */
 export const processPdfToZip = async (
@@ -58,6 +58,7 @@ export const processPdfToZip = async (
   try {
     let fileBlob: Blob;
     let zipBlob: Blob;
+    console.log("Starting processPdfToZip with identifier:", identifier);
     
     // Handle different input types
     if (typeof file === 'string') {
@@ -80,19 +81,20 @@ export const processPdfToZip = async (
         throw new Error(`Unsupported file type from URL: ${file}. Only PDF and image files are supported.`);
       }
     } else if (file instanceof File) {
+      console.log(`Processing File object: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
       if (validatePdfFile(file)) {
         console.log("Converting PDF to PNG images and creating ZIP");
         const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
         zipBlob = pdfZipBlob;
       } else if (file.type.startsWith('image/')) {
-        console.log("Converting image to PNG and creating ZIP");
+        console.log(`Converting image (${file.type}) to PNG and creating ZIP`);
         zipBlob = await convertImageFileToZip(file);
       } else {
         throw new Error(`Unsupported file type: ${file.type}. Only PDF and image files are supported.`);
       }
     } else {
       // Blob case - assume PDF if no type information
-      console.log("Processing blob as PDF and converting to ZIP of PNG images");
+      console.log("Processing blob and converting to ZIP of PNG images");
       const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
       zipBlob = pdfZipBlob;
     }

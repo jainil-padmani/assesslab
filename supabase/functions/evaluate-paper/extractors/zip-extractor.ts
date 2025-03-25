@@ -26,29 +26,42 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     }
     
     // Load the ZIP file
-    const zip = new JSZip.JSZip();
+    const zip = new JSZip();
     await zip.loadAsync(zipData);
     
-    // Find image files in the ZIP
+    // Find image files in the ZIP - specifically looking for PNG files
+    // since our conversion process should have created PNGs
     const imageFiles = Object.keys(zip.files).filter(fileName => {
       const lowerFileName = fileName.toLowerCase();
       return (
+        lowerFileName.endsWith('.png') || 
         lowerFileName.endsWith('.jpg') || 
         lowerFileName.endsWith('.jpeg') || 
-        lowerFileName.endsWith('.png') ||
         lowerFileName.endsWith('.gif') ||
         lowerFileName.endsWith('.webp')
       ) && !zip.files[fileName].dir; // Ensure it's not a directory
     });
     
+    console.log(`Found ${imageFiles.length} image files in ZIP:`, imageFiles);
+    
     if (imageFiles.length === 0) {
+      // Log the list of all files in ZIP for debugging
+      const allFiles = Object.keys(zip.files);
+      console.log("ZIP contains these files:", allFiles);
       throw new Error("No image files found in the ZIP file");
     }
     
-    console.log(`Found ${imageFiles.length} image files in ZIP`);
-    
-    // Sort files by name to maintain page order
-    imageFiles.sort();
+    // Sort files by name to maintain page order - numeric sorting for page_001.png etc.
+    imageFiles.sort((a, b) => {
+      // Extract page numbers if present
+      const numA = a.match(/(\d+)/);
+      const numB = b.match(/(\d+)/);
+      
+      if (numA && numB) {
+        return parseInt(numA[0]) - parseInt(numB[0]);
+      }
+      return a.localeCompare(b);
+    });
     
     // Extract text from each image
     let allText = '';
@@ -69,7 +82,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
             return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: Failed to extract image]`;
           }
           
-          // Ensure the blob has the correct content type based on file extension
+          // Determine the correct MIME type based on file extension
           const extension = fileName.split('.').pop()?.toLowerCase() || '';
           let mimeType = 'image/png'; // Default
           
@@ -89,6 +102,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
           
           // Create a direct URL for the image
           const dataUrl = await createDirectImageUrl(imageBlob);
+          console.log(`Created data URL for image ${pageIndex}, length: ${dataUrl.length}`);
           
           // Extract text from the image
           const text = await extractTextFromImageFile(
