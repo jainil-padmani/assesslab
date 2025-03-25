@@ -41,7 +41,11 @@ serve(async (req: Request) => {
     // Process ZIP file first if available (preferred for PDF batch processing)
     if (zipUrl) {
       try {
-        const extractedText = await extractTextFromZip(zipUrl, apiKey, systemPrompt);
+        // Remove cache parameters that might cause issues with download
+        const cleanZipUrl = zipUrl.split('?')[0];
+        console.log(`Attempting to process ZIP from: ${cleanZipUrl}`);
+        
+        const extractedText = await extractTextFromZip(cleanZipUrl, apiKey, systemPrompt);
         
         return new Response(
           JSON.stringify({ text: extractedText }),
@@ -83,9 +87,13 @@ serve(async (req: Request) => {
         fileUrl.toLowerCase().includes('.png'))) {
       
       try {
+        // Remove any cache parameters or query strings that might cause issues
+        const cleanFileUrl = fileUrl.split('?')[0];
+        console.log(`Attempting OCR on image: ${cleanFileUrl}`);
+        
         const userPrompt = `This is a ${fileType || 'document'} that needs text extraction. Extract all the text from it:`;
         
-        const extractedText = await extractTextFromFile(fileUrl, apiKey, systemPrompt, userPrompt);
+        const extractedText = await extractTextFromFile(cleanFileUrl, apiKey, systemPrompt, userPrompt);
         
         return new Response(
           JSON.stringify({ text: extractedText }),
@@ -102,7 +110,9 @@ serve(async (req: Request) => {
     
     // For text files, just read the content
     try {
-      const fileContent = await extractTextFromTextFile(fileUrl);
+      // Remove any cache parameters
+      const cleanFileUrl = fileUrl.split('?')[0];
+      const fileContent = await extractTextFromTextFile(cleanFileUrl);
       
       return new Response(
         JSON.stringify({ text: fileContent }),
