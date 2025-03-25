@@ -1,10 +1,10 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadService } from "@/services/uploadService";
 import type { Subject } from "@/types/dashboard";
 
 interface SubjectInfoProps {
@@ -26,22 +26,8 @@ export function SubjectInfo({ subject, fetchSubjectData }: SubjectInfoProps) {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${subject.id}-${Date.now()}.${fileExt}`;
+      const publicUrl = await uploadService.uploadFile(file, 'subjectFile');
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('subject-information')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('subject-information')
-        .getPublicUrl(fileName);
-
       const { error: updateError } = await supabase
         .from('subjects')
         .update({ information_pdf_url: publicUrl })

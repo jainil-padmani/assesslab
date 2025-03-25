@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { FileUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -81,41 +80,26 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing file...');
       
-      // Processing step depends on file type
+      // Process file based on type
       if (file.type === 'application/pdf') {
-        setProcessingStep("Converting PDF to PNG images...");
-        toast.info('Converting PDF to images for better OCR processing...');
+        setProcessingStep("Processing PDF file...");
       } else if (file.type.startsWith('image/')) {
         setProcessingStep("Processing image...");
       }
       
-      // Upload the file to storage
-      const { publicUrl, zipUrl } = await uploadAnswerSheetFile(file, studentId);
-      
-      if (file.type === 'application/pdf' && !zipUrl) {
-        toast.warning('PDF conversion may have failed. OCR results might be affected.');
-      }
+      // Upload the file using UploadThing
+      const { publicUrl } = await uploadAnswerSheetFile(file, studentId);
       
       setProcessingStep("Saving to database...");
       // Save to test_answers table with appropriate notes
-      let notes = '';
-      if (file.type === 'application/pdf') {
-        notes = zipUrl 
-          ? 'PDF converted to PNG images for OCR' 
-          : 'PDF file - OCR may require conversion';
-      } else if (file.type.startsWith('image/')) {
-        notes = zipUrl 
-          ? 'Image converted to PNG for OCR' 
-          : 'Image file';
-      }
+      let notes = file.type === 'application/pdf' ? 'PDF file' : 'Image file';
       
       await saveTestAnswer(
         studentId,
         selectedSubject,
         testId || '',
         publicUrl,
-        notes,
-        zipUrl
+        notes
       );
       
       // Reset form
@@ -127,7 +111,7 @@ export function UploadAnswerSheet({
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
-        detail: { studentId, subjectId: selectedSubject, testId, zipUrl }
+        detail: { studentId, subjectId: selectedSubject, testId }
       });
       document.dispatchEvent(customEvent);
       

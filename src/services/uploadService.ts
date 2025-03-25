@@ -1,17 +1,28 @@
 
+import { uploadFiles } from "@/utils/uploadthing/uploadThingClient";
 import { toast } from "sonner";
 
-// This is a placeholder service for UploadThing integration
-// The actual implementation will use the UploadThing API
+// Central service for handling file uploads via UploadThing
 export const uploadService = {
-  uploadFile: async (file: File, type: 'questionPaper' | 'answerKey' | 'handwrittenPaper'): Promise<string> => {
+  uploadFile: async (file: File, type: 'questionPaper' | 'answerKey' | 'handwrittenPaper' | 'answerSheet' | 'subjectFile' | 'generalFile'): Promise<string> => {
     try {
-      // Simulate a file upload process
       console.log(`Uploading ${type}: ${file.name}`);
       
-      // In a real implementation, we would use the UploadThing API here
-      // For now, just return a mock URL
-      return Promise.resolve(`https://uploadthing.com/mock-${type}-${file.name.replace(/\s/g, '-')}`);
+      // Map the type to the appropriate UploadThing route
+      const endpoint = type === 'handwrittenPaper' ? 'answerSheet' : type;
+      
+      // Upload the file to UploadThing
+      const [res] = await uploadFiles({
+        endpoint,
+        files: [file],
+      });
+      
+      if (!res || !res.url) {
+        throw new Error("Upload failed - no URL returned");
+      }
+      
+      console.log(`Successfully uploaded ${type} to: ${res.url}`);
+      return res.url;
     } catch (error) {
       console.error("Error uploading file:", error);
       toast.error("Failed to upload file. Please try again.");
@@ -43,7 +54,7 @@ export const uploadService = {
       }
       
       if (handwrittenPaper) {
-        uploads.push(uploadService.uploadFile(handwrittenPaper, 'handwrittenPaper'));
+        uploads.push(uploadService.uploadFile(handwrittenPaper, 'answerSheet'));
       }
       
       // Wait for all uploads to complete

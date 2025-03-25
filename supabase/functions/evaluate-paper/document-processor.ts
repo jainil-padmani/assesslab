@@ -4,7 +4,7 @@ import { extractTextFromFile, extractTextFromZip, extractQuestionsFromPaper } fr
 
 /**
  * Processes a student's answer sheet document
- * Handles both direct URL processing and ZIP files with multiple images
+ * Now works with direct UploadThing URLs
  */
 export async function processStudentAnswer(
   apiKey: string,
@@ -23,47 +23,16 @@ export async function processStudentAnswer(
       };
     }
     
-    // Check if we have a ZIP URL available (preferred for better quality OCR)
-    if (studentAnswer.zip_url) {
-      console.log("Found ZIP URL for student answer, using it for OCR:", studentAnswer.zip_url);
-      
-      try {
-        // Try to extract text from the ZIP file
-        const extractedText = await extractTextFromZip(
-          studentAnswer.zip_url,
-          apiKey,
-          "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
-        );
-        
-        console.log(`Successfully extracted ${extractedText.length} characters from student answer ZIP`);
-        return { text: extractedText };
-      } catch (zipError) {
-        console.error("Error extracting text from ZIP:", zipError);
-        
-        // If ZIP extraction fails and we have a direct URL, fall back to that
-        if (studentAnswer.url) {
-          console.log("Falling back to direct URL processing due to ZIP extraction failure");
-          // Continue to the URL processing below
-        } else {
-          throw zipError;
-        }
-      }
-    }
-    
-    // If no ZIP or ZIP failed, check for direct URL
+    // With UploadThing we handle URLs directly for all file types
     if (studentAnswer.url) {
-      // Check if this is a PDF file
-      const isPdf = studentAnswer.url.split('?')[0].toLowerCase().endsWith('.pdf');
+      console.log("Processing student answer from URL:", studentAnswer.url);
       
-      if (isPdf) {
-        console.error("PDF file detected without ZIP URL for conversion");
-        throw new Error("PDF files must be converted to PNG images before OCR processing. Please upload the file again.");
-      }
+      // Helper to add cache buster to URL
+      const urlWithCacheBuster = addCacheBuster(studentAnswer.url);
       
-      console.log("Processing student answer from direct URL:", studentAnswer.url);
-      
+      // Process with appropriate system prompt
       const extractedText = await extractTextFromFile(
-        studentAnswer.url,
+        urlWithCacheBuster,
         apiKey,
         "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
       );
@@ -73,7 +42,7 @@ export async function processStudentAnswer(
     }
     
     // If we reached here, there's no text source available
-    throw new Error("No valid text source found for student answer. Need either text, URL, or ZIP URL.");
+    throw new Error("No valid text source found for student answer. Need either text or URL.");
   } catch (error) {
     console.error("Error processing student answer:", error);
     throw error;
@@ -82,7 +51,7 @@ export async function processStudentAnswer(
 
 /**
  * Processes a question paper document
- * Extracts text and structured questions
+ * Works with UploadThing URLs
  */
 export async function processQuestionPaper(
   apiKey: string,
@@ -118,9 +87,12 @@ export async function processQuestionPaper(
     
     console.log("Extracting text from question paper URL:", questionPaper.url);
     
+    // Add cache buster to URL
+    const urlWithCacheBuster = addCacheBuster(questionPaper.url);
+    
     // Extract text from the document
     const extractedText = await extractTextFromFile(
-      questionPaper.url,
+      urlWithCacheBuster,
       apiKey,
       "You are an OCR tool optimized for extracting text from question papers. Extract all text content accurately, preserving paragraph structure, numbering, and formatting. Pay special attention to question numbers, section headings, and instructions."
     );
@@ -149,6 +121,7 @@ export async function processQuestionPaper(
 
 /**
  * Processes an answer key document
+ * Works with UploadThing URLs
  */
 export async function processAnswerKey(
   apiKey: string,
@@ -175,9 +148,12 @@ export async function processAnswerKey(
     
     console.log("Extracting text from answer key URL:", answerKey.url);
     
+    // Add cache buster to URL
+    const urlWithCacheBuster = addCacheBuster(answerKey.url);
+    
     // Extract text from the document
     const extractedText = await extractTextFromFile(
-      answerKey.url,
+      urlWithCacheBuster,
       apiKey,
       "You are an OCR tool optimized for extracting text from answer keys. Extract all text content accurately, preserving paragraph structure, numbering, and formatting. Pay special attention to answer numbers and correct responses."
     );
