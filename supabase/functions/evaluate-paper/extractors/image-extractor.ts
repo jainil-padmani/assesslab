@@ -65,6 +65,7 @@ export async function extractTextFromImageFile(
         (batches.length > 1 ? `\n\nThis is batch ${i+1} of ${batches.length}.` : '');
       
       try {
+        // New implementation: Use the improved vision service
         const batchText = await bedrockService.processImagesWithVision({
           prompt: promptText,
           imageUrls: batch,
@@ -83,7 +84,7 @@ export async function extractTextFromImageFile(
       } catch (error) {
         console.error(`Error processing batch ${i+1}:`, error);
         // Continue with other batches if one fails
-        combinedText += `\n\n[Error processing batch ${i+1}: ${error.message}]\n\n`;
+        combinedText += `\n\n[Error processing batch ${i+1}: ${error instanceof Error ? error.message : 'Unknown error'}]\n\n`;
       }
     }
     
