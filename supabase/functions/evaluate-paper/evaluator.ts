@@ -1,7 +1,9 @@
 
+import { createBedrockService } from "./services/bedrock-service.ts";
+
 // Function to evaluate student answers against question paper and answer key
 export async function evaluateAnswers(
-  apiKey: string,
+  credentials: { accessKeyId: string, secretAccessKey: string, region: string },
   testId: string,
   questionPaper: any,
   answerKey: any,
@@ -10,6 +12,12 @@ export async function evaluateAnswers(
 ) {
   try {
     console.log("Starting evaluation process for test:", testId);
+    
+    const bedrockService = createBedrockService(
+      credentials.accessKeyId,
+      credentials.secretAccessKey,
+      credentials.region
+    );
     
     // Build the prompt for the evaluation
     const systemPrompt = `You are an AI assistant specialized in evaluating student exam answers. You will be given a question paper, an answer key, and a student's answer sheet. Your task is to evaluate the student's answers, assign marks, and provide detailed feedback.`;
@@ -60,36 +68,32 @@ Format your evaluation as a JSON object with this structure:
     "percentage": 50
   }
 }
-`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
-        response_format: { type: "json_object" }
-      }),
+Output only the JSON with no additional text.`;
+
+    const response = await bedrockService.invokeModel({
+      messages: [
+        { role: "user", content: userPrompt }
+      ],
+      max_tokens: 4000,
+      temperature: 0.3,
+      system: systemPrompt
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`API error: ${JSON.stringify(errorData)}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0].message.content;
+    // Claude 3.5 response structure
+    const content = response.content[0].text;
     
     try {
+      // Extract the JSON part from the response
+      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/```\n([\s\S]*?)\n```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : content;
+      
+      const cleanedJson = jsonString
+        .replace(/```/g, '')
+        .trim();
+      
       // Parse and validate the response
-      const evaluation = JSON.parse(content);
+      const evaluation = JSON.parse(cleanedJson);
       
       // Validate the structure of the response
       if (!evaluation.answers || !Array.isArray(evaluation.answers) || !evaluation.summary) {
@@ -99,7 +103,22 @@ Format your evaluation as a JSON object with this structure:
       return evaluation;
     } catch (error) {
       console.error("Error parsing evaluation response:", error);
-      throw new Error("Failed to parse evaluation response");
+      
+      // Try a more aggressive approach to extract JSON
+      try {
+        // Remove any text before { and after the last }
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const evaluation = JSON.parse(jsonMatch[0]);
+          if (evaluation.answers && Array.isArray(evaluation.answers) && evaluation.summary) {
+            return evaluation;
+          }
+        }
+        throw new Error("Failed to parse evaluation response");
+      } catch (e) {
+        console.error("Failed second attempt to parse response:", e);
+        throw new Error("Failed to parse evaluation response");
+      }
     }
   } catch (error) {
     console.error("Error in evaluateAnswers:", error);

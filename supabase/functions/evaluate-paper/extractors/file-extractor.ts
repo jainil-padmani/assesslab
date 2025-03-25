@@ -1,12 +1,13 @@
 
-import { createOpenAIService } from "../services/openai-service.ts";
+import { createBedrockService } from "../services/bedrock-service.ts";
 import { urlToBase64, cleanUrlForApi } from "../utils/image-processing.ts";
+import { createImageBatches, cleanImageUrlsForProcessing } from "../utils/image-batch-processing.ts";
 
 /**
- * Extract text from a file using OpenAI Vision API
+ * Extract text from a file using Claude 3.5 Vision
  * With improved memory handling for large files
  */
-export async function extractTextFromFile(fileUrl: string, apiKey: string, systemPrompt: string = '', userPrompt?: string): Promise<string> {
+export async function extractTextFromFile(fileUrl: string, credentials: { accessKeyId: string, secretAccessKey: string, region: string }, systemPrompt: string = '', userPrompt?: string): Promise<string> {
   try {
     if (!fileUrl) {
       throw new Error("No file URL provided");
@@ -23,81 +24,37 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       
       return await extractTextFromImageFile(
         cleanedUrl,
-        apiKey,
+        credentials,
         systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately."
       );
     }
     
-    // Process the image URL - this will return either a base64 string or a direct URL
-    let imageData;
-    try {
-      // With the improved function, this will either return base64 or a direct URL
-      imageData = await urlToBase64(fileUrl);
-      console.log(`Successfully processed image, result length: ${imageData?.length || 0} chars`);
-      
-      // If it's a very short result, it's likely a direct URL, not base64 data
-      if (imageData.length < 200 && imageData.startsWith('http')) {
-        console.log("Using direct image URL instead of base64 for better memory efficiency");
-      }
-    } catch (imageError) {
-      console.error("Error processing image URL:", imageError);
-      
-      // If we can't convert to base64, try using the URL directly
-      console.log("Falling back to direct URL for OpenAI");
-      imageData = cleanUrlForApi(fileUrl);
-    }
+    // Process the image URL
+    let imageData = cleanUrlForApi(fileUrl);
+    console.log("Using direct image URL for processing:", imageData);
     
-    const openAIService = createOpenAIService(apiKey);
+    const bedrockService = createBedrockService(
+      credentials.accessKeyId,
+      credentials.secretAccessKey,
+      credentials.region
+    );
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
     
     try {
-      const response = await openAIService.createChatCompletion({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt || "Extract text from the image accurately, preserving formatting.",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageData,
-                  detail: "high"
-                },
-              },
-            ],
-          },
-        ],
+      // Use Claude Vision to extract text from the image
+      const extractedText = await bedrockService.processImagesWithVision({
+        prompt: promptText,
+        imageUrls: [imageData],
         max_tokens: 4000,
         temperature: 0.2,
+        system: systemPrompt || "Extract text from the image accurately, preserving formatting."
       });
-
-      if (!response?.data?.choices?.[0]?.message?.content) {
-        throw new Error("OpenAI API returned an empty response");
-      }
-
-      const extractedText = response.data.choices[0].message.content;
+      
       console.log(`Extracted text: ${extractedText.length} characters`);
       return extractedText;
     } catch (apiError: any) {
-      // Handle specific API errors
-      if (apiError.response) {
-        console.error("OpenAI API error:", apiError.response.status, apiError.response.data);
-        
-        if (apiError.response.status === 400) {
-          const errorMessage = apiError.response.data?.error?.message || "";
-          if (errorMessage.includes('invalid_image')) {
-            console.error("Invalid image format error:", errorMessage);
-            throw new Error(`Invalid image format: ${errorMessage}. Please check the image format and accessibility.`);
-          }
-        }
-      }
-      
+      console.error("AWS Bedrock API error:", apiError);
       throw new Error(`OCR extraction failed: ${apiError.message || "Unknown API error"}`);
     }
   } catch (error: any) {
@@ -107,12 +64,12 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
 }
 
 /**
- * Process image files in batches directly with OpenAI
- * No ZIP files - improves reliability and reduces memory usage
+ * Process image files in batches directly with Claude 3.5 Vision
+ * Supports batching up to 4 images per request for better efficiency
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
-  apiKey: string, 
+  credentials: { accessKeyId: string, secretAccessKey: string, region: string }, 
   systemPrompt: string,
   userPrompt?: string
 ): Promise<string> {
@@ -123,72 +80,77 @@ export async function extractTextFromImageFile(
     
     console.log("Processing images directly for OCR extraction");
     
-    // Direct batch processing of images with OpenAI
-    try {
-      const openAIService = createOpenAIService(apiKey);
-      const promptText = userPrompt || "Extract all the text from these images, preserving structure and formatting:";
-      
-      // Get images from URL (we'll simulate batches of 4 images)
-      // In reality, we'd need to fetch and extract individual images from the source
-      const cleanUrl = cleanUrlForApi(fileUrl);
-      console.log("Using direct URL for image processing:", cleanUrl);
-      
-      // Process the images in a single OpenAI call
-      // In a real implementation, we would split the PDF into multiple images and process them in batches
-      const response = await openAIService.createChatCompletion({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt || "You are an OCR tool. Extract text accurately from images, preserving formatting and structure. Combine the content from all images into a single coherent document."
-          },
-          {
-            role: "user",
-            content: [
-              { 
-                type: "text", 
-                text: promptText + "\n\nThese images are from a document that may have been split into multiple pages. Please extract all text and combine it into a coherent whole." 
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: cleanUrl,
-                  detail: "high"
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 4000,
-        temperature: 0.2
-      });
-      
-      if (!response?.data?.choices?.[0]?.message?.content) {
-        throw new Error("OpenAI API returned an empty response");
+    // Initialize Bedrock service
+    const bedrockService = createBedrockService(
+      credentials.accessKeyId,
+      credentials.secretAccessKey,
+      credentials.region
+    );
+    
+    // For simple image URLs, just process directly
+    const cleanUrl = cleanUrlForApi(fileUrl);
+    console.log("Using direct URL for image processing:", cleanUrl);
+    
+    // For multi-page documents or batch processing if provided
+    // We need to determine if this is a single image or multiple
+    let imageUrls: string[] = [cleanUrl];
+    
+    // Check if fileUrl might be a JSON string containing multiple images
+    if (fileUrl.startsWith('[') && fileUrl.endsWith(']')) {
+      try {
+        const parsedUrls = JSON.parse(fileUrl);
+        if (Array.isArray(parsedUrls) && parsedUrls.length > 0) {
+          imageUrls = cleanImageUrlsForProcessing(parsedUrls);
+          console.log(`Processing ${imageUrls.length} images in batches`);
+        }
+      } catch (e) {
+        // If parsing fails, continue with the single URL
+        console.log("Not a valid JSON array, treating as single image URL");
       }
-      
-      const extractedText = response.data.choices[0].message.content;
-      console.log(`Successfully extracted text from images: ${extractedText.length} characters`);
-      console.log("Sample extracted text:", extractedText.substring(0, 100) + "...");
-      
-      return extractedText;
-    } catch (error: any) {
-      console.error("Error during batch image processing:", error);
-      
-      if (error.message?.includes("Timeout") || error.message?.includes("invalid_image_format")) {
-        console.error("Error processing images:", error);
-        
-        // Return a helpful error message for users
-        return `The document is too large or complex for processing. Please consider these options:
-1. Split the PDF into smaller files (1-2 pages each)
-2. Upload individual images of pages instead of a large PDF
-3. Try again with a lower resolution scan
-
-Technical Error: ${error.message}`;
-      }
-      
-      throw error;
     }
+    
+    // Create batches of images (Claude 3.5 supports up to 4 images per request)
+    const batches = createImageBatches(imageUrls);
+    console.log(`Created ${batches.length} batch(es) of images`);
+    
+    // Process each batch and combine results
+    let combinedText = '';
+    
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      console.log(`Processing batch ${i+1}/${batches.length} with ${batch.length} image(s)`);
+      
+      const promptText = userPrompt || 
+        `Extract all the text from ${batch.length > 1 ? 'these images' : 'this image'}, preserving structure and formatting:` +
+        (batches.length > 1 ? `\n\nThis is batch ${i+1} of ${batches.length}.` : '');
+      
+      try {
+        const batchText = await bedrockService.processImagesWithVision({
+          prompt: promptText,
+          imageUrls: batch,
+          max_tokens: 4000,
+          temperature: 0.2,
+          system: systemPrompt || `You are an OCR tool. Extract text accurately from ${batch.length > 1 ? 'images' : 'the image'}, preserving formatting and structure.`
+        });
+        
+        // Add batch separator if we have multiple batches
+        if (combinedText && batches.length > 1) {
+          combinedText += '\n\n--- NEXT PAGE/BATCH ---\n\n';
+        }
+        
+        combinedText += batchText;
+        console.log(`Batch ${i+1} processed successfully: ${batchText.length} characters`);
+      } catch (error) {
+        console.error(`Error processing batch ${i+1}:`, error);
+        // Continue with other batches if one fails
+        combinedText += `\n\n[Error processing batch ${i+1}: ${error.message}]\n\n`;
+      }
+    }
+    
+    console.log(`Successfully extracted text from all images: ${combinedText.length} characters`);
+    console.log("Sample extracted text:", combinedText.substring(0, 100) + "...");
+    
+    return combinedText;
   } catch (error: any) {
     console.error("Error during OCR processing:", error);
     throw error;

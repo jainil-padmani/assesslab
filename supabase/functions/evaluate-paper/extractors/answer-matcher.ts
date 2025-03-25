@@ -1,71 +1,84 @@
 
-import { createOpenAIService } from "../services/openai-service.ts";
+import { createBedrockService } from "../services/bedrock-service.ts";
 
 /**
  * Matches student answers to questions using semantic similarity
  */
-export async function matchAnswersToQuestions(apiKey: string, questionPaperText: string, studentAnswerText: string): Promise<{ matches: any[] }> {
+export async function matchAnswersToQuestions(
+  credentials: { accessKeyId: string, secretAccessKey: string, region: string },
+  questionText: string,
+  studentAnswerText: string
+): Promise<any> {
   try {
-    console.log("Matching student answers to questions using semantic similarity");
-    const openAIService = createOpenAIService(apiKey);
+    console.log("Matching student answers to questions using Claude 3.5 Sonnet");
+    const bedrockService = createBedrockService(
+      credentials.accessKeyId,
+      credentials.secretAccessKey,
+      credentials.region
+    );
 
-    const systemPrompt = `You are an AI assistant specialized in matching student answers to questions based on semantic similarity. Your goal is to identify which questions each answer is most likely addressing.
+    const systemPrompt = `You are an AI assistant specialized in analyzing exam papers. Your task is to match student answers to their corresponding questions based on semantic similarity and contextual understanding.`;
 
-Instructions:
-1.  Analyze the provided question paper text to understand the context of each question.
-2.  Analyze the student's answer text to identify individual answers.
-3.  Determine the semantic similarity between each answer and each question.
-4.  Identify the most likely question for each answer.
-5.  Format the output as a JSON array of match objects.
+    const userPrompt = `Here is a question paper and a student's answer sheet. The student's answers may not be in the same order as the questions, or they might not have clearly indicated which question they are answering.
 
-Output Format:
-\`\`\`json
-[
-    {
-        "question": "<question text>",
-        "answer": "<answer text>",
-        "similarityScore": <number between 0 and 1>
-    },
-    ...
-]
-\`\`\`
+QUESTION PAPER:
+${questionText}
 
-Begin!
-`;
+STUDENT'S ANSWER SHEET:
+${studentAnswerText}
 
-    const userPrompt = `Question Paper Text:\n${questionPaperText}\n\nStudent Answer Text:\n${studentAnswerText}`;
+Please analyze both documents and match each student answer to the corresponding question. Format your response as a JSON array of matches, with each match containing:
+1. The question number and text from the question paper
+2. The corresponding answer text from the student's sheet
+3. A confidence score (0-1) indicating how certain you are about this match
 
-    const response = await openAIService.createChatCompletion({
-      model: "gpt-4-0125-preview",
+Output only the JSON response.`;
+
+    const response = await bedrockService.invokeModel({
       messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
+        { role: "user", content: userPrompt }
       ],
-      max_tokens: 2000,
-      response_format: { type: "json_object" },
+      max_tokens: 4000,
+      temperature: 0.2,
+      system: systemPrompt
     });
 
-    const content = response.data.choices[0].message?.content;
+    // Claude 3.5 response structure
+    const content = response.content[0].text;
 
     if (!content) {
-      console.warn("No content received from OpenAI for answer matching.");
+      console.warn("No content received from Claude for answer matching.");
       return { matches: [] };
     }
 
     try {
-      const matches = JSON.parse(content);
-      console.log(`Found ${matches.length} potential question-answer matches`);
-      return { matches: matches };
+      // Extract the JSON part from the response
+      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/```\n([\s\S]*?)\n```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : content;
+      
+      const cleanedJson = jsonString
+        .replace(/^\s*\[\s*\n/, '[')
+        .replace(/\s*\]\s*$/, ']')
+        .replace(/```/g, '')
+        .trim();
+      
+      const matches = JSON.parse(cleanedJson);
+      console.log(`Matched ${matches.length} question-answer pairs`);
+      return { matches };
     } catch (error) {
       console.error("Error parsing answer matching response:", error);
       console.error("Raw response:", content);
-      return { matches: [] };
+      
+      // Try a more aggressive approach to extract JSON
+      try {
+        const possibleJson = content.replace(/.*?(\[[\s\S]*\]).*/s, '$1').trim();
+        const matches = JSON.parse(possibleJson);
+        console.log(`Matched ${matches.length} question-answer pairs after cleanup`);
+        return { matches };
+      } catch (e) {
+        console.error("Failed second attempt to parse response:", e);
+        return { matches: [] };
+      }
     }
   } catch (error: any) {
     console.error("Error matching answers to questions:", error);

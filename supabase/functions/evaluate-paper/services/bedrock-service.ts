@@ -1,16 +1,10 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { hmacSha256 } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
 
-// CORS headers to allow requests from any origin
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Service for interacting with AWS Bedrock API using Claude 3.5 Sonnet
-class BedrockService {
+/**
+ * Service for interacting with AWS Bedrock API
+ */
+export class BedrockService {
   private accessKeyId: string;
   private secretAccessKey: string;
   private region: string;
@@ -106,6 +100,44 @@ class BedrockService {
   }
 
   /**
+   * Invoke Claude 3.5 Sonnet model for text generation
+   */
+  async invokeModel(params: {
+    messages: any[];
+    max_tokens?: number;
+    temperature?: number;
+    system?: string;
+    anthropic_version?: string;
+  }): Promise<any> {
+    const path = `/model/${this.model}/invoke`;
+    
+    // Prepare the request body for Claude
+    const requestBody = {
+      anthropic_version: params.anthropic_version || "bedrock-2023-05-31",
+      max_tokens: params.max_tokens || 4000,
+      temperature: params.temperature || 0.5,
+      messages: params.messages,
+      system: params.system
+    };
+    
+    const payload = JSON.stringify(requestBody);
+    const headers = await this.createSignatureHeaders('POST', path, payload);
+    
+    const response = await fetch(`https://${this.service}.${this.region}.amazonaws.com${path}`, {
+      method: 'POST',
+      headers,
+      body: payload
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Bedrock API error (${response.status}): ${errorText}`);
+    }
+    
+    return await response.json();
+  }
+
+  /**
    * Process images with Claude Vision
    */
   async processImagesWithVision(params: {
@@ -115,7 +147,6 @@ class BedrockService {
     temperature?: number;
     system?: string;
   }): Promise<string> {
-    const path = `/model/${this.model}/invoke`;
     const messages = [];
     const imageContents = [];
     
@@ -157,121 +188,27 @@ class BedrockService {
       ]
     };
     
-    // Prepare the request body for Claude
-    const requestBody = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: params.max_tokens || 4000,
-      temperature: params.temperature || 0.2,
-      messages: [userMessage],
-      system: params.system
-    };
+    messages.push(userMessage);
     
-    const payload = JSON.stringify(requestBody);
-    const headers = await this.createSignatureHeaders('POST', path, payload);
-    
-    const response = await fetch(`https://${this.service}.${this.region}.amazonaws.com${path}`, {
-      method: 'POST',
-      headers,
-      body: payload
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Bedrock API error (${response.status}): ${errorText}`);
+    try {
+      const response = await this.invokeModel({
+        messages: messages,
+        max_tokens: params.max_tokens || 4000,
+        temperature: params.temperature || 0.2,
+        system: params.system
+      });
+      
+      return response.content[0].text;
+    } catch (error) {
+      console.error("Error in processImagesWithVision:", error);
+      throw error;
     }
-    
-    const result = await response.json();
-    return result.content[0].text;
   }
 }
 
-// Custom fetch function with timeout
-async function fetchWithTimeout(url: string, timeoutMs = 30000): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
-  try {
-    const response = await fetch(url, { 
-      signal: controller.signal,
-      cache: 'no-store' // Prevent caching issues
-    });
-    return response;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+/**
+ * Create a Bedrock service instance with AWS credentials
+ */
+export function createBedrockService(accessKeyId: string, secretAccessKey: string, region: string): BedrockService {
+  return new BedrockService(accessKeyId, secretAccessKey, region);
 }
-
-// Clean URL for API use
-function cleanUrlForApi(url: string): string {
-  const questionMarkIndex = url.indexOf('?');
-  if (questionMarkIndex !== -1) {
-    return url.substring(0, questionMarkIndex);
-  }
-  return url;
-}
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { documentUrl, useDirectImageProcessing = true } = await req.json();
-    
-    if (!documentUrl) {
-      return new Response(
-        JSON.stringify({ error: "Document URL is required" }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Processing document for OCR: ${documentUrl}`);
-    
-    // Get AWS credentials from environment
-    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID') || '';
-    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY') || '';
-    const awsRegion = Deno.env.get('AWS_REGION') || 'us-east-1';
-    
-    if (!awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error('AWS credentials environment variables are not set');
-    }
-    
-    // Clean the URL by removing query parameters
-    const cleanedUrl = cleanUrlForApi(documentUrl);
-    
-    // Create Bedrock service
-    const bedrockService = new BedrockService(awsAccessKeyId, awsSecretAccessKey, awsRegion);
-    
-    // Prompt for OCR extraction
-    const systemPrompt = "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately, preserving the formatting and structure of text.";
-    const userPrompt = "Extract all the text from this document or image, maintaining the original structure, formatting, and organization of the content:";
-    
-    // Process the image with Claude 3.5 Vision
-    const extractedText = await bedrockService.processImagesWithVision({
-      prompt: userPrompt,
-      imageUrls: [cleanedUrl],
-      max_tokens: 4000,
-      temperature: 0.2,
-      system: systemPrompt
-    });
-    
-    console.log(`Successfully extracted text: ${extractedText.length} characters`);
-    
-    return new Response(
-      JSON.stringify({ text: extractedText }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-    
-  } catch (error) {
-    console.error('Error in extract-text function:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-});

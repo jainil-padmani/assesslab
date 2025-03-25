@@ -3,7 +3,12 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster, stripQueryParams } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
-import { evaluateWithExtractedQuestions, matchAnswersToQuestions, extractQuestionsFromText } from './ocr.ts';
+import { 
+  evaluateWithExtractedQuestions, 
+  matchAnswersToQuestions, 
+  extractQuestionsFromText,
+  createBedrockService
+} from './ocr.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,12 +31,22 @@ serve(async (req) => {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Get OpenAI API key from environment
-    const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
+    // Get AWS Bedrock credentials from environment
+    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID') || '';
+    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY') || '';
+    const awsRegion = Deno.env.get('AWS_REGION') || 'us-east-1';
+    
+    if (!awsAccessKeyId || !awsSecretAccessKey) {
+      throw new Error('AWS credentials environment variables are not set');
     }
-    console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
+    
+    const awsCredentials = {
+      accessKeyId: awsAccessKeyId,
+      secretAccessKey: awsSecretAccessKey,
+      region: awsRegion
+    };
+    
+    console.log("Using AWS credentials with key ID: " + awsAccessKeyId.substring(0, 5) + '...');
     
     // Parse the request body
     let requestBody;
@@ -122,10 +137,10 @@ serve(async (req) => {
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     if (studentAnswer?.zip_url) {
-      // Add cache buster for fetching, but prepare a clean URL for OpenAI
+      // Add cache buster for fetching, but prepare a clean URL for Claude 3.5
       studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
       studentAnswer.clean_zip_url = stripQueryParams(studentAnswer.zip_url);
-      console.log("Clean ZIP URL for OpenAI:", studentAnswer.clean_zip_url);
+      console.log("Clean ZIP URL for Claude 3.5:", studentAnswer.clean_zip_url);
     }
     
     // Process documents to extract text with improved error handling and timeout
@@ -133,12 +148,12 @@ serve(async (req) => {
       // Create a Promise.race between the actual processing and a timeout
       const processingPromise = async () => {
         // Process student answer first
-        const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
+        const processedStudentAnswer = await processStudentAnswer(awsCredentials, studentAnswer, testId, studentInfo);
         
         // If we have existing question text, try to extract structured questions from it
         if (existingQuestionText && !extractedQuestions) {
           console.log("Using existing OCR text to extract questions");
-          extractedQuestions = await extractQuestionsFromText(apiKey, existingQuestionText);
+          extractedQuestions = await extractQuestionsFromText(awsCredentials, existingQuestionText);
         }
         
         // If we don't have structured questions yet, process the question paper
@@ -149,7 +164,7 @@ serve(async (req) => {
             extractedText: extractedQuestionText,
             questions: extractedQuestionsFromProcess
           } = await processQuestionPaper(
-            apiKey, 
+            awsCredentials, 
             questionPaper, 
             testId, 
             existingQuestionText
@@ -164,7 +179,7 @@ serve(async (req) => {
           processedDocument: processedAnswerKey, 
           extractedText: extractedAnswerKeyText 
         } = await processAnswerKey(
-          apiKey, 
+          awsCredentials, 
           answerKey, 
           testId, 
           existingAnswerText
@@ -179,7 +194,7 @@ serve(async (req) => {
             console.log("Attempting semantic matching of student answers to questions");
             
             matchResults = await matchAnswersToQuestions(
-              apiKey,
+              awsCredentials,
               existingQuestionText,
               processedStudentAnswer.text
             );
@@ -200,7 +215,7 @@ serve(async (req) => {
           
           // Use our specialized evaluation function that leverages extracted questions
           evaluation = await evaluateWithExtractedQuestions(
-            apiKey,
+            awsCredentials,
             extractedQuestions,
             finalAnswerKeyText,
             processedStudentAnswer.text,
@@ -211,7 +226,7 @@ serve(async (req) => {
           
           // Fall back to the original evaluation method
           evaluation = await evaluateAnswers(
-            apiKey,
+            awsCredentials,
             testId,
             {text: existingQuestionText},
             {text: finalAnswerKeyText},

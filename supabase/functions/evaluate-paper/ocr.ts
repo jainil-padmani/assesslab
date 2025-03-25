@@ -11,5 +11,6 @@ export { matchAnswersToQuestions } from "./extractors/answer-matcher.ts";
 export { evaluateWithExtractedQuestions } from "./extractors/answer-evaluator.ts";
 
 // Re-export utility functions that might be needed elsewhere
-export { createOpenAIService } from "./services/openai-service.ts";
+export { createBedrockService } from "./services/bedrock-service.ts";
 export { createDirectImageUrl, cleanUrlForApi } from "./utils/image-processing.ts";
+export { createImageBatches, cleanImageUrlsForProcessing } from "./utils/image-batch-processing.ts";
