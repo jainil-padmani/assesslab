@@ -1,6 +1,6 @@
 
-import { generateReactHelpers } from "@uploadthing/react";
+import { useUploadThing, uploadFiles } from "@uploadthing/react";
 import type { OurFileRouter } from "./uploadthingConfig";
 
-// Generate React hooks for UploadThing
-export const { useUploadThing, uploadFiles } = generateReactHelpers<OurFileRouter>();
+// Export the hooks directly from the package
+export { useUploadThing, uploadFiles };
