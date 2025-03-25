@@ -12,19 +12,14 @@ export class BedrockService {
   private service = 'bedrock-runtime';
   private model = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
-  constructor(accessKeyId: string, secretAccessKey: string, region: string) {
+  constructor(accessKeyId: string, secretAccessKey: string, region: string = 'us-east-1') {
     this.accessKeyId = accessKeyId;
     this.secretAccessKey = secretAccessKey;
-    this.region = region;
+    this.region = region || 'us-east-1'; // Default to us-east-1 if region is not provided
     
     // Validate credentials at construction time
     if (!this.accessKeyId || !this.secretAccessKey) {
       throw new Error('AWS credentials (accessKeyId and secretAccessKey) are required');
-    }
-    
-    if (!this.region) {
-      console.warn('AWS region not provided, defaulting to us-east-1');
-      this.region = 'us-east-1';
     }
     
     console.log(`BedrockService initialized with region: ${this.region}, service: ${this.service}`);
@@ -101,7 +96,7 @@ export class BedrockService {
           if (response.status === 403) {
             // Auth-related errors
             if (errorText.includes("scoped to correct service")) {
-              throw new Error(`Authentication error: Your AWS credentials don't have access to Bedrock services or the region ${this.region} may not support Bedrock. Please verify your IAM permissions and region selection.`);
+              throw new Error(`Authentication error: Your AWS credentials don't have access to Bedrock services in region ${this.region}. Please verify your IAM permissions include bedrock-runtime access.`);
             } else {
               throw new Error(`Authentication failed: ${errorText}. Please check your AWS credentials and IAM permissions.`);
             }
@@ -151,6 +146,6 @@ export class BedrockService {
 /**
  * Create a Bedrock service instance with AWS credentials
  */
-export function createBedrockService(accessKeyId: string, secretAccessKey: string, region: string): BedrockService {
-  return new BedrockService(accessKeyId, secretAccessKey, region);
+export function createBedrockService(accessKeyId: string, secretAccessKey: string, region: string = 'us-east-1'): BedrockService {
+  return new BedrockService(accessKeyId, secretAccessKey, region || 'us-east-1');
 }

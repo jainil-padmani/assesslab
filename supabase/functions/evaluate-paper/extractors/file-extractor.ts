@@ -65,10 +65,13 @@ export async function extractTextFromFile(
       // Continue despite the error - we'll let the actual processing try anyway
     }
     
+    // Ensure region is set to us-east-1 as a fallback
+    const region = credentials.region || 'us-east-1';
+    
     const bedrockService = createBedrockService(
       credentials.accessKeyId,
       credentials.secretAccessKey,
-      credentials.region
+      region
     );
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
