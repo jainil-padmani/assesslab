@@ -119,8 +119,11 @@ export async function urlToBase64(url: string): Promise<string> {
       throw new Error("Failed to get blob from response");
     }
     
+    // Ensure the blob has the correct content type
+    const imageBlob = new Blob([await blob.arrayBuffer()], { type: 'image/png' });
+    
     // Convert to data URL
-    const dataUrl = await createDirectImageUrl(blob);
+    const dataUrl = await createDirectImageUrl(imageBlob);
     return dataUrl;
   } catch (error) {
     console.error("Error converting URL to base64:", error);

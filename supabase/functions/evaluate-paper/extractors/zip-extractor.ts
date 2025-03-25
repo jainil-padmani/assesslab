@@ -69,12 +69,26 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
             return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: Failed to extract image]`;
           }
           
+          // Ensure the blob has the correct content type based on file extension
+          const extension = fileName.split('.').pop()?.toLowerCase() || '';
+          let mimeType = 'image/png'; // Default
+          
+          if (extension === 'jpg' || extension === 'jpeg') {
+            mimeType = 'image/jpeg';
+          } else if (extension === 'webp') {
+            mimeType = 'image/webp';
+          } else if (extension === 'gif') {
+            mimeType = 'image/gif';
+          }
+          
+          // Create a new blob with the proper mime type
+          const imageBlob = new Blob([await fileData.arrayBuffer()], { type: mimeType });
+          
           // Process the image with OpenAI
           const userPrompt = `Extract all text from page ${pageIndex} of the document, preserving formatting:`;
           
-          // Create a direct URL for the image instead of using URL.createObjectURL
-          // which is not available in Deno runtime
-          const dataUrl = await createDirectImageUrl(fileData);
+          // Create a direct URL for the image
+          const dataUrl = await createDirectImageUrl(imageBlob);
           
           // Extract text from the image
           const text = await extractTextFromImageFile(

@@ -19,6 +19,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       // Only process as base64 if it's an image URL, not a ZIP
       if (!/\.zip/i.test(fileUrl)) {
         imageData = await urlToBase64(fileUrl);
+        console.log(`Successfully processed image to data URL. Length: ${imageData?.length || 0} chars`);
       } else {
         // For ZIP files, we'll use the original URL
         imageData = fileUrl;
@@ -33,6 +34,11 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
     
     try {
+      // Validate that we have a proper data URL for images
+      if (imageData && imageData.startsWith('data:') && !imageData.startsWith('data:image/')) {
+        throw new Error("Invalid image format: The data URL must have an image MIME type");
+      }
+      
       const response = await openAIService.createChatCompletion({
         model: "gpt-4o",
         messages: [
@@ -70,8 +76,8 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       if (apiError.response) {
         console.error("OpenAI API error:", apiError.response.status, apiError.response.data);
         
-        if (apiError.response.status === 400 && apiError.response.data?.error?.message?.includes('invalid_image_url')) {
-          throw new Error(`Invalid image URL: ${fileUrl}. Please check the image format and accessibility.`);
+        if (apiError.response.status === 400 && apiError.response.data?.error?.message?.includes('invalid_image')) {
+          throw new Error(`Invalid image format: ${apiError.response.data?.error?.message}. Please check the image format and accessibility.`);
         }
       }
       
@@ -117,6 +123,7 @@ export async function extractTextFromImageFile(
     try {
       if (!/\.zip/i.test(fileUrl)) {
         imageUrl = await urlToBase64(fileUrl);
+        console.log("Successfully converted image to data URL for direct API call");
       }
     } catch (e) {
       console.warn("Could not convert to base64, using direct URL:", e);
