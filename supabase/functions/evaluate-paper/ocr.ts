@@ -1,164 +1,299 @@
 
-import JSZip from "https://esm.sh/jszip@3.10.1";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface ImageFile {
-  name: string;
-  dataUrl: string;
-}
+import { Prompts } from './prompts.ts';
 
 /**
- * Extracts text from a ZIP file containing images using GPT-4o
+ * Extract text from a file using OCR via the OpenAI API
  */
-export async function extractTextFromZip(
-  zipUrl: string, 
-  apiKey: string, 
+async function extractTextFromFile(
+  fileUrl: string,
+  apiKey: string,
   systemPrompt: string
 ): Promise<string> {
   try {
-    console.log("Processing ZIP URL for enhanced OCR:", zipUrl);
+    console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Fetch the ZIP file with a longer timeout (30 seconds)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // Extract file extension without query parameters
+    const urlWithoutParams = fileUrl.split('?')[0];
+    const fileExtension = urlWithoutParams.split('.').pop()?.toLowerCase();
     
-    const zipResponse = await fetch(zipUrl, { 
-      signal: controller.signal,
-      headers: { 'Cache-Control': 'no-cache' }
-    });
-    clearTimeout(timeoutId);
+    const supportedImageFormats = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+    const isPdf = fileExtension === 'pdf';
+    const isValidImageFormat = supportedImageFormats.includes(fileExtension || '');
     
-    if (!zipResponse.ok) {
-      console.error("Failed to fetch ZIP file:", zipResponse.statusText);
-      throw new Error("Failed to fetch ZIP file: " + zipResponse.statusText);
+    if (!isPdf && !isValidImageFormat) {
+      throw new Error(`Unsupported file format: ${fileExtension}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
     }
     
-    const zipData = await zipResponse.arrayBuffer();
-    console.log("Successfully downloaded ZIP file, size:", zipData.byteLength);
-    
-    // Extract PNG files from ZIP
-    const zip = await JSZip.loadAsync(zipData);
-    const imagePromises = [];
-    const imageFiles: ImageFile[] = [];
-    
-    // Process each file in the ZIP
-    zip.forEach((relativePath, zipEntry) => {
-      if (!zipEntry.dir && (relativePath.endsWith('.png') || relativePath.endsWith('.jpg'))) {
-        const promise = zipEntry.async('base64').then(base64Data => {
-          const imgFormat = relativePath.endsWith('.png') ? 'png' : 'jpeg';
-          imageFiles.push({
-            name: relativePath,
-            dataUrl: `data:image/${imgFormat};base64,${base64Data}`
-          });
-        });
-        imagePromises.push(promise);
-      }
-    });
-    
-    await Promise.all(imagePromises);
-    
-    // Sort images by filename (ensures page order)
-    imageFiles.sort((a, b) => a.name.localeCompare(b.name));
-    
-    console.log(`Successfully extracted ${imageFiles.length} images from ZIP`);
-    
-    if (imageFiles.length === 0) {
-      throw new Error("No image files found in ZIP");
-    }
-    
-    // Use GPT-4o's vision capabilities for OCR on all pages
-    console.log("Performing OCR with GPT-4o on extracted images...");
-    
-    const messages = [
-      { role: 'system', content: systemPrompt }
-    ];
-    
-    // Create user message with text and images
-    const userContent = [
-      { 
-        type: 'text', 
-        text: `Extract all the text from these ${imageFiles.length} pages, focusing on identifying question numbers and their corresponding content:` 
-      }
-    ];
-    
-    // Add each image to the request (up to 20 images)
-    const maxImages = Math.min(imageFiles.length, 20);
-    for (let i = 0; i < maxImages; i++) {
-      userContent.push({ 
-        type: 'image_url', 
-        image_url: { 
-          url: imageFiles[i].dataUrl,
-          detail: "high" 
-        } 
-      });
-    }
-    
-    messages.push({ role: 'user', content: userContent });
-    
-    // Increase timeout for OpenAI API call (120 seconds)
-    const ocrController = new AbortController();
-    const ocrTimeoutId = setTimeout(() => ocrController.abort(), 120000);
-    
-    const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call the OpenAI API for vision OCR
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      signal: ocrController.signal,
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        messages: messages,
-        temperature: 0.2,
+        messages: [
+          { 
+            role: 'system', 
+            content: systemPrompt
+          },
+          { 
+            role: 'user', 
+            content: [
+              { type: 'text', text: 'Extract all text from this document:' },
+              { 
+                type: 'image_url', 
+                image_url: {
+                  url: fileUrl,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
         max_tokens: 4000,
+        temperature: 0
       }),
     });
-    
-    clearTimeout(ocrTimeoutId);
 
-    if (!ocrResponse.ok) {
-      const errorText = await ocrResponse.text();
-      console.error("OpenAI OCR error:", errorText);
-      throw new Error("OCR extraction failed: " + errorText);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("OpenAI API error:", JSON.stringify(errorData));
+      
+      // Check for specific error types and provide more descriptive errors
+      if (errorData.error?.code === 'invalid_image_format') {
+        throw new Error(`OCR extraction failed: The image format is not supported. Please upload PNG, JPEG, GIF, or WEBP files.`);
+      } else if (errorData.error?.message?.includes('unsupported image')) {
+        throw new Error(`OCR extraction failed: ${errorData.error.message}`);
+      } else {
+        throw new Error(`OCR extraction failed: ${JSON.stringify(errorData)}`);
+      }
     }
     
-    const ocrResult = await ocrResponse.json();
-    const extractedOcrText = ocrResult.choices[0]?.message?.content;
+    const data = await response.json();
+    const extractedText = data.choices[0].message.content;
     
-    console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-    console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+    console.log(`Successfully extracted ${extractedText.length} characters of text`);
     
-    return extractedOcrText;
+    return extractedText;
   } catch (error) {
-    console.error("Error processing ZIP file:", error);
+    console.error("Error in extractTextFromFile:", error);
     throw error;
   }
 }
 
 /**
- * Extracts text from a single image or PDF file using GPT-4o
+ * Validate ZIP file before attempting to extract text
+ * This is a lightweight check to ensure the ZIP contains valid images
  */
-export async function extractTextFromFile(
-  fileUrl: string, 
-  apiKey: string, 
-  systemPrompt: string,
-  userPrompt?: string
+async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean> {
+  try {
+    console.log(`Validating ZIP file: ${zipUrl}`);
+    
+    // Send a quick check request to OpenAI
+    const validationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an image validator. Simply respond with "valid" if you can see any valid image content, otherwise respond with "invalid".'
+          },
+          { 
+            role: 'user', 
+            content: [
+              { type: 'text', text: 'Is this a valid image?' },
+              { 
+                type: 'image_url', 
+                image_url: {
+                  url: zipUrl,
+                  detail: 'low'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 50,
+        temperature: 0
+      }),
+    });
+    
+    if (!validationResponse.ok) {
+      const errorData = await validationResponse.json();
+      console.error("ZIP validation failed:", JSON.stringify(errorData));
+      
+      if (errorData.error?.code === 'invalid_image_format') {
+        console.error("ZIP contains unsupported image formats");
+        return false;
+      }
+      
+      throw new Error(`ZIP validation failed: ${JSON.stringify(errorData.error || errorData)}`);
+    }
+    
+    const validationResult = await validationResponse.json();
+    const validationText = validationResult.choices[0].message.content.toLowerCase();
+    
+    const isValid = validationText.includes('valid') && !validationText.includes('invalid');
+    console.log(`ZIP validation result: ${isValid ? 'Valid' : 'Invalid'}`);
+    
+    return isValid;
+  } catch (error) {
+    console.error("Error validating ZIP file:", error);
+    return false;
+  }
+}
+
+/**
+ * Extract text from a ZIP file containing multiple pages
+ */
+async function extractTextFromZip(
+  zipUrl: string,
+  apiKey: string,
+  systemPrompt: string
 ): Promise<string> {
   try {
-    console.log("Processing file for OCR extraction:", fileUrl);
+    console.log(`Extracting text from ZIP file: ${zipUrl}`);
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    // First validate that the ZIP file contains supported images
+    const isValid = await validateZipFile(zipUrl, apiKey);
+    if (!isValid) {
+      throw new Error("The ZIP file contains unsupported image formats. Please ensure all images are PNG, JPG, JPEG, GIF, or WEBP.");
+    }
     
-    const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
-    
-    const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // If validation passed, extract the text
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { 
+            role: 'system', 
+            content: systemPrompt
+          },
+          { 
+            role: 'user', 
+            content: [
+              { type: 'text', text: 'Extract all text from this multi-page document:' },
+              { 
+                type: 'image_url', 
+                image_url: {
+                  url: zipUrl,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("OpenAI API error when extracting from ZIP:", JSON.stringify(errorData));
+      
+      // Provide fallback using individual page extraction if available
+      throw new Error(`OCR extraction failed for ZIP file: ${JSON.stringify(errorData.error)}`);
+    }
+    
+    const data = await response.json();
+    const extractedText = data.choices[0].message.content;
+    
+    console.log(`Successfully extracted ${extractedText.length} characters of text from ZIP`);
+    
+    return extractedText;
+  } catch (error) {
+    console.error("Error in extractTextFromZip:", error);
+    throw error;
+  }
+}
+
+/**
+ * Extract structured questions from question paper text
+ */
+async function extractQuestionsFromPaper(
+  documentUrl: string,
+  apiKey: string,
+  extractedText: string
+): Promise<any> {
+  try {
+    console.log("Extracting structured questions from question paper");
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { 
+            role: 'system', 
+            content: Prompts.questionExtractor
+          },
+          { 
+            role: 'user', 
+            content: `Extract all the questions from this question paper:
+            
+            ${extractedText}`
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Question extraction API error:", errorText);
+      throw new Error(`Question extraction failed: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    const result = JSON.parse(data.choices[0].message.content);
+    
+    if (!result.questions || !Array.isArray(result.questions)) {
+      console.error("Invalid question extraction result:", result);
+      throw new Error("Failed to extract questions: Invalid result format");
+    }
+    
+    console.log(`Successfully extracted ${result.questions.length} questions from text`);
+    
+    return result;
+  } catch (error) {
+    console.error("Error extracting questions from text:", error);
+    // Return an empty questions array as fallback
+    return { questions: [] };
+  }
+}
+
+/**
+ * Match student answers to questions using semantic matching
+ */
+export async function matchAnswersToQuestions(
+  apiKey: string,
+  questionText: string,
+  answerText: string
+): Promise<any> {
+  try {
+    console.log("Starting semantic matching of answers to questions");
+    
+    const systemPrompt = Prompts.semanticMatching;
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
@@ -169,40 +304,196 @@ export async function extractTextFromFile(
           { role: 'system', content: systemPrompt },
           { 
             role: 'user', 
-            content: [
-              { type: 'text', text: promptText },
-              { 
-                type: 'image_url', 
-                image_url: { 
-                  url: fileUrl,
-                  detail: "high" 
-                } 
-              }
-            ] 
+            content: `Match the student's answers to the corresponding questions.
+            
+            QUESTION PAPER:
+            ${questionText}
+            
+            STUDENT ANSWER:
+            ${answerText}
+            
+            Return your analysis as a JSON object.`
           }
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        response_format: { type: "json_object" }
       }),
     });
-    
-    clearTimeout(timeoutId);
 
-    if (!ocrResponse.ok) {
-      const errorText = await ocrResponse.text();
-      console.error("OpenAI OCR error:", errorText);
-      throw new Error("OCR extraction failed: " + errorText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Semantic matching API error:", errorText);
+      throw new Error(`Semantic matching failed: ${errorText}`);
     }
     
-    const ocrResult = await ocrResponse.json();
-    const extractedOcrText = ocrResult.choices[0]?.message?.content;
+    const data = await response.json();
+    const matchingResult = JSON.parse(data.choices[0].message.content);
     
-    console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-    console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+    console.log(`Found ${matchingResult?.matches?.length || 0} question-answer matches`);
     
-    return extractedOcrText;
+    return matchingResult;
   } catch (error) {
-    console.error("Error during OCR processing:", error);
+    console.error("Error in matchAnswersToQuestions:", error);
     throw error;
   }
 }
+
+/**
+ * Extract questions from question paper text
+ */
+export async function extractQuestionsFromText(
+  apiKey: string,
+  questionPaperText: string
+): Promise<any[]> {
+  try {
+    console.log("Extracting structured questions from question paper text");
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { 
+            role: 'system', 
+            content: Prompts.questionExtractor
+          },
+          { 
+            role: 'user', 
+            content: `Extract all the questions from this question paper:
+            
+            ${questionPaperText}`
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Question extraction API error:", errorText);
+      throw new Error(`Question extraction failed: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    const result = JSON.parse(data.choices[0].message.content);
+    
+    if (!result.questions || !Array.isArray(result.questions)) {
+      console.error("Invalid question extraction result:", result);
+      throw new Error("Failed to extract questions: Invalid result format");
+    }
+    
+    console.log(`Successfully extracted ${result.questions.length} questions from text`);
+    
+    return result.questions;
+  } catch (error) {
+    console.error("Error extracting questions from text:", error);
+    return [];
+  }
+}
+
+/**
+ * Evaluate a paper using extracted questions, answer key, and student answers
+ */
+export async function evaluateWithExtractedQuestions(
+  apiKey: string,
+  extractedQuestions: any[],
+  answerKeyText: string | null,
+  studentAnswerText: string,
+  studentInfo: any
+): Promise<any> {
+  try {
+    console.log(`Evaluating with ${extractedQuestions.length} extracted questions`);
+    
+    // Prepare evaluation prompt
+    const evalPrompt = `You are an AI evaluator specialized in grading student answers.
+    
+    STUDENT INFORMATION:
+    ${JSON.stringify(studentInfo, null, 2)}
+    
+    QUESTIONS FROM QUESTION PAPER:
+    ${JSON.stringify(extractedQuestions, null, 2)}
+    
+    ${answerKeyText ? `ANSWER KEY:\n${answerKeyText}` : "No answer key provided. Use your best judgment for evaluation."}
+    
+    STUDENT'S ANSWER:
+    ${studentAnswerText}
+    
+    Compare each student answer against the corresponding question and the answer key (if provided).
+    If no answer key is provided, evaluate based on expected knowledge for this subject and grade level.
+    
+    For each question:
+    1. Find the student's answer that corresponds to this question
+    2. Evaluate the accuracy and completeness of the answer
+    3. Assign a fair score based on the total marks for the question
+    4. Provide specific feedback on strengths and weaknesses
+    
+    Format your evaluation as a JSON object with this structure:
+    {
+      "student_name": "${studentInfo?.name || 'Unknown'}",
+      "roll_no": "${studentInfo?.roll_number || 'Unknown'}",
+      "class": "${studentInfo?.class || 'Unknown'}",
+      "subject": "${studentInfo?.subject || 'Unknown'}",
+      "answers": [
+        {
+          "question_no": "1",
+          "question": "Question text",
+          "answer": "Student's answer for this question",
+          "expected_answer": "Expected answer based on answer key or your knowledge",
+          "score": [5, 10],  // [awarded score, maximum score]
+          "remarks": "Detailed feedback on the answer",
+          "confidence": 0.9,  // confidence in evaluation
+          "match_method": "direct_numbering" or "semantic_matching"
+        },
+        // Repeat for all questions
+      ],
+      "summary": {
+        "totalScore": [25, 50],  // [total awarded, total possible]
+        "percentage": 50,
+        "strengths": ["Strength 1", "Strength 2"],
+        "areas_for_improvement": ["Area 1", "Area 2"]
+      }
+    }`;
+    
+    // Call OpenAI API for evaluation
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: Prompts.questionBasedEvaluation },
+          { role: 'user', content: evalPrompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Evaluation API error:", errorText);
+      throw new Error(`Evaluation failed: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    const evaluation = JSON.parse(data.choices[0].message.content);
+    
+    console.log("Evaluation completed successfully");
+    
+    return evaluation;
+  } catch (error) {
+    console.error("Error in evaluateWithExtractedQuestions:", error);
+    throw error;
+  }
+}
+
+// Export helper functions for document processor
+export { extractTextFromFile, extractTextFromZip, extractQuestionsFromPaper };

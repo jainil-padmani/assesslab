@@ -1,294 +1,377 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { extractTextFromZip, extractTextFromFile } from './ocr.ts';
-import { Prompts } from './prompts.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface DocumentInfo {
-  url: string;
-  zip_url?: string;
-  topic?: string;
-  text?: string;
-  isOcrProcessed?: boolean;
-  zipProcessed?: boolean;
-  ocrError?: string;
-}
+import { extractTextFromFile, extractTextFromZip, extractQuestionsFromPaper } from './ocr.ts';
 
 /**
- * Helper to add cache-busting parameters to URLs
+ * Adds a cache-busting parameter to a URL to prevent caching issues
  */
 export function addCacheBuster(url: string): string {
   if (!url) return url;
-  const cacheBuster = `cache=${Date.now()}`;
-  return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
+  
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}cache=${Date.now()}`;
 }
 
 /**
- * Process the student answer sheet document
+ * Safely extracts the file extension from a URL without query parameters
  */
-export async function processStudentAnswer(
-  apiKey: string,
-  studentAnswer: DocumentInfo,
-  testId: string,
-  studentInfo: any
-): Promise<DocumentInfo> {
+function getFileExtension(url: string): string {
+  if (!url) return '';
+  
+  // Remove any query parameters
+  const urlWithoutParams = url.split('?')[0];
+  // Get the last part after the last dot
+  return urlWithoutParams.split('.').pop()?.toLowerCase() || '';
+}
+
+/**
+ * Validates if a file URL points to a supported format
+ */
+function isValidFileFormat(url: string): boolean {
+  const ext = getFileExtension(url);
+  const supportedFormats = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+  return supportedFormats.includes(ext);
+}
+
+/**
+ * Processes a student answer for evaluation
+ */
+export async function processStudentAnswer(apiKey: string, studentAnswer: any, testId: string, studentInfo: any): Promise<any> {
   try {
-    let processedStudentAnswer = { ...studentAnswer };
-    let extractedStudentText = null;
+    console.log(`Processing student answer for ${studentInfo?.name || 'unknown student'}`);
     
-    // If a ZIP URL is available, prefer that for better quality OCR
+    // Initialize result object
+    const result: any = {
+      source: "unknown",
+      text: ""
+    };
+    
+    // If ZIP URL is available (preferred for batch processing of PNGs)
     if (studentAnswer?.zip_url) {
-      console.log("Found ZIP URL for enhanced OCR processing:", studentAnswer.zip_url);
+      console.log(`Processing student answer from ZIP URL: ${studentAnswer.zip_url}`);
+      result.source = "zip";
       
       try {
-        extractedStudentText = await extractTextFromZip(
-          addCacheBuster(studentAnswer.zip_url),
+        // Use OCR to extract text from the ZIP file of PNG images
+        result.text = await extractTextFromZip(
+          studentAnswer.zip_url,
           apiKey,
-          Prompts.answerSheet
+          "Extract all text from this student answer, preserving numbering and format."
         );
         
-        // Update the student answer with OCR text
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: extractedStudentText,
-          isOcrProcessed: true,
-          testId: testId,
-          zipProcessed: true
-        };
+        console.log(`Successfully extracted ${result.text.length} characters from student answer ZIP`);
       } catch (zipError) {
-        console.error("Error processing ZIP file:", zipError);
-        extractedStudentText = "Error processing ZIP file: " + zipError.message;
+        console.error("Error extracting text from ZIP:", zipError);
         
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: `Error processing ZIP file: ${zipError.message}`,
-          isOcrProcessed: false,
-          zipProcessed: false,
-          ocrError: zipError.message
-        };
+        // If we have direct URL, try that as fallback
+        if (studentAnswer?.url) {
+          console.log("Falling back to direct URL for student answer");
+          result.source = "url_fallback";
+          
+          // Validate file format before proceeding
+          if (!isValidFileFormat(studentAnswer.url)) {
+            throw new Error(`Unsupported file format: ${getFileExtension(studentAnswer.url)}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+          }
+          
+          try {
+            result.text = await extractTextFromFile(
+              studentAnswer.url,
+              apiKey,
+              "Extract all text from this student answer, preserving numbering and format."
+            );
+          } catch (fallbackError) {
+            console.error("Error with fallback extraction:", fallbackError);
+            throw fallbackError;
+          }
+        } else {
+          throw zipError;
+        }
       }
-    } 
-    // Process PDF or image files directly if no ZIP is available
-    else if (studentAnswer?.url && (
-        studentAnswer.url.includes('.jpg') || 
-        studentAnswer.url.includes('.jpeg') || 
-        studentAnswer.url.includes('.png') ||
-        studentAnswer.url.includes('.pdf')
-    )) {
-      console.log("Detected document/image answer sheet, performing OCR with GPT-4o...");
-      console.log("URL:", studentAnswer.url);
+    }
+    // If only direct URL is available
+    else if (studentAnswer?.url) {
+      console.log(`Processing student answer from direct URL: ${studentAnswer.url}`);
+      result.source = "url";
+      
+      // Validate file format before proceeding
+      if (!isValidFileFormat(studentAnswer.url)) {
+        throw new Error(`Unsupported file format: ${getFileExtension(studentAnswer.url)}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+      }
       
       try {
-        // For PDFs, provide a recommendation about using ZIP processing
-        if (studentAnswer.url.includes('.pdf')) {
-          console.log("PDF detected. For better results, please use ZIP processing path.");
-          extractedStudentText = "PDF detected. For better results, please regenerate the assessment to use enhanced OCR via ZIP processing.";
-          processedStudentAnswer = {
-            ...studentAnswer,
-            text: extractedStudentText,
-            isOcrProcessed: false
-          };
-        } else {
-          // For direct image processing (JPEG, PNG)
-          const userPrompt = `This is a student's answer sheet for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:`;
-          
-          extractedStudentText = await extractTextFromFile(
-            addCacheBuster(studentAnswer.url),
-            apiKey, 
-            Prompts.answerSheet,
-            userPrompt
-          );
-          
-          // Update the student answer with OCR text
-          processedStudentAnswer = {
-            ...studentAnswer,
-            text: extractedStudentText,
-            isOcrProcessed: true,
-            testId: testId
-          };
-        }
-      } catch (ocrError) {
-        console.error("Error during OCR processing:", ocrError);
-        
-        // Create a placeholder text if OCR fails
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: "Error processing document. Technical details: " + ocrError.message,
-          isOcrProcessed: false,
-          ocrError: ocrError.message
-        };
-      }
-    }
-    
-    // Update the database with extracted text if available
-    if (extractedStudentText && studentInfo?.id) {
-      try {
-        // Create Supabase client
-        const supabaseClient = createClient(
-          Deno.env.get('SUPABASE_URL') || '',
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-          { auth: { persistSession: false } }
+        result.text = await extractTextFromFile(
+          studentAnswer.url,
+          apiKey,
+          "Extract all text from this student answer, preserving numbering and format."
         );
         
-        // Find and update the assessment with the extracted text
-        const { error } = await supabaseClient
-          .from('test_answers')
-          .update({ text_content: extractedStudentText })
-          .eq('student_id', studentInfo.id)
-          .eq('test_id', testId);
-          
-        if (error) {
-          console.error("Error updating test_answers with extracted text:", error);
-        } else {
-          console.log("Successfully updated test_answers with extracted text");
-        }
-      } catch (dbError) {
-        console.error("Error connecting to database:", dbError);
+        console.log(`Successfully extracted ${result.text.length} characters from student answer URL`);
+      } catch (urlError) {
+        console.error("Error extracting text from URL:", urlError);
+        throw urlError;
       }
     }
+    // If text is directly provided
+    else if (studentAnswer?.text) {
+      console.log("Using provided text for student answer");
+      result.source = "text";
+      result.text = studentAnswer.text;
+    }
+    else {
+      throw new Error("No student answer provided. Please upload an answer sheet.");
+    }
     
-    return processedStudentAnswer;
+    return result;
   } catch (error) {
     console.error("Error processing student answer:", error);
-    return { 
-      ...studentAnswer,
-      text: "Error processing document: " + error.message,
-      isOcrProcessed: false,
-      ocrError: error.message
-    };
+    throw error;
   }
 }
 
 /**
- * Process the question paper document
+ * Processes a question paper for evaluation
  */
 export async function processQuestionPaper(
-  apiKey: string,
-  questionPaper: DocumentInfo,
-  testId: string
-): Promise<{ processedDocument: DocumentInfo, extractedText: string | null }> {
+  apiKey: string, 
+  questionPaper: any, 
+  testId: string,
+  existingOcrText?: string | null
+): Promise<{ 
+  processedDocument: any, 
+  extractedText: string,
+  questions: any[] 
+}> {
   try {
-    let processedQuestionPaper = { ...questionPaper };
-    let extractedQuestionText = null;
+    console.log(`Processing question paper for test ID ${testId}`);
     
-    if (questionPaper?.url && (
-        questionPaper.url.includes('.pdf') ||
-        questionPaper.url.includes('.jpg') || 
-        questionPaper.url.includes('.jpeg') || 
-        questionPaper.url.includes('.png')
-    )) {
-      console.log("Processing question paper for text extraction:", questionPaper.url);
-      
-      try {
-        const userPrompt = `This is a question paper for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their content:`;
+    // Initialize result
+    const result: any = {
+      source: "unknown",
+      text: ""
+    };
+    
+    let extractedText = existingOcrText || "";
+    
+    // If we don't have existing OCR text, extract it
+    if (!extractedText) {
+      // If ZIP URL is available (preferred for PNG batch processing)
+      if (questionPaper?.zip_url) {
+        console.log(`Processing question paper from ZIP URL: ${questionPaper.zip_url}`);
+        result.source = "zip";
         
-        extractedQuestionText = await extractTextFromFile(
-          addCacheBuster(questionPaper.url),
-          apiKey, 
-          Prompts.questionPaper,
-          userPrompt
-        );
-        
-        processedQuestionPaper = {
-          ...questionPaper,
-          text: extractedQuestionText,
-          isOcrProcessed: true
-        };
-      } catch (ocrError) {
-        console.error("Error during question paper OCR processing:", ocrError);
-        
-        processedQuestionPaper = {
-          ...questionPaper,
-          text: "Error processing question paper document.",
-          isOcrProcessed: false,
-          ocrError: ocrError.message
-        };
+        try {
+          extractedText = await extractTextFromZip(
+            questionPaper.zip_url,
+            apiKey,
+            "Extract all text from this question paper, preserving question numbering and format."
+          );
+        } catch (zipError) {
+          console.error("Error extracting text from ZIP:", zipError);
+          
+          // Fallback to direct URL if available
+          if (questionPaper?.url) {
+            console.log("Falling back to direct URL for question paper");
+            result.source = "url_fallback";
+            
+            try {
+              extractedText = await extractTextFromFile(
+                questionPaper.url,
+                apiKey,
+                "Extract all text from this question paper, preserving question numbering and format."
+              );
+            } catch (fallbackError) {
+              console.error("Error with fallback extraction:", fallbackError);
+              throw fallbackError;
+            }
+          } else {
+            throw zipError;
+          }
+        }
       }
+      // If only direct URL is available
+      else if (questionPaper?.url) {
+        console.log(`Processing question paper from direct URL: ${questionPaper.url}`);
+        result.source = "url";
+        
+        try {
+          extractedText = await extractTextFromFile(
+            questionPaper.url,
+            apiKey,
+            "Extract all text from this question paper, preserving question numbering and format."
+          );
+        } catch (urlError) {
+          console.error("Error extracting text from URL:", urlError);
+          throw urlError;
+        }
+      }
+      // If text is directly provided
+      else if (questionPaper?.text) {
+        console.log("Using provided text for question paper");
+        result.source = "text";
+        extractedText = questionPaper.text;
+      }
+      else {
+        throw new Error("No question paper provided.");
+      }
+    } else {
+      console.log("Using existing OCR text for question paper");
+      result.source = "existing_ocr";
+    }
+    
+    result.text = extractedText;
+    
+    // Extract structured questions from the question paper text
+    console.log("Extracting structured questions from question paper");
+    let extractedQuestions: any[] = [];
+    
+    try {
+      const questionExtraction = await extractQuestionsFromPaper(
+        questionPaper?.url || "",
+        apiKey,
+        extractedText
+      );
+      
+      extractedQuestions = questionExtraction.questions || [];
+      console.log(`Extracted ${extractedQuestions.length} questions from question paper`);
+    } catch (extractionError) {
+      console.error("Error extracting questions:", extractionError);
+      extractedQuestions = [];
     }
     
     return { 
-      processedDocument: processedQuestionPaper, 
-      extractedText: extractedQuestionText 
+      processedDocument: result, 
+      extractedText: extractedText,
+      questions: extractedQuestions
     };
   } catch (error) {
     console.error("Error processing question paper:", error);
-    return { 
-      processedDocument: {
-        ...questionPaper,
-        text: "Error processing document: " + error.message,
-        isOcrProcessed: false,
-        ocrError: error.message
-      }, 
-      extractedText: null 
-    };
+    throw error;
   }
 }
 
 /**
- * Process the answer key document
+ * Processes an answer key for evaluation
  */
 export async function processAnswerKey(
-  apiKey: string,
-  answerKey: DocumentInfo,
-  testId: string
-): Promise<{ processedDocument: DocumentInfo, extractedText: string | null }> {
+  apiKey: string, 
+  answerKey: any, 
+  testId: string,
+  existingOcrText?: string | null
+): Promise<{ 
+  processedDocument: any, 
+  extractedText: string 
+}> {
   try {
-    let processedAnswerKey = { ...answerKey };
-    let extractedAnswerKeyText = null;
+    console.log(`Processing answer key for test ID ${testId}`);
     
-    if (answerKey?.url && (
-        answerKey.url.includes('.pdf') ||
-        answerKey.url.includes('.jpg') || 
-        answerKey.url.includes('.jpeg') || 
-        answerKey.url.includes('.png')
-    )) {
-      console.log("Processing answer key for text extraction:", answerKey.url);
-      
-      try {
-        const userPrompt = `This is an answer key for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:`;
+    // Initialize result
+    const result: any = {
+      source: "unknown",
+      text: ""
+    };
+    
+    let extractedText = existingOcrText || "";
+    
+    // If we don't have existing OCR text, extract it
+    if (!extractedText) {
+      // If ZIP URL is available (preferred for PNG batch processing)
+      if (answerKey?.zip_url) {
+        console.log(`Processing answer key from ZIP URL: ${answerKey.zip_url}`);
+        result.source = "zip";
         
-        extractedAnswerKeyText = await extractTextFromFile(
-          addCacheBuster(answerKey.url),
-          apiKey, 
-          Prompts.answerKey,
-          userPrompt
-        );
-        
-        processedAnswerKey = {
-          ...answerKey,
-          text: extractedAnswerKeyText,
-          isOcrProcessed: true
-        };
-      } catch (ocrError) {
-        console.error("Error during answer key OCR processing:", ocrError);
-        
-        processedAnswerKey = {
-          ...answerKey,
-          text: "Error processing answer key document.",
-          isOcrProcessed: false,
-          ocrError: ocrError.message
-        };
+        try {
+          extractedText = await extractTextFromZip(
+            answerKey.zip_url,
+            apiKey,
+            "Extract all text from this answer key, preserving answer numbering and format."
+          );
+        } catch (zipError) {
+          console.error("Error extracting text from ZIP:", zipError);
+          
+          // Fallback to direct URL if available
+          if (answerKey?.url) {
+            console.log("Falling back to direct URL for answer key");
+            result.source = "url_fallback";
+            
+            try {
+              extractedText = await extractTextFromFile(
+                answerKey.url,
+                apiKey,
+                "Extract all text from this answer key, preserving answer numbering and format."
+              );
+            } catch (fallbackError) {
+              console.error("Error with fallback extraction:", fallbackError);
+              throw fallbackError;
+            }
+          } else {
+            throw zipError;
+          }
+        }
       }
+      // If only direct URL is available
+      else if (answerKey?.url) {
+        console.log(`Processing answer key from direct URL: ${answerKey.url}`);
+        result.source = "url";
+        
+        try {
+          extractedText = await extractTextFromFile(
+            answerKey.url,
+            apiKey,
+            "Extract all text from this answer key, preserving answer numbering and format."
+          );
+        } catch (urlError) {
+          console.error("Error extracting text from URL:", urlError);
+          throw urlError;
+        }
+      }
+      // If text is directly provided
+      else if (answerKey?.text) {
+        console.log("Using provided text for answer key");
+        result.source = "text";
+        extractedText = answerKey.text;
+      }
+      else {
+        // Answer key might be optional in some cases
+        console.log("No answer key provided. Evaluation will be based solely on the question paper.");
+        result.source = "none";
+        extractedText = "";
+      }
+    } else {
+      console.log("Using existing OCR text for answer key");
+      result.source = "existing_ocr";
     }
     
+    result.text = extractedText;
+    
     return { 
-      processedDocument: processedAnswerKey, 
-      extractedText: extractedAnswerKeyText 
+      processedDocument: result, 
+      extractedText: extractedText 
     };
   } catch (error) {
     console.error("Error processing answer key:", error);
-    return { 
-      processedDocument: {
-        ...answerKey, 
-        text: "Error processing document: " + error.message,
-        isOcrProcessed: false,
-        ocrError: error.message
-      }, 
-      extractedText: null 
-    };
+    throw error;
   }
+}
+
+/**
+ * Process an evaluation result for returning to client
+ */
+export function processEvaluation(
+  evaluation: any,
+  testId: string,
+  studentAnswer: any,
+  studentAnswerText: string,
+  questionPaperText: string,
+  answerKeyText: string
+): any {
+  // Add extracted text to the evaluation for future reference
+  const processedEvaluation = {
+    ...evaluation,
+    testId,
+    text: studentAnswerText,
+    questionPaper: questionPaperText,
+    answerKey: answerKeyText,
+    processed_at: new Date().toISOString()
+  };
+  
+  return processedEvaluation;
 }

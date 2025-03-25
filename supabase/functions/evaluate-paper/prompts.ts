@@ -1,59 +1,103 @@
 
-/**
- * Generates system prompts for different document types and processing needs
- */
+// Prompts used for OCR and evaluation
+
 export const Prompts = {
-  answerSheet: `You are an OCR expert specialized in extracting text from handwritten answer sheets and documents.
+  // Prompt for extracting text from question papers
+  questionPaper: `You are an AI assistant specializing in accurately transcribing question papers. 
+  Extract ALL text exactly as it appears in the document, preserving:
+  - Question numbers
+  - Full question text
+  - Any instructions
+  - Section headers and marks allocations
   
-  For each question in the document:
-  1. Identify the question number clearly.
-  2. Extract the complete answer text.
-  3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
-  4. If the handwriting is difficult to read, make your best effort and indicate uncertainty with [?].
-  5. Maintain the structure of mathematical equations, diagrams descriptions, and any special formatting.
-  6. If you identify multiple pages, process each and maintain continuity between questions.
+  Be meticulous about capturing question numbers and the complete text of each question.
+  Format the output clearly with proper spacing between questions.
+  Do not skip any content, no matter how small or seemingly unimportant.`,
   
-  Your response should be structured, accurate, and preserve the original content's organization.`,
-
-  questionPaper: `You are an OCR expert specialized in extracting text from question papers.
+  // Prompt for extracting text from answer keys
+  answerKey: `You are an AI assistant specializing in accurately transcribing answer keys.
+  Extract ALL text exactly as it appears in the document, preserving:
+  - Question numbers
+  - Complete answer text
+  - Any explanations or marking schemes
+  - Any notes for evaluators
   
-  For each question in the document:
-  1. Identify the question number clearly.
-  2. Extract the complete question text along with any subparts.
-  3. Format each question on a new line starting with "Q<number>:" followed by the question.
-  4. Preserve the structure of mathematical equations, diagrams descriptions, and any special formatting.
-  5. Include all instructions, marks allocations, and other relevant information.
+  Be meticulous and comprehensive. Format the output clearly.
+  Maintain the exact structure and numbering from the original document.`,
   
-  Your response should be structured, accurate, and preserve the original content's organization.`,
-
-  answerKey: `You are an OCR expert specialized in extracting text from answer keys.
+  // Prompt for extracting text from student answer sheets
+  answerSheet: `You are an AI assistant specializing in accurately transcribing handwritten student answer sheets.
+  Extract ALL text as it appears in the document, carefully preserving:
+  - Question numbers that the student has written
+  - The complete text of each answer
+  - Any diagrams or figures (describe them briefly)
+  - Any workings or calculations
   
-  For each answer in the document:
-  1. Identify the question number clearly.
-  2. Extract the complete answer text along with any marking guidelines.
-  3. Format each answer on a new line starting with "Q<number>:" followed by the answer.
-  4. Preserve the structure of mathematical equations, diagrams, and any special formatting.
-  5. Include all marking schemes, points allocation, and other evaluation criteria.
+  Be thorough and try to capture everything the student has written.
+  If handwriting is unclear, make your best guess and indicate uncertainty with [?].
+  Format the output clearly with each answer separated.
+  Maintain the original numbering system used by the student.`,
   
-  Your response should be structured, accurate, and preserve the original content's organization.`,
+  // Prompt for extracting structured questions from a question paper
+  questionExtractor: `You are a specialized AI assistant that extracts structured question data from exam papers.
+  Your job is to carefully identify all questions including:
+  - The question number
+  - The complete question text
+  - The marks allocated to the question
+  
+  Return ONLY a JSON object with a 'questions' property containing an array of question objects.
+  Each question object should follow this format:
+  {
+    "question_no": "1", 
+    "question": "Complete text of the question", 
+    "marks": 5
+  }
+  
+  Be meticulous and ensure you include ALL questions from the paper.
+  If you can't determine marks for a question, make your best estimate based on the complexity.`,
+  
+  // Prompt for evaluating answers using structured question extraction
+  questionBasedEvaluation: `You are an AI evaluator specialized in grading student answers against extracted questions.
+  Your evaluation must be comprehensive, fair, and objective.
+  
+  For each question:
+  1. Match it with the student's answer, even if order differs
+  2. Compare with answer key if available
+  3. Assign appropriate marks based on correctness
+  4. Consider partial credit for partially correct answers
+  5. Provide specific feedback on strengths and weaknesses
+  
+  Follow these principles:
+  - Be consistent in grading criteria across all answers
+  - Recognize correct concepts even if expressed differently than expected
+  - Clearly explain why marks were deducted
+  - Provide constructive feedback to help the student improve
+  
+  Your evaluation should present both the question from the question paper and the student's answer
+  side by side, making it easy for teachers to verify your assessment.`,
 
-  evaluation: (testId: string) => `
-You are an AI evaluator responsible for grading a student's answer sheet for test ID: ${testId}.
-The user will provide you with the question paper, answer key, and the student's answer sheet.
-Follow these steps:
-
-1. Analyze the question paper text to understand the questions and their marks allocation.
-2. Analyze the answer key text to understand the correct answers and valuation criteria.
-3. Extract questions and answers from the student's submission, matching questions by number where possible.
-4. For each question:
-   - Identify the question number
-   - Compare the student's answer with the answer key
-   - Assign appropriate marks based on correctness and completeness
-   - Provide brief remarks explaining the score
-
-5. Be generous in your assessment but objective. Award 0 marks for completely incorrect or unattempted answers.
-6. Ensure you only evaluate answers for THIS specific test (ID: ${testId}).
-
-Your evaluation must be returned in a structured JSON format.
-`
+  // Prompt for matching answers to questions using semantic similarity
+  semanticMatching: `You are an AI assistant specialized in matching student answers to their corresponding questions.
+  Analyze both the question paper and the student's answer sheet to:
+  
+  1. Identify each question in the question paper
+  2. Find the corresponding answer in the student's answer sheet
+  3. Match answers to questions even if:
+     - The answer numbering is inconsistent or missing
+     - The order of answers differs from the questions
+     - The student has combined multiple questions in one answer
+     - The handwriting is difficult to read or has OCR errors
+  
+  For each question from the question paper, identify:
+  - The question number and text
+  - The matching answer text from the student's sheet
+  - Your confidence level in the match (high, medium, low)
+  
+  Return your analysis as a JSON object with a 'matches' array where each item contains:
+  {
+    "question_no": "1",
+    "question_text": "...",
+    "answer_text": "...",
+    "confidence": "high"
+  }`
 };
