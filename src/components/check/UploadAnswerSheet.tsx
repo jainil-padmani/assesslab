@@ -49,7 +49,7 @@ export function UploadAnswerSheet({
     
     // Check file size - warn if greater than 5MB
     if (selectedFile.size > 5 * 1024 * 1024) {
-      toast.warning('File is larger than 5MB. This may cause processing issues. Consider using smaller files for better results.');
+      toast.warning('File is larger than 5MB. It will be compressed to JPEG format to improve processing speed.');
     }
     
     processFile(selectedFile);
@@ -75,7 +75,7 @@ export function UploadAnswerSheet({
       
       // Check file size - warn if greater than 5MB
       if (file.size > 5 * 1024 * 1024) {
-        toast.warning('File is larger than 5MB. This may cause processing issues. Consider using smaller files for better results.');
+        toast.warning('File is larger than 5MB. It will be compressed to JPEG format to improve processing speed.');
       }
       
       processFile(file);
@@ -93,14 +93,14 @@ export function UploadAnswerSheet({
       
       // Processing step depends on file type
       if (file.type === 'application/pdf') {
-        setProcessingStep("Converting PDF to optimized images...");
+        setProcessingStep("Converting PDF to optimized JPEG images...");
         
         // For large PDFs, display a more specific message
         if (file.size > 3 * 1024 * 1024) {
-          toast.warning('Processing large PDF (>3MB). This may take a moment and could affect OCR quality. Consider using smaller files for better results.');
+          toast.warning('Processing large PDF (>3MB). Converting to compressed JPEG images to improve OCR quality and processing speed.');
         }
       } else if (file.type.startsWith('image/')) {
-        setProcessingStep("Optimizing image for OCR...");
+        setProcessingStep("Converting to optimized JPEG for OCR...");
       }
       
       // Upload the file to storage
@@ -113,7 +113,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId || '',
         publicUrl,
-        file.type === 'application/pdf' ? 'PDF converted to optimized format for OCR' : 'Image optimized for OCR',
+        file.type === 'application/pdf' ? 'PDF converted to compressed JPEG format for OCR' : 'Image optimized to JPEG for OCR',
         zipUrl
       );
       
@@ -122,7 +122,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and optimized successfully');
+      toast.success('Answer sheet uploaded and compressed successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
@@ -208,7 +208,7 @@ export function UploadAnswerSheet({
         </p>
         
         <p className="text-xs text-muted-foreground text-center">
-          PDF, PNG, JPG (max 5MB) - Files will be optimized for OCR
+          PDF, PNG, JPG (max 5MB) - Files will be converted to JPEG for OCR
         </p>
         
         {isUploading && (

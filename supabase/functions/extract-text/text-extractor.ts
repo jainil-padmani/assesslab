@@ -1,3 +1,4 @@
+
 import JSZip from "https://esm.sh/jszip@3.10.1";
 
 /**
@@ -72,7 +73,7 @@ export async function extractTextFromZip(
     
     // Fetch the ZIP file with a longer timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // Increased to 60 seconds
     
     const zipResponse = await fetch(cleanedZipUrl, { 
       signal: controller.signal,
@@ -88,7 +89,7 @@ export async function extractTextFromZip(
     const zipData = await zipResponse.arrayBuffer();
     console.log("Successfully downloaded ZIP file, size:", zipData.byteLength);
     
-    // Extract PNG files from ZIP
+    // Extract image files from ZIP
     const zip = await JSZip.loadAsync(zipData);
     const imagePromises = [];
     const imageFiles: {name: string, dataUrl: string}[] = [];
@@ -147,8 +148,8 @@ export async function extractTextFromZip(
       }
     ];
     
-    // Add each image to the request (up to 20 images)
-    const maxImages = Math.min(imageFiles.length, 20);
+    // Add each image to the request (up to 10 images to avoid timeouts)
+    const maxImages = Math.min(imageFiles.length, 10);
     for (let i = 0; i < maxImages; i++) {
       try {
         // Ensure the image format is supported and properly formatted
@@ -171,7 +172,7 @@ export async function extractTextFromZip(
     
     // Increase timeout for OpenAI API call
     const ocrController = new AbortController();
-    const ocrTimeoutId = setTimeout(() => ocrController.abort(), 120000);
+    const ocrTimeoutId = setTimeout(() => ocrController.abort(), 180000);  // Increased to 3 minutes
     
     try {
       const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -194,6 +195,19 @@ export async function extractTextFromZip(
       if (!ocrResponse.ok) {
         const errorData = await ocrResponse.json();
         console.error("OpenAI OCR error:", JSON.stringify(errorData));
+        
+        // Detailed error handling for timeouts
+        if (errorData.error?.message?.includes("Timeout while downloading")) {
+          console.error("Timeout error downloading ZIP file. Suggesting document splitting");
+          
+          return `The document processing timed out. Please try these options:
+1. Upload smaller files (1-2 pages each)
+2. Try uploading individual JPEG images instead of a PDF
+3. If your PDF is more than 5 pages, split it into smaller documents
+
+Technical Error: ${errorData.error?.message}`;
+        }
+        
         throw new Error(`OCR extraction failed: ${errorData.error?.message || 'Unknown error'}`);
       }
       
@@ -209,10 +223,10 @@ export async function extractTextFromZip(
       console.error("Error during OpenAI API call:", apiError);
       
       // If we have multiple images, try processing in smaller batches
-      if (imageFiles.length > 5) {
+      if (imageFiles.length > 3) {
         console.log("Trying with fewer images due to API error...");
         
-        // Process only the first 5 images for simplicity
+        // Process only the first 3 images for simplicity
         const reducedUserContent = [
           { 
             type: 'text', 
@@ -221,7 +235,7 @@ export async function extractTextFromZip(
         ];
         
         // Add just a few images
-        const reducedMaxImages = Math.min(5, imageFiles.length);
+        const reducedMaxImages = Math.min(3, imageFiles.length);
         for (let i = 0; i < reducedMaxImages; i++) {
           try {
             reducedUserContent.push({ 

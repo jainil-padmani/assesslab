@@ -14,7 +14,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     const cleanedZipUrl = cleanUrlForApi(zipUrl);
     console.log(`Using cleaned ZIP URL for OCR processing: ${cleanedZipUrl}`);
     
-    // Since we're now using pre-converted PNG images in the ZIP file,
+    // Since we're now using pre-converted optimized JPEG images in the ZIP file,
     // we can directly process the ZIP file with OpenAI's vision capabilities
     
     // Extract text from the ZIP using OpenAI's vision capabilities

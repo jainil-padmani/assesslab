@@ -55,10 +55,9 @@ export async function convertImageToOptimized(imageUrl: string, useGrayscale: bo
       // Draw image with optimized settings
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       
-      // Use JPEG for best size reduction (quality 0.8)
-      // Good balance between size and quality
+      // Use JPEG for best size reduction (quality 0.75 instead of 0.8 for even better compression)
       try {
-        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
         const originalSizeEstimate = img.width * img.height * 4 / 1024; // KB estimate
         const newSizeEstimate = optimizedDataUrl.length * 0.75 / 1024; // KB estimate
         console.log(`Optimized image: ${Math.round(originalSizeEstimate)}KB → ${Math.round(newSizeEstimate)}KB (${Math.round(newSizeEstimate/originalSizeEstimate*100)}%)`);
@@ -135,8 +134,9 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
         viewport
       }).promise;
       
-      // Convert canvas to optimized JPEG image with compression
-      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Convert canvas to optimized JPEG image with higher compression
+      // Using a lower quality (0.75) for better file size reduction
+      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.75);
       
       // Convert data URL to blob
       const imageBlob = dataURLToBlob(imageDataUrl);
