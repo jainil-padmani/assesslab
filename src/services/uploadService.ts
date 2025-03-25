@@ -1,5 +1,5 @@
 
-import { uploadFiles } from "@/utils/uploadthing/uploadThingClient";
+import { startUpload } from "@/utils/uploadthing/uploadThingClient";
 import { toast } from "sonner";
 
 // Central service for handling file uploads via UploadThing
@@ -11,18 +11,18 @@ export const uploadService = {
       // Map the type to the appropriate UploadThing route
       const endpoint = type === 'handwrittenPaper' ? 'answerSheet' : type;
       
-      // Upload the file to UploadThing
-      const [res] = await uploadFiles({
+      // Upload the file to UploadThing using startUpload
+      const res = await startUpload({
         endpoint,
         files: [file],
       });
       
-      if (!res || !res.url) {
+      if (!res || !res[0] || !res[0].url) {
         throw new Error("Upload failed - no URL returned");
       }
       
-      console.log(`Successfully uploaded ${type} to: ${res.url}`);
-      return res.url;
+      console.log(`Successfully uploaded ${type} to: ${res[0].url}`);
+      return res[0].url;
     } catch (error) {
       console.error("Error uploading file:", error);
       toast.error("Failed to upload file. Please try again.");
