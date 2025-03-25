@@ -15,7 +15,10 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     console.log(`Extracting text from ZIP file: ${zipUrl}`);
     
     // Download the ZIP file
-    const zipResponse = await fetch(zipUrl);
+    const zipResponse = await fetch(zipUrl, {
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+    
     if (!zipResponse.ok) {
       throw new Error(`Failed to download ZIP file: ${zipResponse.status} ${zipResponse.statusText}`);
     }
@@ -25,12 +28,13 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
       throw new Error("Downloaded ZIP file is empty");
     }
     
+    console.log(`Successfully downloaded ZIP file, size: ${zipData.byteLength} bytes`);
+    
     // Load the ZIP file
     const zip = new JSZip();
     await zip.loadAsync(zipData);
     
-    // Find image files in the ZIP - specifically looking for PNG files
-    // since our conversion process should have created PNGs
+    // Find image files in the ZIP
     const imageFiles = Object.keys(zip.files).filter(fileName => {
       const lowerFileName = fileName.toLowerCase();
       return (
@@ -45,13 +49,13 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     console.log(`Found ${imageFiles.length} image files in ZIP:`, imageFiles);
     
     if (imageFiles.length === 0) {
-      // Log the list of all files in ZIP for debugging
+      // Log contents of the ZIP file for debugging
       const allFiles = Object.keys(zip.files);
       console.log("ZIP contains these files:", allFiles);
       throw new Error("No image files found in the ZIP file");
     }
     
-    // Sort files by name to maintain page order - numeric sorting for page_001.png etc.
+    // Sort files by name to maintain page order
     imageFiles.sort((a, b) => {
       // Extract page numbers if present
       const numA = a.match(/(\d+)/);
@@ -66,7 +70,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     // Extract text from each image
     let allText = '';
     let processedCount = 0;
-    const batchSize = 3; // Process images in smaller batches to prevent memory issues
+    const batchSize = 3; // Process in smaller batches to prevent memory issues
     
     for (let i = 0; i < imageFiles.length; i += batchSize) {
       const batch = imageFiles.slice(i, i + batchSize);
@@ -97,14 +101,19 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
           // Create a new blob with the proper mime type
           const imageBlob = new Blob([await fileData.arrayBuffer()], { type: mimeType });
           
-          // Process the image with OpenAI
+          // Create a direct image URL
+          const dataUrl = await createDirectImageUrl(imageBlob);
+          console.log(`Created data URL for image ${pageIndex}, length: ${dataUrl.length}, starts with: ${dataUrl.substring(0, 30)}...`);
+          
+          // Validate image format
+          if (!dataUrl.startsWith('data:image/')) {
+            console.error(`Invalid data URL format for ${fileName}, doesn't start with data:image/`);
+            return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: Invalid image format]`;
+          }
+          
+          // Process using OpenAI
           const userPrompt = `Extract all text from page ${pageIndex} of the document, preserving formatting:`;
           
-          // Create a direct URL for the image
-          const dataUrl = await createDirectImageUrl(imageBlob);
-          console.log(`Created data URL for image ${pageIndex}, length: ${dataUrl.length}`);
-          
-          // Extract text from the image
           const text = await extractTextFromImageFile(
             dataUrl, 
             apiKey, 

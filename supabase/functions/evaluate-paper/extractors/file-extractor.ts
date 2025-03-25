@@ -13,16 +13,20 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     
     console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Process the image URL to get a base64 representation if it's a direct image
+    // Handle ZIP files differently - they should go through the zip extractor
+    if (/\.zip/i.test(fileUrl)) {
+      throw new Error("ZIP files should be processed through extractTextFromZip function");
+    }
+    
+    // Process the image URL to get a base64 representation
     let imageData;
     try {
-      // Only process as base64 if it's an image URL, not a ZIP
-      if (!/\.zip/i.test(fileUrl)) {
-        imageData = await urlToBase64(fileUrl);
-        console.log(`Successfully processed image to data URL. Length: ${imageData?.length || 0} chars`);
-      } else {
-        // For ZIP files, we'll use the original URL
-        imageData = fileUrl;
+      imageData = await urlToBase64(fileUrl);
+      console.log(`Successfully processed image to data URL. Length: ${imageData?.length || 0} chars`);
+      
+      // Basic validation of the data URL format
+      if (!imageData?.startsWith('data:image/')) {
+        throw new Error("Invalid image format: The data URL must have an image MIME type");
       }
     } catch (imageError) {
       console.error("Error processing image URL:", imageError);
@@ -34,11 +38,6 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
     
     try {
-      // Validate that we have a proper data URL for images
-      if (imageData && imageData.startsWith('data:') && !imageData.startsWith('data:image/')) {
-        throw new Error("Invalid image format: The data URL must have an image MIME type");
-      }
-      
       const response = await openAIService.createChatCompletion({
         model: "gpt-4o",
         messages: [
@@ -76,8 +75,12 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       if (apiError.response) {
         console.error("OpenAI API error:", apiError.response.status, apiError.response.data);
         
-        if (apiError.response.status === 400 && apiError.response.data?.error?.message?.includes('invalid_image')) {
-          throw new Error(`Invalid image format: ${apiError.response.data?.error?.message}. Please check the image format and accessibility.`);
+        if (apiError.response.status === 400) {
+          const errorMessage = apiError.response.data?.error?.message || "";
+          if (errorMessage.includes('invalid_image')) {
+            console.error("Invalid image format error:", errorMessage);
+            throw new Error(`Invalid image format: ${errorMessage}. Please check the image format and accessibility.`);
+          }
         }
       }
       
@@ -106,6 +109,11 @@ export async function extractTextFromImageFile(
     
     console.log("Processing file for OCR extraction");
     
+    // Skip ZIP files - they should be handled by the zip extractor
+    if (/\.zip/i.test(fileUrl)) {
+      throw new Error("ZIP files should be processed through extractTextFromZip function");
+    }
+    
     // First, try processing the file using OpenAI client
     try {
       return await extractTextFromFile(fileUrl, apiKey, systemPrompt, userPrompt);
@@ -119,15 +127,18 @@ export async function extractTextFromImageFile(
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     
     // Process URL to base64 for OpenAI API
-    let imageUrl = fileUrl;
+    let imageUrl;
     try {
-      if (!/\.zip/i.test(fileUrl)) {
-        imageUrl = await urlToBase64(fileUrl);
-        console.log("Successfully converted image to data URL for direct API call");
+      imageUrl = await urlToBase64(fileUrl);
+      console.log("Successfully converted image to data URL for direct API call");
+      
+      // Validate the image format
+      if (!imageUrl.startsWith('data:image/')) {
+        throw new Error("Invalid image format: The data URL must have an image MIME type");
       }
     } catch (e) {
-      console.warn("Could not convert to base64, using direct URL:", e);
-      // We'll continue with the original URL
+      console.error("Could not convert to base64, error:", e);
+      throw new Error(`Failed to process image: ${e.message}`);
     }
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
