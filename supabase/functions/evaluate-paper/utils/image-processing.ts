@@ -23,64 +23,10 @@ export async function urlToBase64(url: string): Promise<string> {
       throw new Error("PDF files must be converted to images before processing with vision models");
     }
     
-    // For all other files, make a fresh fetch with a longer timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
-    
-    try {
-      // Fetch the image
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache' // Additional cache control
-        }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-      }
-      
-      // Get image type from Content-Type header
-      const contentType = response.headers.get('Content-Type');
-      
-      // Double-check no PDFs get through
-      if (contentType && contentType.includes('pdf')) {
-        console.error("PDF content type detected - must convert to images first");
-        throw new Error("PDF files must be converted to images before processing with vision models");
-      }
-      
-      let mimeType = 'image/jpeg'; // Default to JPEG
-      
-      if (contentType && contentType.startsWith('image/')) {
-        mimeType = contentType;
-      } else {
-        // Extract extension from URL
-        const extension = url.split('.').pop()?.toLowerCase();
-        if (extension === 'jpg' || extension === 'jpeg') {
-          mimeType = 'image/jpeg';
-        } else if (extension === 'png') {
-          mimeType = 'image/png';
-        } else if (extension === 'webp') {
-          mimeType = 'image/webp';
-        } else if (extension === 'gif') {
-          mimeType = 'image/gif';
-        }
-      }
-      
-      // Return direct URL without base64 conversion for better performance
-      console.log("Returning direct URL without base64 conversion for better performance");
-      return cleanUrlForApi(url);
-      
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      console.error("Error fetching URL:", fetchError);
-      
-      // If fetch fails, return the direct URL as fallback
-      return cleanUrlForApi(url);
-    }
+    // For all other files, we'll just return the direct URL for better performance
+    // No base64 conversion needed
+    console.log("Returning direct URL without base64 conversion for better performance");
+    return cleanUrlForApi(url);
   } catch (error) {
     console.error("Error processing URL:", error);
     // Return the URL directly as ultimate fallback

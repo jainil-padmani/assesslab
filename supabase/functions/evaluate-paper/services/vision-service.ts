@@ -1,3 +1,4 @@
+
 /**
  * Service for processing images with Claude Vision
  */
@@ -43,7 +44,7 @@ export async function processImagesWithVision(
     
     // Reject any PDF URLs directly - they must be converted to images first
     for (const url of imageUrls) {
-      if (typeof url === 'string' && url.toLowerCase().endsWith('.pdf')) {
+      if (typeof url === 'string' && (url.toLowerCase().endsWith('.pdf') || url.includes('.pdf?'))) {
         throw new Error("PDF URL detected. PDFs must be converted to images before processing with Claude Vision.");
       }
     }
@@ -118,8 +119,10 @@ async function processSingleBatch(
     anthropic_version?: string;
   }
 ): Promise<string> {
-  // Validate and clean batch URLs
-  const validUrls = batchUrls.filter(url => !!url).map(url => cleanUrlForApi(url));
+  // Clean all URLs by removing query parameters first
+  const validUrls = batchUrls
+    .filter(url => !!url)
+    .map(url => cleanUrlForApi(url));
   
   if (validUrls.length === 0) {
     throw new Error("No valid image URLs in batch");
