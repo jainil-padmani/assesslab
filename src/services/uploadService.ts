@@ -1,5 +1,5 @@
 
-import { startUpload } from "@/utils/uploadthing/uploadThingClient";
+import { uploadFiles } from "@/utils/uploadthing/uploadThingClient";
 import { toast } from "sonner";
 
 // Central service for handling file uploads via UploadThing
@@ -11,8 +11,8 @@ export const uploadService = {
       // Map the type to the appropriate UploadThing route
       const endpoint = type === 'handwrittenPaper' ? 'answerSheet' : type;
       
-      // Upload the file to UploadThing using startUpload
-      const res = await startUpload({
+      // Upload the file to UploadThing using uploadFiles
+      const res = await uploadFiles({
         endpoint,
         files: [file],
       });
