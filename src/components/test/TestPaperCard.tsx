@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Card,
@@ -38,7 +37,7 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
   const [showOcrQuestionDialog, setShowOcrQuestionDialog] = useState(false);
   const [showOcrAnswerDialog, setShowOcrAnswerDialog] = useState(false);
   
-  // New states for direct text entry
+  // States for direct text entry
   const [editingQuestionText, setEditingQuestionText] = useState(false);
   const [editingAnswerText, setEditingAnswerText] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState("");
@@ -286,21 +285,25 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
         </CardHeader>
         <CardContent className="p-4">
           <div className="space-y-3">
+            {/* Question Paper Section */}
             <div className="flex flex-col p-2 border rounded-md hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <a 
-                  href={file.question_paper_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center"
-                >
-                  <FilePlus className="h-5 w-5 mr-2 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">Question Paper</div>
-                    <div className="text-xs text-muted-foreground">View document</div>
-                  </div>
-                </a>
-                <div className="flex space-x-2">
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center">
+                  <a 
+                    href={file.question_paper_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center flex-1"
+                  >
+                    <FilePlus className="h-5 w-5 mr-2 text-primary" />
+                    <div>
+                      <div className="text-sm font-medium">Question Paper</div>
+                      <div className="text-xs text-muted-foreground">View document</div>
+                    </div>
+                  </a>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 mt-1">
                   {questionOcrText ? (
                     <>
                       <Button
@@ -345,22 +348,26 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
               </div>
             </div>
             
+            {/* Answer Key Section */}
             {file.answer_key_url && (
               <div className="flex flex-col p-2 border rounded-md hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <a 
-                    href={file.answer_key_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center"
-                  >
-                    <FileCheck className="h-5 w-5 mr-2 text-primary" />
-                    <div>
-                      <div className="text-sm font-medium">Answer Key</div>
-                      <div className="text-xs text-muted-foreground">View document</div>
-                    </div>
-                  </a>
-                  <div className="flex space-x-2">
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center">
+                    <a 
+                      href={file.answer_key_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center flex-1"
+                    >
+                      <FileCheck className="h-5 w-5 mr-2 text-primary" />
+                      <div>
+                        <div className="text-sm font-medium">Answer Key</div>
+                        <div className="text-xs text-muted-foreground">View document</div>
+                      </div>
+                    </a>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mt-1">
                     {answerOcrText ? (
                       <>
                         <Button
@@ -406,6 +413,7 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
               </div>
             )}
             
+            {/* Handwritten Paper Section */}
             {file.handwritten_paper_url && (
               <a 
                 href={file.handwritten_paper_url} 
