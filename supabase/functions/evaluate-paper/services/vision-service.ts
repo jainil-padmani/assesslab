@@ -6,6 +6,7 @@ import { BedrockService } from "./bedrock-service.ts";
 
 /**
  * Process images with Claude 3.5 Vision models through AWS Bedrock
+ * Non-recursive implementation to prevent call stack size exceeded errors
  */
 export async function processImagesWithVision(
   bedrockService: BedrockService,
@@ -25,75 +26,85 @@ export async function processImagesWithVision(
   
   console.log(`Processing ${params.imageUrls.length} images with Claude Vision`);
   
-  // Use non-recursive iteration for processing images (prevents call stack issues)
+  // Process each image (up to 4 images max for Claude 3.5)
   const imageContents = [];
   const failedImages = [];
+  const maxImages = Math.min(params.imageUrls.length, 4);
   
-  // Process each image (up to 4 images max for Claude 3.5)
-  for (let i = 0; i < Math.min(params.imageUrls.length, 4); i++) {
+  for (let i = 0; i < maxImages; i++) {
     try {
-      console.log(`Processing image ${i+1}/${Math.min(params.imageUrls.length, 4)}: ${params.imageUrls[i]}`);
+      console.log(`Processing image ${i+1}/${maxImages}: ${params.imageUrls[i]}`);
       
       // Add timeout to fetch requests
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      // Fetch the image
-      const response = await fetch(params.imageUrls[i], {
-        signal: controller.signal,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache' // Additional cache control
+      try {
+        // Fetch the image
+        const response = await fetch(params.imageUrls[i], {
+          signal: controller.signal,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache' // Additional cache control
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch image ${i+1}: ${response.status} ${response.statusText}`);
+          failedImages.push({
+            index: i,
+            url: params.imageUrls[i],
+            error: `HTTP status ${response.status} ${response.statusText}`
+          });
+          continue;
         }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        console.error(`Failed to fetch image ${i+1}: ${response.status} ${response.statusText}`);
+        
+        // Get content type and validate it's an image
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.startsWith('image/') && !contentType.includes('application/octet-stream')) {
+          console.warn(`URL ${i+1} (${params.imageUrls[i]}) is not an image (${contentType}), attempting to process anyway`);
+        }
+        
+        // Get image data as array buffer
+        const imageData = await response.arrayBuffer();
+        
+        // Check if we actually got data
+        if (!imageData || imageData.byteLength === 0) {
+          console.error(`Image ${i+1} (${params.imageUrls[i]}) returned empty data`);
+          failedImages.push({
+            index: i,
+            url: params.imageUrls[i],
+            error: "Empty response data"
+          });
+          continue;
+        }
+        
+        // Convert to base64
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
+        const mimeType = contentType || 'image/jpeg';
+        
+        console.log(`Successfully processed image ${i+1}: ${base64.substring(0, 50)}... (${imageData.byteLength} bytes)`);
+        
+        // Add image to content array in the correct format for Bedrock
+        imageContents.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mimeType,
+            data: base64
+          }
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        console.error(`Error fetching image ${i+1} (${params.imageUrls[i]}):`, fetchError);
         failedImages.push({
           index: i,
           url: params.imageUrls[i],
-          error: `HTTP status ${response.status} ${response.statusText}`
+          error: fetchError instanceof Error ? fetchError.message : "Unknown error"
         });
-        continue;
       }
-      
-      // Get content type and validate it's an image
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) {
-        console.warn(`URL ${i+1} (${params.imageUrls[i]}) is not an image (${contentType}), attempting to process anyway`);
-      }
-      
-      // Get image data as array buffer
-      const imageData = await response.arrayBuffer();
-      
-      // Check if we actually got data
-      if (!imageData || imageData.byteLength === 0) {
-        console.error(`Image ${i+1} (${params.imageUrls[i]}) returned empty data`);
-        failedImages.push({
-          index: i,
-          url: params.imageUrls[i],
-          error: "Empty response data"
-        });
-        continue;
-      }
-      
-      // Convert to base64
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
-      const mimeType = contentType || 'image/jpeg';
-      
-      console.log(`Successfully processed image ${i+1}: ${base64.substring(0, 50)}... (${imageData.byteLength} bytes)`);
-      
-      // Add image to content array in the correct format for Bedrock
-      imageContents.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mimeType,
-          data: base64
-        }
-      });
     } catch (error) {
       console.error(`Error processing image ${i+1} (${params.imageUrls[i]}):`, error);
       failedImages.push({
