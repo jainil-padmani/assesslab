@@ -16,7 +16,7 @@ export interface PaperEvaluation {
 }
 
 /**
- * Hook for fetching evaluation data for a test
+ * Hook for fetching evaluation data for a test with optimized query patterns
  */
 export function useEvaluationData(selectedTest: string) {
   const { 
@@ -32,10 +32,12 @@ export function useEvaluationData(selectedTest: string) {
       
       console.log("Fetching evaluations for test:", selectedTest);
       
+      // Use the index on test_id for efficient filtering
       const { data, error } = await supabase
         .from('paper_evaluations')
         .select('*')
-        .eq('test_id', selectedTest);
+        .eq('test_id', selectedTest)
+        .order('updated_at', { ascending: false });
       
       if (error) {
         console.error("Error fetching evaluations:", error);
@@ -45,7 +47,8 @@ export function useEvaluationData(selectedTest: string) {
       console.log(`Found ${data?.length || 0} evaluations for test ${selectedTest}`);
       return data as PaperEvaluation[];
     },
-    enabled: !!selectedTest
+    enabled: !!selectedTest,
+    staleTime: 3 * 60 * 1000 // Cache valid for 3 minutes
   });
 
   return {
