@@ -78,7 +78,7 @@ export async function checkRemoteFile(url: string): Promise<{ exists: boolean, c
 /**
  * Get document pages as image URLs
  * This function handles both PDF and image files, returning an array of image URLs
- * For PDFs, it ALWAYS converts to images before returning
+ * For PDFs, it ALWAYS FULLY converts to images before returning
  */
 export async function getDocumentPagesAsImages(documentUrl: string): Promise<string[]> {
   try {

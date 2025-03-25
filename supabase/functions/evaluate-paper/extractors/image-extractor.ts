@@ -7,7 +7,7 @@ import { getDocumentPagesAsImages } from "../services/document-converter.ts";
 /**
  * Process image files in batches directly with Claude 3.5 Vision
  * Supports batching up to 4 images per request for better efficiency
- * Always converts PDFs to images first
+ * ALWAYS converts PDFs to images first
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 

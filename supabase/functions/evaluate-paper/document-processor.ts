@@ -1,6 +1,12 @@
 
+/**
+ * Document Processor
+ * Handles document processing and conversion for the evaluate-paper function
+ */
+
 import { extractTextFromFile, extractTextFromImageFile, extractQuestionsFromPaper } from "./ocr.ts";
 import { getDocumentPagesAsImages } from "./services/document-converter.ts";
+import { isPdfDocument, isImageDocument } from "./utils/document-detection.ts";
 
 /**
  * Add a cache busting parameter to a URL
@@ -19,7 +25,7 @@ export function stripQueryParams(url: string): string {
 
 /**
  * Process a student answer document to extract text
- * Always converts PDFs to images first for better OCR processing
+ * ALWAYS converts PDFs to images first for better OCR processing
  */
 export async function processStudentAnswer(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -44,15 +50,16 @@ export async function processStudentAnswer(
     let extractedText = "";
     let imageUrlsForProcessing: string[] = [];
     
-    // Check if we need to convert PDF to images - always do this for PDFs
-    if (studentAnswer.url && (
-      studentAnswer.url.toLowerCase().endsWith('.pdf') || 
-      (studentAnswer.content_type && studentAnswer.content_type.includes('pdf'))
-    )) {
+    // CRITICAL: ALWAYS convert PDFs to images before processing
+    if (studentAnswer.url && isPdfDocument(studentAnswer.url)) {
       console.log("PDF document detected, converting to images first");
-      imageUrlsForProcessing = await getDocumentPagesAsImages(studentAnswer.url);
-      
-      if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+      try {
+        imageUrlsForProcessing = await getDocumentPagesAsImages(studentAnswer.url);
+        
+        if (!imageUrlsForProcessing || imageUrlsForProcessing.length === 0) {
+          throw new Error(`Failed to convert PDF to images: ${studentAnswer.url}`);
+        }
+        
         console.log(`Converted PDF to ${imageUrlsForProcessing.length} images`);
         
         // Process images in batches of 4 (Claude's limit)
@@ -71,6 +78,9 @@ export async function processStudentAnswer(
             processed: true
           };
         }
+      } catch (pdfError) {
+        console.error("Error converting PDF to images:", pdfError);
+        throw new Error(`Failed to process PDF: ${pdfError.message}`);
       }
     }
     
@@ -106,14 +116,18 @@ export async function processStudentAnswer(
       }
     }
     
-    // Fall back to using the direct URL (but convert PDFs first)
+    // Fall back to using the direct URL (but ALWAYS convert PDFs first)
     if (studentAnswer.url) {
       console.log("Falling back to processing student answer from direct URL");
       
-      // For non-PDFs, we can use the direct URL
-      if (!studentAnswer.url.toLowerCase().endsWith('.pdf') && 
-          !(studentAnswer.content_type && studentAnswer.content_type.includes('pdf'))) {
-        
+      // CRITICAL: For PDFs, always convert to images first
+      if (isPdfDocument(studentAnswer.url)) {
+        console.error(`PDF must be converted to images before processing: ${studentAnswer.url}`);
+        throw new Error(`PDF document ${studentAnswer.url} must be converted to images before processing.`);
+      }
+      
+      // For non-PDFs (like images), we can use the direct URL
+      if (isImageDocument(studentAnswer.url)) {
         extractedText = await extractTextFromFile(
           studentAnswer.url,
           credentials,
@@ -142,7 +156,7 @@ export async function processStudentAnswer(
 
 /**
  * Process a question paper document to extract text and questions
- * Always converts PDFs to images first for better OCR processing
+ * ALWAYS converts PDFs to images first for better OCR processing
  */
 export async function processQuestionPaper(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -169,13 +183,16 @@ export async function processQuestionPaper(
     if (!extractedText && questionPaper.url) {
       console.log("Extracting text from question paper URL");
       
-      // Always convert PDFs to images first for better OCR
-      if (questionPaper.url.toLowerCase().endsWith('.pdf') || 
-         (questionPaper.content_type && questionPaper.content_type.includes('pdf'))) {
+      // CRITICAL: ALWAYS convert PDFs to images first for better OCR
+      if (isPdfDocument(questionPaper.url)) {
         console.log("PDF question paper detected, converting to images first");
-        imageUrlsForProcessing = await getDocumentPagesAsImages(questionPaper.url);
-        
-        if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+        try {
+          imageUrlsForProcessing = await getDocumentPagesAsImages(questionPaper.url);
+          
+          if (!imageUrlsForProcessing || imageUrlsForProcessing.length === 0) {
+            throw new Error(`Failed to convert PDF to images: ${questionPaper.url}`);
+          }
+          
           console.log(`Converted PDF to ${imageUrlsForProcessing.length} images for OCR processing`);
           
           // Process images in batches of 4 (Claude's limit)
@@ -185,8 +202,11 @@ export async function processQuestionPaper(
             `You are an OCR expert specialized in extracting text from exam question papers. Identify question numbers, section headers, and all text content accurately. Preserve the formatting and structure of the original document.`,
             `Extract all text from these question paper images with special focus on identifying question numbers and their corresponding text.`
           );
+        } catch (pdfError) {
+          console.error("Error converting PDF to images:", pdfError);
+          throw new Error(`Failed to process PDF: ${pdfError.message}`);
         }
-      } else {
+      } else if (isImageDocument(questionPaper.url)) {
         // For non-PDFs, we can process the image directly
         extractedText = await extractTextFromFile(
           questionPaper.url,
@@ -194,6 +214,8 @@ export async function processQuestionPaper(
           `You are an OCR expert specialized in extracting text from exam question papers. Identify question numbers, section headers, and all text content accurately. Preserve the formatting and structure of the original document.`,
           `Extract all text from this question paper with special focus on identifying question numbers and their corresponding text.`
         );
+      } else {
+        throw new Error(`Unsupported document type for ${questionPaper.url}. Only PDF and image files are supported.`);
       }
       
       console.log("Extracted question paper text:", extractedText?.substring(0, 100) + "...");
@@ -222,7 +244,7 @@ export async function processQuestionPaper(
 
 /**
  * Process an answer key document to extract text
- * Always converts PDFs to images first for better OCR processing
+ * ALWAYS converts PDFs to images first for better OCR processing
  */
 export async function processAnswerKey(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -248,13 +270,16 @@ export async function processAnswerKey(
     if (!extractedText && answerKey.url) {
       console.log("Extracting text from answer key URL");
       
-      // Always convert PDFs to images first for better OCR
-      if (answerKey.url.toLowerCase().endsWith('.pdf') || 
-         (answerKey.content_type && answerKey.content_type.includes('pdf'))) {
+      // CRITICAL: ALWAYS convert PDFs to images first for better OCR
+      if (isPdfDocument(answerKey.url)) {
         console.log("PDF answer key detected, converting to images first");
-        imageUrlsForProcessing = await getDocumentPagesAsImages(answerKey.url);
-        
-        if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+        try {
+          imageUrlsForProcessing = await getDocumentPagesAsImages(answerKey.url);
+          
+          if (!imageUrlsForProcessing || imageUrlsForProcessing.length === 0) {
+            throw new Error(`Failed to convert PDF to images: ${answerKey.url}`);
+          }
+          
           console.log(`Converted PDF to ${imageUrlsForProcessing.length} images for OCR processing`);
           
           // Process images in batches of 4 (Claude's limit)
@@ -264,8 +289,11 @@ export async function processAnswerKey(
             `You are an OCR expert specialized in extracting text from answer keys. Identify all answer content accurately, including question numbers and their corresponding answers. Preserve the formatting and structure.`,
             `Extract all text from these answer key images with special focus on correct answers for each question.`
           );
+        } catch (pdfError) {
+          console.error("Error converting PDF to images:", pdfError);
+          throw new Error(`Failed to process PDF: ${pdfError.message}`);
         }
-      } else {
+      } else if (isImageDocument(answerKey.url)) {
         // For non-PDFs, we can process the image directly
         extractedText = await extractTextFromFile(
           answerKey.url,
@@ -273,6 +301,8 @@ export async function processAnswerKey(
           `You are an OCR expert specialized in extracting text from answer keys. Identify all answer content accurately, including question numbers and their corresponding answers. Preserve the formatting and structure.`,
           `Extract all text from this answer key document with special focus on correct answers for each question.`
         );
+      } else {
+        throw new Error(`Unsupported document type for ${answerKey.url}. Only PDF and image files are supported.`);
       }
       
       console.log("Extracted answer key text:", extractedText?.substring(0, 100) + "...");

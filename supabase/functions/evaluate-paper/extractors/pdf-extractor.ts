@@ -8,6 +8,7 @@ import { extractTextFromImageFile } from "./image-extractor.ts";
 
 /**
  * Extract text from a PDF file by first converting it to images
+ * This function ALWAYS converts PDF to images before processing
  */
 export async function extractTextFromPdf(
   pdfUrl: string,
@@ -19,10 +20,10 @@ export async function extractTextFromPdf(
     console.log("PDF file detected, converting to images first before OCR");
     
     // Get the pre-converted images
-    const imageUrls = await getDocumentPagesAsImages(pdfUrl);
+    let imageUrls = await getDocumentPagesAsImages(pdfUrl);
     
     if (!imageUrls || imageUrls.length === 0) {
-      throw new Error("Failed to convert PDF to images");
+      throw new Error(`Failed to convert PDF to images: ${pdfUrl}`);
     }
     
     console.log(`Successfully converted PDF to ${imageUrls.length} images, processing for OCR`);
@@ -36,6 +37,12 @@ export async function extractTextFromPdf(
     );
   } catch (pdfError) {
     console.error("Error converting PDF to images:", pdfError);
-    throw new Error(`PDF conversion error: ${pdfError.message}`);
+    
+    // More descriptive error to help diagnose the issue
+    if (pdfError.message.includes("PDF must be converted")) {
+      throw new Error(`PDF conversion error: ${pdfError.message}. This may indicate that PDF pre-rendering failed.`);
+    } else {
+      throw new Error(`PDF conversion error: ${pdfError.message}`);
+    }
   }
 }

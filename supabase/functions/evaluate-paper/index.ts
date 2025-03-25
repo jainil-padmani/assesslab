@@ -4,7 +4,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import { createBedrockService } from "./services/bedrock-service.ts";
 import { getDocumentPagesAsImages } from "./services/document-converter.ts";
-import { detectFileType } from "./services/document-converter.ts";
 import { isPdfUrl } from "./utils/image-processing.ts";
 
 // CORS headers to allow requests from any origin
@@ -116,8 +115,26 @@ serve(async (req) => {
         console.log("Processing question paper:", questionPaper.url);
         if (isPdfUrl(questionPaper.url)) {
           console.log("Question paper is PDF, converting to images");
-          questionPaperImages = await getDocumentPagesAsImages(questionPaper.url);
-          console.log(`Converted question paper to ${questionPaperImages.length} images`);
+          try {
+            questionPaperImages = await getDocumentPagesAsImages(questionPaper.url);
+            if (questionPaperImages.length === 0) {
+              throw new Error(`Failed to convert PDF to images: ${questionPaper.url}`);
+            }
+            console.log(`Converted question paper to ${questionPaperImages.length} images`);
+          } catch (pdfError) {
+            console.error(`Error converting question paper PDF: ${pdfError.message}`);
+            return new Response(
+              JSON.stringify({
+                error: "Question paper PDF conversion error",
+                details: pdfError.message,
+                url: questionPaper.url
+              }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
         } else {
           console.log("Question paper is not PDF, using direct URL");
           questionPaperImages = [questionPaper.url];
@@ -127,8 +144,26 @@ serve(async (req) => {
         console.log("Processing answer key:", answerKey.url);
         if (isPdfUrl(answerKey.url)) {
           console.log("Answer key is PDF, converting to images");
-          answerKeyImages = await getDocumentPagesAsImages(answerKey.url);
-          console.log(`Converted answer key to ${answerKeyImages.length} images`);
+          try {
+            answerKeyImages = await getDocumentPagesAsImages(answerKey.url);
+            if (answerKeyImages.length === 0) {
+              throw new Error(`Failed to convert PDF to images: ${answerKey.url}`);
+            }
+            console.log(`Converted answer key to ${answerKeyImages.length} images`);
+          } catch (pdfError) {
+            console.error(`Error converting answer key PDF: ${pdfError.message}`);
+            return new Response(
+              JSON.stringify({
+                error: "Answer key PDF conversion error",
+                details: pdfError.message,
+                url: answerKey.url
+              }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
         } else {
           console.log("Answer key is not PDF, using direct URL");
           answerKeyImages = [answerKey.url];
@@ -141,8 +176,26 @@ serve(async (req) => {
             studentAnswer.zip_url : [studentAnswer.zip_url];
         } else if (isPdfUrl(studentAnswer.url)) {
           console.log("Student answer is PDF, converting to images");
-          studentAnswerImages = await getDocumentPagesAsImages(studentAnswer.url);
-          console.log(`Converted student answer to ${studentAnswerImages.length} images`);
+          try {
+            studentAnswerImages = await getDocumentPagesAsImages(studentAnswer.url);
+            if (studentAnswerImages.length === 0) {
+              throw new Error(`Failed to convert PDF to images: ${studentAnswer.url}`);
+            }
+            console.log(`Converted student answer to ${studentAnswerImages.length} images`);
+          } catch (pdfError) {
+            console.error(`Error converting student answer PDF: ${pdfError.message}`);
+            return new Response(
+              JSON.stringify({
+                error: "Student answer PDF conversion error",
+                details: pdfError.message,
+                url: studentAnswer.url
+              }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
+          }
         } else {
           console.log("Student answer is not PDF, using direct URL");
           studentAnswerImages = [studentAnswer.url];
@@ -153,7 +206,17 @@ serve(async (req) => {
         for (const imageUrl of allImages) {
           if (isPdfUrl(imageUrl)) {
             console.error(`PDF file detected in processed images: ${imageUrl}`);
-            throw new Error(`PDF file detected in processed images: ${imageUrl}. All PDFs must be converted to images first.`);
+            return new Response(
+              JSON.stringify({
+                error: "PDF file detected in processed images",
+                details: `${imageUrl}. All PDFs must be converted to images first.`,
+                help: "Please pre-process PDF files to images before evaluation."
+              }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              }
+            );
           }
         }
         
