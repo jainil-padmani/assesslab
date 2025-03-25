@@ -1,4 +1,3 @@
-
 import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
@@ -327,6 +326,234 @@ export async function extractTextFromFile(
     return extractedOcrText;
   } catch (error) {
     console.error("Error during OCR processing:", error);
+    throw error;
+  }
+}
+
+/**
+ * Extracts questions from a question paper using OCR
+ */
+export async function extractQuestionsFromPaper(
+  paperUrl: string,
+  apiKey: string
+): Promise<{ questions: Array<{ number: string, text: string, marks?: number }> }> {
+  try {
+    console.log("Extracting questions from paper:", paperUrl);
+    
+    const systemPrompt = `You are an expert at analyzing question papers. Carefully extract all questions from the given document.
+For each question:
+1. Identify the question number
+2. Extract the complete question text
+3. Identify the marks allocated if mentioned
+
+Return the results in a structured format as a valid JSON object with a 'questions' array containing objects with 'number', 'text', and optionally 'marks' properties.
+Example:
+{
+  "questions": [
+    {"number": "1", "text": "Explain Newton's laws of motion", "marks": 5},
+    {"number": "2", "text": "Define momentum and impulse", "marks": 3}
+  ]
+}
+Ensure your response is ONLY the JSON object with no additional explanations or text.`;
+    
+    const userPrompt = "Extract all questions from this question paper. Identify each question number, the complete question text, and marks if available. Return ONLY a JSON object with the structure shown in the system prompt.";
+    
+    // Determine if it's a ZIP file or single file
+    const isZip = paperUrl.includes('.zip');
+    
+    // Use the appropriate method for extraction
+    let extractedText;
+    if (isZip) {
+      extractedText = await extractTextFromZip(paperUrl, apiKey, systemPrompt);
+    } else {
+      extractedText = await extractTextFromFile(paperUrl, apiKey, systemPrompt, userPrompt);
+    }
+    
+    // Try to parse the extracted text as JSON
+    try {
+      // Check if the text starts with a code block marker and ends with one
+      let jsonText = extractedText;
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      
+      jsonText = jsonText.trim();
+      
+      const parsedQuestions = JSON.parse(jsonText);
+      console.log(`Successfully extracted ${parsedQuestions.questions?.length || 0} questions from paper`);
+      
+      return parsedQuestions;
+    } catch (parseError) {
+      console.error("Error parsing extracted questions:", parseError);
+      
+      // If parsing fails, try to extract questions using a second API call
+      console.log("Attempting to structure the extracted text with a second API call");
+      
+      const structuringResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { 
+              role: 'system', 
+              content: `You are an expert at structuring question paper data. Convert the given OCR text into a valid JSON format with the structure: 
+              {
+                "questions": [
+                  {"number": "1", "text": "Question text here", "marks": 5},
+                  {"number": "2", "text": "Another question", "marks": 3}
+                ]
+              }
+              Return ONLY the JSON object with no additional text.` 
+            },
+            { role: 'user', content: extractedText }
+          ],
+          temperature: 0.2,
+          max_tokens: 4000,
+          response_format: { type: "json_object" }
+        }),
+      });
+      
+      if (!structuringResponse.ok) {
+        throw new Error("Failed to structure extracted questions");
+      }
+      
+      const structuredResult = await structuringResponse.json();
+      const structuredText = structuredResult.choices[0]?.message?.content;
+      
+      if (!structuredText) {
+        throw new Error("Failed to structure extracted questions - empty response");
+      }
+      
+      try {
+        const parsedQuestions = JSON.parse(structuredText);
+        console.log(`Successfully structured ${parsedQuestions.questions?.length || 0} questions from paper`);
+        return parsedQuestions;
+      } catch (secondParseError) {
+        console.error("Error parsing structured questions:", secondParseError);
+        throw new Error("Failed to parse questions after multiple attempts");
+      }
+    }
+  } catch (error) {
+    console.error("Error extracting questions from paper:", error);
+    throw error;
+  }
+}
+
+/**
+ * Evaluates student answers against extracted questions and answer key
+ */
+export async function evaluateWithExtractedQuestions(
+  apiKey: string,
+  questions: Array<{ number: string, text: string, marks?: number }>,
+  answerKeyText: string | null,
+  studentAnswerText: string,
+  studentInfo: any
+): Promise<any> {
+  try {
+    console.log("Evaluating with extracted questions for student:", studentInfo?.name);
+    
+    // Prepare the system prompt based on whether we have an answer key
+    const systemPrompt = answerKeyText 
+      ? `You are an expert evaluator for academic assessments. Your task is to evaluate a student's answers against the provided question paper and answer key.
+For each question, compare the student's answer with the expected answer, assign appropriate marks, and provide brief feedback.
+Be fair and objective in your assessment.`
+      : `You are an expert evaluator for academic assessments. Your task is to evaluate a student's answers based on the provided questions.
+Without an official answer key, use your expertise to judge the correctness, completeness, and quality of the student's answers.
+For each question, evaluate the student's answer, assign appropriate marks, and provide brief feedback.
+Be fair and objective in your assessment.`;
+    
+    // Prepare the user prompt with all the data
+    const userPrompt = `
+Question Paper:
+${JSON.stringify(questions)}
+
+${answerKeyText ? `Answer Key:
+${answerKeyText}` : "No answer key provided. Use your expertise to evaluate the answers."}
+
+Student's Answers:
+${studentAnswerText}
+
+Student Info:
+${JSON.stringify(studentInfo)}
+
+Evaluate the student's answers and provide a response in this exact JSON format:
+{
+  "student_name": "${studentInfo?.name || 'Unknown'}",
+  "roll_no": "${studentInfo?.roll_number || 'Unknown'}",
+  "class": "${studentInfo?.class || 'Unknown'}",
+  "subject": "${studentInfo?.subject || 'Unknown'}",
+  "answers": [
+    {
+      "question_no": "question number",
+      "question": "question text",
+      "answer": "student's answer",
+      "score": [assigned_score, total_score],
+      "remarks": "brief feedback on the answer",
+      "confidence": 0.85 // a value between 0 and 1
+    },
+    // other questions...
+  ],
+  "summary": {
+    "totalScore": [total_assigned_score, total_possible_score],
+    "percentage": percentage_score
+  }
+}
+
+Return ONLY the JSON object without any additional explanations or text.`;
+
+    // Make the OpenAI API call for evaluation
+    const evaluationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 4000,
+        response_format: { type: "json_object" }
+      }),
+    });
+    
+    if (!evaluationResponse.ok) {
+      const errorText = await evaluationResponse.text();
+      console.error("OpenAI evaluation error:", errorText);
+      throw new Error(`Evaluation failed: ${errorText}`);
+    }
+    
+    const evaluationResult = await evaluationResponse.json();
+    const evaluation = evaluationResult.choices[0]?.message?.content;
+    
+    if (!evaluation) {
+      throw new Error("Evaluation process returned an empty result");
+    }
+    
+    try {
+      // Parse the evaluation result
+      const parsedEvaluation = JSON.parse(evaluation);
+      console.log("Evaluation completed successfully for student:", studentInfo?.name);
+      return parsedEvaluation;
+    } catch (parseError) {
+      console.error("Error parsing evaluation result:", parseError);
+      throw new Error("Failed to parse evaluation result");
+    }
+  } catch (error) {
+    console.error("Error evaluating with extracted questions:", error);
     throw error;
   }
 }

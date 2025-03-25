@@ -1,4 +1,3 @@
-
 import { Prompts } from './prompts.ts';
 
 const corsHeaders = {
@@ -28,18 +27,21 @@ export async function evaluateAnswers(
     // Prepare the prompts for OpenAI evaluation
     const systemPrompt = Prompts.evaluation(testId);
 
+    // Determine if we have an answer key or not
+    const hasAnswerKey = !!(processedAnswerKey?.text || processedAnswerKey?.topic);
+    
     const userPrompt = `
 You are an AI evaluator responsible for grading a student's answer sheet.
-The user will provide you with the question paper(s), answer key(s) / answer criteria, and the student's answer sheet(s).
+The user will provide you with the question paper(s)${hasAnswerKey ? ', answer key(s) / answer criteria,' : ''} and the student's answer sheet(s).
 Analyse the question paper to understand the questions and their marks.
-Analyse the answer key to understand the correct answers and valuation criteria.
+${hasAnswerKey ? 'Analyse the answer key to understand the correct answers and valuation criteria.' : 'Without an official answer key, use your expertise to evaluate the answers based on the question paper.'}
 Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
 
 Question Paper for Test ID ${testId}:
 ${JSON.stringify(processedQuestionPaper)}
 
-Answer Key for Test ID ${testId}:
-${JSON.stringify(processedAnswerKey)}
+${hasAnswerKey ? `Answer Key for Test ID ${testId}:
+${JSON.stringify(processedAnswerKey)}` : 'No answer key provided for this test. Use your expertise to evaluate the answers.'}
 
 Student Answer Sheet for Test ID ${testId}:
 ${JSON.stringify(processedStudentAnswer)}
@@ -137,24 +139,30 @@ export function processEvaluation(
   extractedAnswerKeyText: string | null
 ): any {
   try {
-    // Calculate total score
-    let totalAssignedScore = 0;
-    let totalPossibleScore = 0;
-    
-    if (evaluation.answers && Array.isArray(evaluation.answers)) {
-      evaluation.answers.forEach((answer: any) => {
-        if (Array.isArray(answer.score) && answer.score.length === 2) {
-          totalAssignedScore += Number(answer.score[0]);
-          totalPossibleScore += Number(answer.score[1]);
-        }
-      });
+    // If evaluation already has summary data, use it
+    if (evaluation.summary) {
+      console.log("Using existing summary data in evaluation");
     }
-    
-    // Add summary information
-    evaluation.summary = {
-      totalScore: [totalAssignedScore, totalPossibleScore],
-      percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
-    };
+    // Otherwise calculate total score
+    else {
+      let totalAssignedScore = 0;
+      let totalPossibleScore = 0;
+      
+      if (evaluation.answers && Array.isArray(evaluation.answers)) {
+        evaluation.answers.forEach((answer: any) => {
+          if (Array.isArray(answer.score) && answer.score.length === 2) {
+            totalAssignedScore += Number(answer.score[0]);
+            totalPossibleScore += Number(answer.score[1]);
+          }
+        });
+      }
+      
+      // Add summary information
+      evaluation.summary = {
+        totalScore: [totalAssignedScore, totalPossibleScore],
+        percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
+      };
+    }
     
     // Add metadata to ensure proper syncing
     evaluation.test_id = testId;
@@ -178,7 +186,7 @@ export function processEvaluation(
       evaluation.answerKeyText = extractedAnswerKeyText;
     }
     
-    console.log(`Evaluation completed: ${totalAssignedScore}/${totalPossibleScore} (${evaluation.summary.percentage}%)`);
+    console.log(`Evaluation completed: ${evaluation.summary.totalScore[0]}/${evaluation.summary.totalScore[1]} (${evaluation.summary.percentage}%)`);
     
     return evaluation;
   } catch (error) {

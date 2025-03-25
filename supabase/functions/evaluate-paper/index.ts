@@ -3,6 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
+import { evaluateWithExtractedQuestions } from './ocr.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,12 +22,13 @@ serve(async (req) => {
     console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
     
     // Parse the request body
-    const { questionPaper, answerKey, studentAnswer, studentInfo, testId } = await req.json();
+    const { questionPaper, answerKey, studentAnswer, studentInfo, testId, retryAttempt = 0 } = await req.json();
 
     console.log("Received evaluation request for student:", studentInfo?.name);
     console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
     console.log("ZIP URL available:", studentAnswer?.zip_url ? "Yes" : "No");
     console.log("Test ID for evaluation:", testId);
+    console.log("Retry attempt:", retryAttempt);
     
     // Add cache-busting parameter to URLs to prevent caching issues
     if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
@@ -37,21 +39,45 @@ serve(async (req) => {
     // Process documents to extract text
     const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
     
-    const { processedDocument: processedQuestionPaper, extractedText: extractedQuestionText } = 
-      await processQuestionPaper(apiKey, questionPaper, testId);
+    // Process the question paper with special handling to extract structured questions
+    const { 
+      processedDocument: processedQuestionPaper, 
+      extractedText: extractedQuestionText,
+      questions: extractedQuestions
+    } = await processQuestionPaper(apiKey, questionPaper, testId);
     
-    const { processedDocument: processedAnswerKey, extractedText: extractedAnswerKeyText } = 
-      await processAnswerKey(apiKey, answerKey, testId);
+    const { 
+      processedDocument: processedAnswerKey, 
+      extractedText: extractedAnswerKeyText 
+    } = await processAnswerKey(apiKey, answerKey, testId);
     
-    // Evaluate the student's answers
-    const evaluation = await evaluateAnswers(
-      apiKey,
-      testId,
-      processedQuestionPaper,
-      processedAnswerKey,
-      processedStudentAnswer,
-      studentInfo
-    );
+    let evaluation;
+    
+    // If we have extracted questions, use the new question-based evaluation flow
+    if (extractedQuestions && processedStudentAnswer.text) {
+      console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
+      
+      // Use our specialized evaluation function that leverages extracted questions
+      evaluation = await evaluateWithExtractedQuestions(
+        apiKey,
+        extractedQuestions,
+        extractedAnswerKeyText,
+        processedStudentAnswer.text,
+        studentInfo
+      );
+    } else {
+      console.log("Using standard evaluation flow without extracted questions");
+      
+      // Fall back to the original evaluation method
+      evaluation = await evaluateAnswers(
+        apiKey,
+        testId,
+        processedQuestionPaper,
+        processedAnswerKey,
+        processedStudentAnswer,
+        studentInfo
+      );
+    }
     
     // Process the evaluation results
     const processedEvaluation = processEvaluation(
