@@ -35,7 +35,7 @@ export async function createDirectImageUrl(imageBlob: Blob): Promise<string> {
 
 /**
  * Encodes an ArrayBuffer to base64 string
- * This implementation works in Deno environment
+ * Fixed implementation for Deno environment to prevent call stack overflows
  */
 export function encodeBase64(buffer: ArrayBuffer): string {
   if (!buffer) {
@@ -43,9 +43,23 @@ export function encodeBase64(buffer: ArrayBuffer): string {
   }
   
   try {
-    // Use Deno's built-in encoding utilities
+    // Convert the ArrayBuffer to Uint8Array
     const uint8Array = new Uint8Array(buffer);
-    return btoa(String.fromCharCode.apply(null, [...uint8Array]));
+    
+    // Use Deno's built-in btoa but chunk the conversion to avoid call stack issues
+    const CHUNK_SIZE = 8192; // Process in smaller chunks to avoid call stack limits
+    let result = '';
+    
+    for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+      const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
+      // Convert chunk to string and then to base64
+      const binaryString = Array.from(chunk)
+        .map(byte => String.fromCharCode(byte))
+        .join('');
+      result += btoa(binaryString);
+    }
+    
+    return result;
   } catch (error) {
     console.error("Error encoding base64:", error);
     throw error;

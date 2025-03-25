@@ -1,6 +1,5 @@
 
 import { createOpenAIService } from "../services/openai-service.ts";
-import { createDirectImageUrl } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a file using OpenAI Vision API
@@ -15,7 +14,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     const openAIService = createOpenAIService(apiKey);
 
     const response = await openAIService.createChatCompletion({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -29,12 +28,13 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
               type: "image_url",
               image_url: {
                 url: fileUrl,
+                detail: "high"
               },
             },
           ],
         },
       ],
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     if (!response?.data?.choices?.[0]?.message?.content) {
@@ -52,6 +52,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
 
 /**
  * Extracts text from a single image file
+ * Improved version to handle Deno environment
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
@@ -64,7 +65,7 @@ export async function extractTextFromImageFile(
       throw new Error("No file URL provided");
     }
     
-    console.log("Processing file for OCR extraction:", fileUrl);
+    console.log("Processing file for OCR extraction");
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);

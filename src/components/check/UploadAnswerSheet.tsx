@@ -119,6 +119,11 @@ export function UploadAnswerSheet({
       if (onUploadComplete) {
         onUploadComplete();
       }
+
+      // Refresh the page to enable evaluate button
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');

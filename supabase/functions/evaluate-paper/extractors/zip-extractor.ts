@@ -1,6 +1,7 @@
 
 import JSZip from "https://deno.land/x/jszip@0.11.0/mod.ts";
 import { extractTextFromImageFile } from "./file-extractor.ts";
+import { createDirectImageUrl } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a ZIP file containing images
@@ -37,7 +38,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
         lowerFileName.endsWith('.png') ||
         lowerFileName.endsWith('.gif') ||
         lowerFileName.endsWith('.webp')
-      );
+      ) && !zip.files[fileName].dir; // Ensure it's not a directory
     });
     
     if (imageFiles.length === 0) {
@@ -46,43 +47,64 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     
     console.log(`Found ${imageFiles.length} image files in ZIP`);
     
+    // Sort files by name to maintain page order
+    imageFiles.sort();
+    
     // Extract text from each image
     let allText = '';
-    for (let i = 0; i < imageFiles.length; i++) {
-      const fileName = imageFiles[i];
-      console.log(`Processing image ${i + 1}/${imageFiles.length}: ${fileName}`);
-      
-      try {
-        // Extract the file from the ZIP
-        const fileData = await zip.file(fileName)?.async('blob');
-        if (!fileData) {
-          console.warn(`Could not extract file ${fileName} from ZIP`);
-          continue;
+    let processedCount = 0;
+    const batchSize = 3; // Process images in smaller batches to prevent memory issues
+    
+    for (let i = 0; i < imageFiles.length; i += batchSize) {
+      const batch = imageFiles.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(async (fileName, batchIndex) => {
+        const pageIndex = i + batchIndex + 1;
+        console.log(`Processing image ${pageIndex}/${imageFiles.length}: ${fileName}`);
+        
+        try {
+          // Extract the file from the ZIP
+          const fileData = await zip.file(fileName)?.async('blob');
+          if (!fileData) {
+            console.warn(`Could not extract file ${fileName} from ZIP`);
+            return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: Failed to extract image]`;
+          }
+          
+          // Process the image with OpenAI
+          const userPrompt = `Extract all text from page ${pageIndex} of the document, preserving formatting:`;
+          
+          // Create a direct URL for the image instead of using URL.createObjectURL
+          // which is not available in Deno runtime
+          const dataUrl = await createDirectImageUrl(fileData);
+          
+          // Extract text from the image
+          const text = await extractTextFromImageFile(
+            dataUrl, 
+            apiKey, 
+            systemPrompt, 
+            userPrompt
+          );
+          
+          return `\n\n--- PAGE ${pageIndex} ---\n\n${text}`;
+        } catch (fileError) {
+          console.error(`Error processing file ${fileName}:`, fileError);
+          return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: ${fileError.message || "Unknown error"}]`;
         }
-        
-        // Create a URL for the image
-        const url = URL.createObjectURL(fileData);
-        
-        // Extract text from the image
-        const text = await extractTextFromImageFile(
-          url, 
-          apiKey, 
-          systemPrompt, 
-          `Extract all text from page ${i + 1} of the document:`
-        );
-        
-        // Clean up URL
-        URL.revokeObjectURL(url);
-        
-        // Add page number and text to the result
-        allText += `\n\n--- PAGE ${i + 1} ---\n\n${text}`;
-      } catch (fileError) {
-        console.error(`Error processing file ${fileName}:`, fileError);
-        // Continue with other files even if one fails
+      }));
+      
+      // Add batch results to the overall text
+      allText += batchResults.join('');
+      
+      // Update progress
+      processedCount += batch.length;
+      console.log(`Progress: ${processedCount}/${imageFiles.length} images processed`);
+      
+      // Small delay between batches to allow for garbage collection
+      if (i + batchSize < imageFiles.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
-    if (!allText) {
+    if (!allText.trim()) {
       throw new Error("Failed to extract any text from the images in the ZIP file");
     }
     

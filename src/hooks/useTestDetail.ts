@@ -9,7 +9,7 @@ export type { PaperEvaluation };
 
 export function useTestDetail(testId: string | undefined) {
   // Get test data
-  const { test, isTestLoading } = useTestData(testId);
+  const { test, isTestLoading, refetchTest } = useTestData(testId);
   
   // Get test grades
   const { grades, isGradesLoading, refetchGrades } = useTestGrades(testId, test);
@@ -26,6 +26,11 @@ export function useTestDetail(testId: string | undefined) {
   // Get score update functions
   const { handleUpdateAnswerScore } = useScoreUpdate();
 
+  const refetchAll = () => {
+    refetchTest?.();
+    refetchGrades();
+  };
+
   return {
     test,
     grades,
@@ -36,6 +41,6 @@ export function useTestDetail(testId: string | undefined) {
     setEditMarks,
     handleSaveMarks: (grade: any) => handleSaveMarks(grade, refetchGrades),
     handleUpdateAnswerScore,
-    refetch: refetchGrades
+    refetch: refetchAll
   };
 }
