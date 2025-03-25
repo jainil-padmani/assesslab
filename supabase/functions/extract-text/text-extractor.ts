@@ -2,61 +2,6 @@
 import JSZip from "https://esm.sh/jszip@3.10.1";
 
 /**
- * Checks if a file has a supported image format for OpenAI vision API
- */
-function isSupportedImageFormat(filename: string): boolean {
-  const supportedFormats = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-  const lowerFilename = filename.toLowerCase();
-  return supportedFormats.some(format => lowerFilename.endsWith(format));
-}
-
-/**
- * Converts image to PNG format if needed (placeholder for future implementation)
- * Currently just validates the format
- */
-function ensureSupportedFormat(dataUrl: string, filename: string): string {
-  if (!isSupportedImageFormat(filename)) {
-    console.warn(`Unsupported image format detected: ${filename}. This may cause OCR issues.`);
-  }
-  return dataUrl;
-}
-
-/**
- * Validate the format of images in the ZIP
- * Logs warnings for any unsupported formats
- */
-function validateZipContents(files: {name: string, dataUrl: string}[]): boolean {
-  let allValid = true;
-  
-  for (const file of files) {
-    if (!isSupportedImageFormat(file.name)) {
-      console.warn(`Found unsupported image format in ZIP: ${file.name}`);
-      allValid = false;
-    }
-  }
-  
-  return allValid;
-}
-
-/**
- * Removes query parameters from a URL to prevent OpenAI timeouts
- */
-function cleanUrlForApi(url: string): string {
-  try {
-    // If the URL contains a question mark, strip everything after it
-    const questionMarkIndex = url.indexOf('?');
-    if (questionMarkIndex !== -1) {
-      console.log(`Removing query parameters from URL for OpenAI API: ${url}`);
-      return url.substring(0, questionMarkIndex);
-    }
-    return url;
-  } catch (error) {
-    console.error("Error cleaning URL:", error);
-    return url; // Return original URL as fallback
-  }
-}
-
-/**
  * Extracts text from a ZIP file containing images using GPT-4o
  */
 export async function extractTextFromZip(
@@ -67,15 +12,11 @@ export async function extractTextFromZip(
   try {
     console.log("Processing ZIP URL for enhanced OCR:", zipUrl);
     
-    // Clean the URL by removing any query parameters
-    const cleanedZipUrl = cleanUrlForApi(zipUrl);
-    console.log(`Using cleaned ZIP URL for OCR: ${cleanedZipUrl}`);
-    
     // Fetch the ZIP file with a longer timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // Increased to 60 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    const zipResponse = await fetch(cleanedZipUrl, { 
+    const zipResponse = await fetch(zipUrl, { 
       signal: controller.signal,
       headers: { 'Cache-Control': 'no-cache' }
     });
@@ -89,30 +30,22 @@ export async function extractTextFromZip(
     const zipData = await zipResponse.arrayBuffer();
     console.log("Successfully downloaded ZIP file, size:", zipData.byteLength);
     
-    // Extract image files from ZIP
+    // Extract PNG files from ZIP
     const zip = await JSZip.loadAsync(zipData);
     const imagePromises = [];
     const imageFiles: {name: string, dataUrl: string}[] = [];
     
     // Process each file in the ZIP
     zip.forEach((relativePath, zipEntry) => {
-      if (!zipEntry.dir) {
-        // Only process supported image formats
-        if (isSupportedImageFormat(relativePath)) {
-          const promise = zipEntry.async('base64').then(base64Data => {
-            const imgFormat = relativePath.toLowerCase().endsWith('.png') ? 'png' : 
-                             relativePath.toLowerCase().endsWith('.jpg') || relativePath.toLowerCase().endsWith('.jpeg') ? 'jpeg' :
-                             relativePath.toLowerCase().endsWith('.webp') ? 'webp' : 'gif';
-            
-            imageFiles.push({
-              name: relativePath,
-              dataUrl: `data:image/${imgFormat};base64,${base64Data}`
-            });
+      if (!zipEntry.dir && (relativePath.endsWith('.png') || relativePath.endsWith('.jpg'))) {
+        const promise = zipEntry.async('base64').then(base64Data => {
+          const imgFormat = relativePath.endsWith('.png') ? 'png' : 'jpeg';
+          imageFiles.push({
+            name: relativePath,
+            dataUrl: `data:image/${imgFormat};base64,${base64Data}`
           });
-          imagePromises.push(promise);
-        } else {
-          console.warn(`Skipping unsupported file format: ${relativePath}`);
-        }
+        });
+        imagePromises.push(promise);
       }
     });
     
@@ -121,16 +54,10 @@ export async function extractTextFromZip(
     // Sort images by filename (ensures page order)
     imageFiles.sort((a, b) => a.name.localeCompare(b.name));
     
-    console.log(`Successfully extracted ${imageFiles.length} supported images from ZIP`);
+    console.log(`Successfully extracted ${imageFiles.length} images from ZIP`);
     
     if (imageFiles.length === 0) {
-      throw new Error("No supported image files found in ZIP. Supported formats are: PNG, JPEG, WEBP, and GIF.");
-    }
-    
-    // Validate that all images are in supported formats
-    const allValid = validateZipContents(imageFiles);
-    if (!allValid) {
-      console.warn("Some images in the ZIP file have unsupported formats. This may cause OCR issues.");
+      throw new Error("No image files found in ZIP");
     }
     
     // Use GPT-4o's vision capabilities for OCR on all pages
@@ -148,141 +75,54 @@ export async function extractTextFromZip(
       }
     ];
     
-    // Add each image to the request (up to 10 images to avoid timeouts)
-    const maxImages = Math.min(imageFiles.length, 10);
+    // Add each image to the request (up to 20 images)
+    const maxImages = Math.min(imageFiles.length, 20);
     for (let i = 0; i < maxImages; i++) {
-      try {
-        // Ensure the image format is supported and properly formatted
-        const processedImageUrl = ensureSupportedFormat(imageFiles[i].dataUrl, imageFiles[i].name);
-        
-        userContent.push({ 
-          type: 'image_url', 
-          image_url: { 
-            url: processedImageUrl,
-            detail: "high" 
-          } 
-        });
-      } catch (imageError) {
-        console.error(`Error processing image ${imageFiles[i].name}:`, imageError);
-        // Continue with other images
-      }
+      userContent.push({ 
+        type: 'image_url', 
+        image_url: { 
+          url: imageFiles[i].dataUrl,
+          detail: "high" 
+        } 
+      });
     }
     
     messages.push({ role: 'user', content: userContent });
     
     // Increase timeout for OpenAI API call
     const ocrController = new AbortController();
-    const ocrTimeoutId = setTimeout(() => ocrController.abort(), 180000);  // Increased to 3 minutes
+    const ocrTimeoutId = setTimeout(() => ocrController.abort(), 120000);
     
-    try {
-      const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        signal: ocrController.signal,
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: messages,
-          temperature: 0.2,
-          max_tokens: 4000,
-        }),
-      });
-      
-      clearTimeout(ocrTimeoutId);
-  
-      if (!ocrResponse.ok) {
-        const errorData = await ocrResponse.json();
-        console.error("OpenAI OCR error:", JSON.stringify(errorData));
-        
-        // Detailed error handling for timeouts
-        if (errorData.error?.message?.includes("Timeout while downloading")) {
-          console.error("Timeout error downloading ZIP file. Suggesting document splitting");
-          
-          return `The document processing timed out. Please try these options:
-1. Upload smaller files (1-2 pages each)
-2. Try uploading individual JPEG images instead of a PDF
-3. If your PDF is more than 5 pages, split it into smaller documents
+    const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      signal: ocrController.signal,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: messages,
+        temperature: 0.2,
+        max_tokens: 4000,
+      }),
+    });
+    
+    clearTimeout(ocrTimeoutId);
 
-Technical Error: ${errorData.error?.message}`;
-        }
-        
-        throw new Error(`OCR extraction failed: ${errorData.error?.message || 'Unknown error'}`);
-      }
-      
-      const ocrResult = await ocrResponse.json();
-      const extractedOcrText = ocrResult.choices[0]?.message?.content;
-      
-      console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-      console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
-      
-      return extractedOcrText;
-    } catch (apiError) {
-      clearTimeout(ocrTimeoutId);
-      console.error("Error during OpenAI API call:", apiError);
-      
-      // If we have multiple images, try processing in smaller batches
-      if (imageFiles.length > 3) {
-        console.log("Trying with fewer images due to API error...");
-        
-        // Process only the first 3 images for simplicity
-        const reducedUserContent = [
-          { 
-            type: 'text', 
-            text: `Extract all the text from these pages, focusing on identifying question numbers and their corresponding content:` 
-          }
-        ];
-        
-        // Add just a few images
-        const reducedMaxImages = Math.min(3, imageFiles.length);
-        for (let i = 0; i < reducedMaxImages; i++) {
-          try {
-            reducedUserContent.push({ 
-              type: 'image_url', 
-              image_url: { 
-                url: ensureSupportedFormat(imageFiles[i].dataUrl, imageFiles[i].name),
-                detail: "high" 
-              } 
-            });
-          } catch (err) {
-            console.warn(`Skipping problematic image ${i}`);
-          }
-        }
-        
-        const reducedMessages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: reducedUserContent }
-        ];
-        
-        const fallbackResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: reducedMessages,
-            temperature: 0.2,
-            max_tokens: 4000,
-          }),
-        });
-        
-        if (!fallbackResponse.ok) {
-          const fallbackErrorData = await fallbackResponse.json();
-          throw new Error(`OCR extraction failed with reduced batch: ${fallbackErrorData.error?.message || 'Unknown error'}`);
-        }
-        
-        const fallbackResult = await fallbackResponse.json();
-        const fallbackText = fallbackResult.choices[0]?.message?.content;
-        
-        console.log("OCR extraction with reduced batch successful");
-        return fallbackText + "\n\n[Note: Only partial document processing was completed due to technical limitations]";
-      }
-      
-      throw apiError;
+    if (!ocrResponse.ok) {
+      const errorText = await ocrResponse.text();
+      console.error("OpenAI OCR error:", errorText);
+      throw new Error("OCR extraction failed: " + errorText);
     }
+    
+    const ocrResult = await ocrResponse.json();
+    const extractedOcrText = ocrResult.choices[0]?.message?.content;
+    
+    console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
+    console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+    
+    return extractedOcrText;
   } catch (error) {
     console.error("Error processing ZIP file:", error);
     throw error;

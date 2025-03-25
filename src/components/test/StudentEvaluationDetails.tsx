@@ -21,9 +21,7 @@ import {
   ZoomIn, 
   ZoomOut,
   RotateCw,
-  FileDigit,
-  Clipboard,
-  ClipboardCheck
+  FileDigit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +35,6 @@ import { getAnswerSheetUrl } from "@/utils/assessment/fileUploadUtils";
 import type { TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
 import { useTestFiles } from "@/hooks/test-selection/useTestFiles";
-import { toast } from "sonner";
 
 interface StudentEvaluationDetailsProps {
   selectedStudentGrade: (TestGrade & { 
@@ -153,13 +150,6 @@ export function StudentEvaluationDetails({
   const ocrText = extractedText || 
                   evaluation?.isOcrProcessed ? evaluation.text : 
                   "No OCR text available for this answer sheet";
-                  
-  // Copy text to clipboard
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-      .then(() => toast.success("Copied to clipboard"))
-      .catch(() => toast.error("Failed to copy"));
-  };
   
   return (
     <Card className="mb-8">
@@ -250,7 +240,7 @@ export function StudentEvaluationDetails({
                 </div>
               
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Question-Answer Pairs</h3>
+                  <h3 className="text-lg font-semibold">Answers</h3>
                   
                   <Accordion type="single" collapsible className="w-full">
                     {evaluation.answers.map((answer: any, index: number) => (
@@ -264,10 +254,7 @@ export function StudentEvaluationDetails({
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <div className={`
-                                ${answer.score[0] === answer.score[1] ? "text-green-600" : 
-                                  answer.score[0] >= answer.score[1] * 0.5 ? "text-amber-600" : "text-red-600"}
-                              `}>
+                              <div className={answer.score[0] === answer.score[1] ? "text-green-600" : "text-amber-600"}>
                                 {answer.score[0]}/{answer.score[1]}
                               </div>
                               {answer.confidence >= 0.8 ? (
@@ -275,100 +262,45 @@ export function StudentEvaluationDetails({
                               ) : (
                                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                               )}
-                              {answer.match_method === "semantic_matching" && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">AI Mapped</span>
-                              )}
                             </div>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="px-4 py-2 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Question section - Left column */}
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm font-medium text-muted-foreground">Question</div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => copyToClipboard(answer.question)}
-                                  className="h-6 px-2"
-                                >
-                                  <Clipboard className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                              <div className="bg-muted p-3 rounded-md">{answer.question}</div>
-                              
-                              {answer.expected_answer && (
-                                <>
-                                  <div className="flex justify-between items-center mt-3">
-                                    <div className="text-sm font-medium text-muted-foreground">Expected Answer</div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => copyToClipboard(answer.expected_answer)}
-                                      className="h-6 px-2"
-                                    >
-                                      <Clipboard className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                  <div className="bg-muted p-3 rounded-md border-l-4 border-green-500">
-                                    {answer.expected_answer}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                            
-                            {/* Student's answer section - Right column */}
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                <div className="text-sm font-medium text-muted-foreground">Student's Answer</div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => copyToClipboard(answer.answer)}
-                                  className="h-6 px-2"
-                                >
-                                  <Clipboard className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                              <div className="bg-muted p-3 rounded-md whitespace-pre-wrap">{answer.answer}</div>
-                              
-                              <div className="space-y-2 mt-3">
-                                <div className="text-sm font-medium text-muted-foreground">Assessment</div>
-                                <div className="bg-muted p-3 rounded-md">
-                                  <p className="mb-2">{answer.remarks}</p>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex flex-col gap-1">
-                                      <p className="text-sm text-muted-foreground">
-                                        Confidence: {Math.round(answer.confidence * 100)}%
-                                      </p>
-                                      {answer.match_method && (
-                                        <p className="text-sm text-muted-foreground">
-                                          Match method: {answer.match_method === "direct_numbering" 
-                                            ? "Direct number matching" 
-                                            : "AI semantic matching"}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm text-muted-foreground">Score:</span>
-                                      <Input
-                                        type="number"
-                                        value={answer.score[0]}
-                                        onChange={(e) => {
-                                          const newScore = Math.min(
-                                            Math.max(0, Number(e.target.value)), 
-                                            answer.score[1]
-                                          );
-                                          handleUpdateAnswerScore(selectedStudentGrade, index, newScore);
-                                        }}
-                                        className="h-8 w-20 text-center"
-                                        min={0}
-                                        max={answer.score[1]}
-                                      />
-                                      <span className="text-sm text-muted-foreground">/ {answer.score[1]}</span>
-                                    </div>
-                                  </div>
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-muted-foreground">Question</div>
+                            <div className="bg-muted p-3 rounded-md">{answer.question}</div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-muted-foreground">Student's Answer</div>
+                            <div className="bg-muted p-3 rounded-md whitespace-pre-wrap">{answer.answer}</div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-muted-foreground">Assessment</div>
+                            <div className="bg-muted p-3 rounded-md">
+                              <p className="mb-2">{answer.remarks}</p>
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm text-muted-foreground">
+                                  Confidence: {Math.round(answer.confidence * 100)}%
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">Score:</span>
+                                  <Input
+                                    type="number"
+                                    value={answer.score[0]}
+                                    onChange={(e) => {
+                                      const newScore = Math.min(
+                                        Math.max(0, Number(e.target.value)), 
+                                        answer.score[1]
+                                      );
+                                      handleUpdateAnswerScore(selectedStudentGrade, index, newScore);
+                                    }}
+                                    className="h-8 w-20 text-center"
+                                    min={0}
+                                    max={answer.score[1]}
+                                  />
+                                  <span className="text-sm text-muted-foreground">/ {answer.score[1]}</span>
                                 </div>
                               </div>
                             </div>
@@ -434,23 +366,8 @@ export function StudentEvaluationDetails({
           </TabsContent>
           
           <TabsContent value="ocr-text">
-            <div className="flex flex-col h-[600px]">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium">Extracted Text</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyToClipboard(ocrText || '')}
-                  disabled={!ocrText}
-                  className="flex items-center gap-1"
-                >
-                  <Clipboard className="h-4 w-4 mr-1" />
-                  Copy All
-                </Button>
-              </div>
-              <div className="rounded-md border p-4 flex-grow overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm font-mono">{ocrText}</pre>
-              </div>
+            <div className="rounded-md border p-4 h-[600px] overflow-auto">
+              <pre className="whitespace-pre-wrap text-sm font-mono">{ocrText}</pre>
             </div>
           </TabsContent>
         </Tabs>

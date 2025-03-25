@@ -34,13 +34,10 @@ export function useOcrProcessor({
     }
 
     try {
-      // We no longer need to check if the document is a ZIP file
-      // as we handle optimized images directly
       const response = await supabase.functions.invoke('extract-text', {
         body: {
           documentUrl,
-          // No more ZIP file handling - direct image processing
-          useDirectImageProcessing: true
+          isZip: documentUrl.includes('.zip')
         }
       });
 
