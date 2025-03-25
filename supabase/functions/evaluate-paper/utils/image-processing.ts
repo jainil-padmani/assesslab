@@ -85,24 +85,6 @@ export async function urlToBase64(url: string): Promise<string> {
 }
 
 /**
- * Encode an ArrayBuffer as base64 in chunks to avoid call stack overflow
- * Note: This is kept for compatibility but we prefer direct URLs now
- */
-export function chunkEncodeBase64(arrayBuffer: ArrayBuffer): string {
-  const uint8Array = new Uint8Array(arrayBuffer);
-  let binary = '';
-  
-  // Process in chunks of 1024 bytes to avoid call stack overflow
-  const chunkSize = 1024;
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.slice(i, Math.min(i + chunkSize, uint8Array.length));
-    binary += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  
-  return btoa(binary);
-}
-
-/**
  * Removes query parameters from a URL
  * Used to clean URLs before sending to OpenAI
  */

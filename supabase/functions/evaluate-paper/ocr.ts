@@ -12,4 +12,4 @@ export { evaluateWithExtractedQuestions } from "./extractors/answer-evaluator.ts
 
 // Re-export utility functions that might be needed elsewhere
 export { createOpenAIService } from "./services/openai-service.ts";
-export { createDirectImageUrl, encodeBase64 } from "./utils/image-processing.ts";
+export { createDirectImageUrl, cleanUrlForApi } from "./utils/image-processing.ts";
