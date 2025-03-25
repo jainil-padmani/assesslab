@@ -83,9 +83,9 @@ export function UploadAnswerSheet({
       
       // Processing step depends on file type
       if (file.type === 'application/pdf') {
-        setProcessingStep("Converting PDF to high-quality PNG images...");
+        setProcessingStep("Converting PDF to optimized images...");
       } else if (file.type.startsWith('image/')) {
-        setProcessingStep("Converting image to high-quality PNG format...");
+        setProcessingStep("Optimizing image for OCR...");
       }
       
       // Upload the file to storage
@@ -98,7 +98,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId || '',
         publicUrl,
-        file.type === 'application/pdf' ? 'PDF converted to high-quality PNG for OCR' : 'Image converted to high-quality PNG for OCR',
+        file.type === 'application/pdf' ? 'PDF converted to optimized format for OCR' : 'Image optimized for OCR',
         zipUrl
       );
       
@@ -107,7 +107,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and converted to high-quality PNG format successfully');
+      toast.success('Answer sheet uploaded and optimized successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
@@ -193,7 +193,7 @@ export function UploadAnswerSheet({
         </p>
         
         <p className="text-xs text-muted-foreground text-center">
-          PDF, PNG, JPG (max 10MB) - Files will be converted to high-quality PNG for OCR
+          PDF, PNG, JPG (max 10MB) - Files will be optimized for OCR
         </p>
         
         {isUploading && (

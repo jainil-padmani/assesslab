@@ -103,7 +103,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
 
 /**
  * Extracts text from a single image file
- * Now directly sends ZIP URLs to OpenAI for processing
+ * Now directly sends ZIP URLs to OpenAI for processing with increased timeout
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
@@ -121,7 +121,7 @@ export async function extractTextFromImageFile(
     // Direct API call to OpenAI with increased timeout
     // Increase timeout to 120 seconds (2 minutes) for large ZIP files
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
     
     let imageUrl = fileUrl;
     

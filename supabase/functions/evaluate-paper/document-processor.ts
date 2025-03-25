@@ -4,7 +4,7 @@ import { extractTextFromFile, extractQuestionsFromPaper } from './ocr.ts';
 
 /**
  * Processes a student's answer sheet document
- * Now handles ZIP files with converted PNGs for better OCR results
+ * Now handles ZIP files with optimized images for better OCR results and smaller file sizes
  */
 export async function processStudentAnswer(
   apiKey: string,
@@ -23,9 +23,9 @@ export async function processStudentAnswer(
       };
     }
     
-    // Check if we have a ZIP URL available with PNG images
+    // Check if we have a ZIP URL available with optimized images
     if (studentAnswer.zip_url) {
-      console.log("Found ZIP URL with PNG images for student answer:", studentAnswer.zip_url);
+      console.log("Found ZIP URL with optimized images for student answer:", studentAnswer.zip_url);
       
       // Use a specialized prompt for student answers
       const extractedText = await extractTextFromFile(
@@ -53,7 +53,7 @@ export async function processStudentAnswer(
     }
     
     // If we reached here, there's no text source available
-    throw new Error("No valid text source found for student answer. Need either text, direct URL, or ZIP URL with PNG images.");
+    throw new Error("No valid text source found for student answer. Need either text, direct URL, or ZIP URL with optimized images.");
   } catch (error) {
     console.error("Error processing student answer:", error);
     throw error;

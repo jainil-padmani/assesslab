@@ -36,7 +36,7 @@ export async function urlToBase64(url: string): Promise<string> {
     
     // Get image type from Content-Type header
     const contentType = response.headers.get('Content-Type');
-    let mimeType = 'image/png'; // Default to PNG if not specified
+    let mimeType = 'image/jpeg'; // Default to JPEG if not specified (better for OCR than PNG)
     
     if (contentType) {
       // Make sure it's an image type
@@ -136,7 +136,7 @@ export async function createDirectImageUrl(blob: Blob | string): Promise<string>
           return;
         }
         
-        mimeType = 'image/png';
+        mimeType = 'image/jpeg'; // Default to JPEG for unknown types
       }
       
       // Using a more memory-efficient chunk processing approach
