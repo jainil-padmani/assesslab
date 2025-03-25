@@ -16,7 +16,7 @@ export async function hash(message: string): Promise<string> {
 /**
  * Compute HMAC SHA-256
  */
-export async function hmac(key: string | ArrayBuffer, message: string): Promise<string> {
+export async function hmac(key: string | ArrayBuffer, message: string): Promise<ArrayBuffer> {
   const keyData = typeof key === 'string' 
     ? new TextEncoder().encode(key) 
     : key;
@@ -24,43 +24,34 @@ export async function hmac(key: string | ArrayBuffer, message: string): Promise<
   const messageData = new TextEncoder().encode(message);
   
   // Create HMAC using Deno's standard crypto module
-  let hmacKey: CryptoKey;
-  
-  if (typeof key === 'string') {
-    // Import the key
-    hmacKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-  } else {
-    // Use the provided key buffer
-    hmacKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-  }
+  const hmacKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
   
   // Sign the message
-  const signature = await crypto.subtle.sign(
+  return await crypto.subtle.sign(
     'HMAC',
     hmacKey,
     messageData
   );
-  
-  // Convert to hex string
-  return Array.from(new Uint8Array(signature))
+}
+
+/**
+ * Convert ArrayBuffer to hex string
+ */
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
 /**
  * Create AWS Signature v4 headers for authorization
+ * Following AWS documentation for bedrock-runtime API
  */
 export async function createSignatureHeaders(
   method: string, 
@@ -93,8 +84,6 @@ export async function createSignatureHeaders(
     
     // Create canonical request
     const contentType = 'application/json';
-    const canonicalUri = path;
-    const canonicalQueryString = '';
     const payloadHash = await hash(payload);
     
     const canonicalHeaders = 
@@ -104,8 +93,14 @@ export async function createSignatureHeaders(
     
     const signedHeaders = 'content-type;host;x-amz-date';
     
-    const canonicalRequest = 
-      `${method}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+    const canonicalRequest = [
+      method,
+      path,
+      '', // canonical query string (empty)
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash
+    ].join('\n');
     
     // Create string to sign
     const credentialScope = `${date}/${region}/${service}/aws4_request`;
@@ -113,11 +108,11 @@ export async function createSignatureHeaders(
     const stringToSign = `${algorithm}\n${datetime}\n${credentialScope}\n${requestHash}`;
     
     // Calculate signature
-    const kDate = await hmac('AWS4' + secretAccessKey, date);
+    const kDate = await hmac(`AWS4${secretAccessKey}`, date);
     const kRegion = await hmac(kDate, region);
     const kService = await hmac(kRegion, service);
     const kSigning = await hmac(kService, 'aws4_request');
-    const signature = (await hmac(kSigning, stringToSign)).toLowerCase();
+    const signature = toHex(await hmac(kSigning, stringToSign));
     
     // Create authorization header
     const authorizationHeader = `${algorithm} Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
@@ -126,7 +121,8 @@ export async function createSignatureHeaders(
     const headers = new Headers({
       'Content-Type': contentType,
       'X-Amz-Date': datetime,
-      'Authorization': authorizationHeader
+      'Authorization': authorizationHeader,
+      'Host': host
     });
     
     return headers;

@@ -6,7 +6,7 @@ import { BedrockService } from "./bedrock-service.ts";
 
 /**
  * Process images with Claude 3.5 Vision models through AWS Bedrock
- * Non-recursive implementation to prevent call stack size exceeded errors
+ * Following AWS Bedrock documentation for image processing
  */
 export async function processImagesWithVision(
   bedrockService: BedrockService,
@@ -87,7 +87,7 @@ export async function processImagesWithVision(
         
         console.log(`Successfully processed image ${i+1}: ${base64.substring(0, 50)}... (${imageData.byteLength} bytes)`);
         
-        // Add image to content array in the correct format for Bedrock
+        // Add image to content array in the correct format for Bedrock/Claude
         imageContents.push({
           type: "image",
           source: {
@@ -134,7 +134,7 @@ export async function processImagesWithVision(
     adjustedPrompt += `\n\nNote: ${failedImages.length} out of ${params.imageUrls.length} images could not be processed. Analysis is based only on the available ${imageContents.length} images.`;
   }
   
-  // Create the message with text and images
+  // Create the message with text and images following Bedrock/Claude format
   const userMessage = {
     role: "user",
     content: [
@@ -151,10 +151,13 @@ export async function processImagesWithVision(
       messages: [userMessage],
       max_tokens: params.max_tokens || 4000,
       temperature: params.temperature || 0.2,
-      system: params.system
+      system: params.system,
+      anthropic_version: "bedrock-2023-05-31"
     });
     
-    // Access the response based on the Bedrock format
+    console.log("Response structure:", JSON.stringify(Object.keys(response)));
+    
+    // Extract text from the response based on Bedrock/Claude format
     if (!response || !response.output || !response.output.content) {
       console.error("Invalid response format from Bedrock:", JSON.stringify(response));
       throw new Error("Invalid response format from Bedrock API");
