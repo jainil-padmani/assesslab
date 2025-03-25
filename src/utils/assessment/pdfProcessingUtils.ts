@@ -1,35 +1,19 @@
 
-import { convertPdfPagesToZip, convertImageFileToZip } from "./pdf/pdfConverter";
+import { convertPdfPagesToZip } from "./pdf/pdfConverter";
 import { uploadZipFile } from "./pdf/zipFileStorage";
-import { validatePdfFile } from "./fileValidation";
 
 /**
- * Processes a PDF or image file and converts it to PNG images
+ * Processes a PDF file and converts each page into a PNG image
  * These images are then compressed into a ZIP file for efficient storage and processing
  */
 export const processPdfToZip = async (
-  file: File, 
+  pdfFile: File, 
   identifier: string, 
   folderType: string = 'answer_sheets'
 ): Promise<{ zipBlob: Blob, zipUrl: string }> => {
   try {
-    let zipBlob: Blob;
-    
-    // Handle PDF files
-    if (validatePdfFile(file)) {
-      console.log("Converting PDF to ZIP of PNG images");
-      const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
-      zipBlob = pdfZipBlob;
-    } 
-    // Handle image files
-    else if (file.type.startsWith('image/')) {
-      console.log("Converting image to PNG and creating ZIP");
-      zipBlob = await convertImageFileToZip(file);
-    }
-    // Handle unsupported file types
-    else {
-      throw new Error(`Unsupported file type: ${file.type}. Only PDF and image files are supported.`);
-    }
+    // Convert PDF pages to PNG images and add to ZIP
+    const { zipBlob } = await convertPdfPagesToZip(pdfFile);
     
     // Upload the ZIP file to storage
     const zipUrl = await uploadZipFile(zipBlob, identifier, folderType);
@@ -39,7 +23,7 @@ export const processPdfToZip = async (
       zipUrl
     };
   } catch (error) {
-    console.error("Error processing file to ZIP:", error);
+    console.error("Error processing PDF to ZIP:", error);
     throw error;
   }
 };

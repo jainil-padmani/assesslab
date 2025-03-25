@@ -21,48 +21,6 @@ export function dataURLToBlob(dataURL: string): Blob {
 }
 
 /**
- * Convert any image to PNG format using canvas
- */
-export async function convertImageToPng(imageUrl: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    
-    img.onload = () => {
-      // Create canvas and draw image
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      
-      // Draw image with white background to handle transparency
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-      
-      // Convert to PNG
-      try {
-        const pngDataUrl = canvas.toDataURL('image/png');
-        resolve(pngDataUrl);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    
-    img.onerror = () => {
-      reject(new Error(`Failed to load image: ${imageUrl}`));
-    };
-    
-    img.src = imageUrl;
-  });
-}
-
-/**
  * Converts PDF pages to PNG images and adds them to a ZIP file
  */
 export async function convertPdfPagesToZip(pdfFile: File): Promise<{ 
@@ -113,7 +71,7 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
         viewport
       }).promise;
       
-      // Convert canvas to PNG image (always use PNG format)
+      // Convert canvas to PNG image
       const pngDataUrl = canvas.toDataURL('image/png');
       
       // Convert data URL to blob
@@ -122,8 +80,6 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
       // Add the PNG to the ZIP with a sequential name
       const paddedPageNum = String(i).padStart(3, '0');
       zip.file(`page_${paddedPageNum}.png`, pngBlob);
-      
-      console.log(`Added page ${i} as PNG image to ZIP file`);
     }
     
     // Generate the ZIP file
@@ -132,48 +88,12 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
     // Clean up the PDF URL
     URL.revokeObjectURL(pdfUrl);
     
-    console.log(`Successfully created ZIP with ${numPages} PNG images`);
-    
     return { 
       zipBlob,
       pdfPages: numPages
     };
   } catch (error) {
     console.error("Error converting PDF to ZIP:", error);
-    throw error;
-  }
-}
-
-/**
- * Converts any image file to PNG format and adds it to a ZIP file
- * Used for handling single image uploads
- */
-export async function convertImageFileToZip(imageFile: File): Promise<Blob> {
-  try {
-    // Create a URL for the image file
-    const imageUrl = URL.createObjectURL(imageFile);
-    
-    // Convert to PNG using canvas
-    const pngDataUrl = await convertImageToPng(imageUrl);
-    
-    // Convert data URL to blob
-    const pngBlob = dataURLToBlob(pngDataUrl);
-    
-    // Create a ZIP file with the PNG
-    const zip = new JSZip();
-    zip.file("image_001.png", pngBlob);
-    
-    // Generate ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    
-    // Clean up the image URL
-    URL.revokeObjectURL(imageUrl);
-    
-    console.log(`Successfully created ZIP with PNG image`);
-    
-    return zipBlob;
-  } catch (error) {
-    console.error("Error converting image to ZIP:", error);
     throw error;
   }
 }

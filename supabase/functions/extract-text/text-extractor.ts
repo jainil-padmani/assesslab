@@ -22,23 +22,6 @@ function ensureSupportedFormat(dataUrl: string, filename: string): string {
 }
 
 /**
- * Validate the format of images in the ZIP
- * Logs warnings for any unsupported formats
- */
-function validateZipContents(files: {name: string, dataUrl: string}[]): boolean {
-  let allValid = true;
-  
-  for (const file of files) {
-    if (!isSupportedImageFormat(file.name)) {
-      console.warn(`Found unsupported image format in ZIP: ${file.name}`);
-      allValid = false;
-    }
-  }
-  
-  return allValid;
-}
-
-/**
  * Extracts text from a ZIP file containing images using GPT-4o
  */
 export async function extractTextFromZip(
@@ -75,7 +58,7 @@ export async function extractTextFromZip(
     // Process each file in the ZIP
     zip.forEach((relativePath, zipEntry) => {
       if (!zipEntry.dir) {
-        // Only process supported image formats
+        // Check if it's an image file with supported format
         if (isSupportedImageFormat(relativePath)) {
           const promise = zipEntry.async('base64').then(base64Data => {
             const imgFormat = relativePath.toLowerCase().endsWith('.png') ? 'png' : 
@@ -103,12 +86,6 @@ export async function extractTextFromZip(
     
     if (imageFiles.length === 0) {
       throw new Error("No supported image files found in ZIP. Supported formats are: PNG, JPEG, WEBP, and GIF.");
-    }
-    
-    // Validate that all images are in supported formats
-    const allValid = validateZipContents(imageFiles);
-    if (!allValid) {
-      console.warn("Some images in the ZIP file have unsupported formats. This may cause OCR issues.");
     }
     
     // Use GPT-4o's vision capabilities for OCR on all pages
