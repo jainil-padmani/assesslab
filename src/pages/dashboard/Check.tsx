@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
 import { useEvaluations } from "@/hooks/useEvaluations";
@@ -14,7 +15,7 @@ export default function Check() {
   // State for showing the guide
   const [showGuide, setShowGuide] = useState(false);
   
-  // Use custom hooks for test selection and evaluations
+  // Use custom hooks for test selection
   const { 
     selectedClass, setSelectedClass,
     selectedSubject, setSelectedSubject,
@@ -22,6 +23,7 @@ export default function Check() {
     classes, subjects, tests, testFiles, classStudents
   } = useTestSelection();
 
+  // Use our optimized useEvaluations hook
   const {
     evaluations,
     evaluatingStudents,
