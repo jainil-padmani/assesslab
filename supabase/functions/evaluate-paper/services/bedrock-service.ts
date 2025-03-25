@@ -9,13 +9,13 @@ export class BedrockService {
   private accessKeyId: string;
   private secretAccessKey: string;
   private region: string;
-  private service = 'bedrock-runtime';
+  private service = 'bedrock';
   private model = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
-  constructor(accessKeyId: string, secretAccessKey: string, region: string = 'us-east-1') {
+  constructor(accessKeyId: string, secretAccessKey: string, region: string = 'ap-south-1') {
     this.accessKeyId = accessKeyId;
     this.secretAccessKey = secretAccessKey;
-    this.region = region || 'us-east-1'; // Default to us-east-1 if region is not provided
+    this.region = region || 'ap-south-1'; // Default to ap-south-1 if region is not provided
     
     // Validate credentials at construction time
     if (!this.accessKeyId || !this.secretAccessKey) {
@@ -138,9 +138,9 @@ export class BedrockService {
         this.secretAccessKey
       );
       
-      // Using the specific bedrock-runtime endpoint for the region
+      // Using the specific bedrock endpoint for the region
       const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
-      console.log(`Sending request to Bedrock Runtime API: ${endpoint}${path}`);
+      console.log(`Sending request to Bedrock API: ${endpoint}${path}`);
       
       // Add timeout to avoid hanging requests
       const controller = new AbortController();
@@ -162,7 +162,7 @@ export class BedrockService {
           
           // Check for specific error conditions and provide more helpful messages
           if (response.status === 403) {
-            throw new Error(`Authentication error: Your AWS credentials don't have access to Bedrock services in region ${this.region}. Please verify your IAM permissions include bedrock-runtime:InvokeModel access.`);
+            throw new Error(`Authentication error: Your AWS credentials don't have access to Bedrock services in region ${this.region}. Please verify your IAM permissions include bedrock:InvokeModel access.`);
           } else if (response.status === 404) {
             throw new Error(`Model not found: The model "${this.model}" may not be available in region ${this.region} or your account doesn't have access to it.`);
           } else if (response.status === 429) {
@@ -207,6 +207,6 @@ export class BedrockService {
 /**
  * Create a Bedrock service instance with AWS credentials
  */
-export function createBedrockService(accessKeyId: string, secretAccessKey: string, region: string = 'us-east-1'): BedrockService {
-  return new BedrockService(accessKeyId, secretAccessKey, region || 'us-east-1');
+export function createBedrockService(accessKeyId: string, secretAccessKey: string, region: string = 'ap-south-1'): BedrockService {
+  return new BedrockService(accessKeyId, secretAccessKey, region || 'ap-south-1');
 }

@@ -51,7 +51,7 @@ function toHex(buffer: ArrayBuffer): string {
 
 /**
  * Create AWS Signature v4 headers for authorization
- * Following AWS documentation for bedrock-runtime API
+ * Following AWS documentation for bedrock API
  */
 export async function createSignatureHeaders(
   method: string, 
