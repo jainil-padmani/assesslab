@@ -1,5 +1,5 @@
 
-import JSZip from "https://deno.land/x/jszip@0.11.0/mod.ts";
+import * as JSZip from "https://deno.land/x/jszip@0.11.0/mod.ts";
 import { extractTextFromImageFile } from "./file-extractor.ts";
 import { createDirectImageUrl } from "../utils/image-processing.ts";
 
@@ -26,7 +26,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     }
     
     // Load the ZIP file
-    const zip = new JSZip();
+    const zip = new JSZip.JSZip();
     await zip.loadAsync(zipData);
     
     // Find image files in the ZIP
@@ -63,7 +63,7 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
         
         try {
           // Extract the file from the ZIP
-          const fileData = await zip.file(fileName)?.async('blob');
+          const fileData = await zip.files[fileName]?.async('blob');
           if (!fileData) {
             console.warn(`Could not extract file ${fileName} from ZIP`);
             return `\n\n--- PAGE ${pageIndex} ---\n\n[Error: Failed to extract image]`;

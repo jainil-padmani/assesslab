@@ -46,34 +46,38 @@ export function encodeBase64(buffer: ArrayBuffer): string {
     // Convert the ArrayBuffer to Uint8Array
     const uint8Array = new Uint8Array(buffer);
     
-    // Use Deno's built-in btoa but chunk the conversion to avoid call stack issues
-    const CHUNK_SIZE = 4096; // Smaller chunk size to avoid memory issues
-    let result = '';
+    // Use Deno's built-in encoding API
+    return btoa(String.fromCharCode.apply(null, Array.from(uint8Array)));
+  } catch (memoryError) {
+    console.warn("Memory error during base64 encoding, trying chunked approach");
     
-    for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
-      const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
-      // Convert chunk to string and then to base64
-      const binaryString = Array.from(chunk)
-        .map(byte => String.fromCharCode(byte))
-        .join('');
-      
-      try {
-        result += btoa(binaryString);
-      } catch (e) {
-        console.error(`Error encoding chunk at index ${i}:`, e);
-        // Continue with next chunk if possible
-      }
-    }
-    
-    return result;
-  } catch (error) {
-    console.error("Error encoding base64:", error);
-    
-    // Fallback method for encoding
+    // If memory error occurs, try a chunked approach
     try {
-      return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer) as unknown as number[]));
-    } catch (fallbackError) {
-      console.error("Base64 encoding fallback also failed:", fallbackError);
+      // Convert the ArrayBuffer to Uint8Array
+      const uint8Array = new Uint8Array(buffer);
+      
+      // Process in chunks to avoid call stack size limitations
+      const CHUNK_SIZE = 4096;
+      let result = '';
+      
+      for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+        const chunk = uint8Array.slice(i, i + CHUNK_SIZE);
+        // Convert chunk to string and then to base64
+        const binaryString = Array.from(chunk)
+          .map(byte => String.fromCharCode(byte))
+          .join('');
+        
+        try {
+          result += btoa(binaryString);
+        } catch (e) {
+          console.error(`Error encoding chunk at index ${i}:`, e);
+          // Continue with next chunk if possible
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error encoding base64 with chunked approach:", error);
       throw new Error("Failed to encode data as base64: " + error.message);
     }
   }
