@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
@@ -236,6 +237,8 @@ serve(async (req) => {
     const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID') || '';
     const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY') || '';
     const awsRegion = Deno.env.get('AWS_REGION') || 'us-east-1';
+    
+    console.log(`Using AWS credentials: Access Key starting with ${awsAccessKeyId.substring(0, 4)}..., Region: ${awsRegion}`);
     
     if (!awsAccessKeyId || !awsSecretAccessKey) {
       throw new Error('AWS credentials environment variables are not set');
