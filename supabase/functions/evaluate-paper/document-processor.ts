@@ -1,4 +1,3 @@
-
 // Import necessary modules and functions
 import { extractTextFromFile, extractQuestionsFromPaper } from './ocr.ts';
 
@@ -174,9 +173,18 @@ export async function processAnswerKey(
 }
 
 /**
- * Add a cache-busting parameter to URLs to prevent caching issues
+ * Add a cache-busting parameter to a URL
  */
 export function addCacheBuster(url: string): string {
+  const cacheBuster = `cache=${Date.now()}`;
   const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}cache=${Date.now()}`;
+  return `${url}${separator}${cacheBuster}`;
+}
+
+/**
+ * Remove all query parameters from a URL
+ * This is needed when sending URLs to OpenAI API
+ */
+export function stripQueryParams(url: string): string {
+  return url.split('?')[0];
 }

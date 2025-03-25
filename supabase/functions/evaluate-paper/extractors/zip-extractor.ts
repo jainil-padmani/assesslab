@@ -1,6 +1,6 @@
 
 import { extractTextFromImageFile } from "./file-extractor.ts";
-import { createDirectImageUrl } from "../utils/image-processing.ts";
+import { cleanUrlForApi } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a ZIP file containing images
@@ -10,17 +10,16 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
   try {
     console.log(`Processing ZIP URL: ${zipUrl}`);
     
+    // Clean the ZIP URL by removing query parameters
+    const cleanedZipUrl = cleanUrlForApi(zipUrl);
+    console.log(`Using cleaned ZIP URL for OCR processing: ${cleanedZipUrl}`);
+    
     // Since we're now using pre-converted PNG images in the ZIP file,
-    // we can directly process the first image in the ZIP as a representative sample
-    // This is more efficient than trying to extract the entire ZIP in the edge function
+    // we can directly process the ZIP file with OpenAI's vision capabilities
     
-    // Create a direct image URL that OpenAI can access
-    const directImageUrl = createDirectImageUrl(zipUrl);
-    console.log(`Created direct image URL for OCR processing: ${directImageUrl}`);
-    
-    // Extract text from the image using OpenAI's vision capabilities
+    // Extract text from the ZIP using OpenAI's vision capabilities
     const extractedText = await extractTextFromImageFile(
-      directImageUrl,
+      cleanedZipUrl,
       apiKey,
       systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately."
     );

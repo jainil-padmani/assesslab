@@ -1,7 +1,6 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
+import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster, stripQueryParams } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
 import { evaluateWithExtractedQuestions, matchAnswersToQuestions, extractQuestionsFromText } from './ocr.ts';
 
@@ -111,11 +110,16 @@ serve(async (req) => {
       }
     }
     
-    // Add cache-busting parameter to URLs to prevent caching issues
+    // Add cache-busting parameter to URLs for fetching
     if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
-    if (studentAnswer?.zip_url) studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
+    if (studentAnswer?.zip_url) {
+      // Add cache buster for fetching, but prepare a clean URL for OpenAI
+      studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
+      studentAnswer.clean_zip_url = stripQueryParams(studentAnswer.zip_url);
+      console.log("Clean ZIP URL for OpenAI:", studentAnswer.clean_zip_url);
+    }
     
     // Process documents to extract text with improved error handling
     try {

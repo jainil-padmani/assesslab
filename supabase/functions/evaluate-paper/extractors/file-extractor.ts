@@ -1,6 +1,6 @@
 
 import { createOpenAIService } from "../services/openai-service.ts";
-import { urlToBase64 } from "../utils/image-processing.ts";
+import { urlToBase64, cleanUrlForApi } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a file using OpenAI Vision API
@@ -16,8 +16,12 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     // Check if this is a ZIP file - if so, we can pass it directly to OpenAI
     if (/\.zip/i.test(fileUrl)) {
       console.log("ZIP file detected, sending directly to OpenAI for processing");
+      // Clean the URL by removing any query parameters
+      const cleanedUrl = cleanUrlForApi(fileUrl);
+      console.log(`Using cleaned ZIP URL for OCR: ${cleanedUrl}`);
+      
       return await extractTextFromImageFile(
-        fileUrl,
+        cleanedUrl,
         apiKey,
         systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately."
       );
@@ -136,6 +140,9 @@ export async function extractTextFromImageFile(
       }
     } else {
       console.log("Using ZIP URL directly for OCR processing");
+      // Make sure we're using a clean URL without query parameters for ZIP files
+      imageUrl = cleanUrlForApi(fileUrl);
+      console.log(`Cleaned ZIP URL for OCR: ${imageUrl}`);
     }
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";

@@ -89,18 +89,33 @@ export function encodeBase64(arrayBuffer: ArrayBuffer): string {
 }
 
 /**
+ * Removes query parameters from a URL
+ * Used to clean URLs before sending to OpenAI
+ */
+export function cleanUrlForApi(url: string): string {
+  try {
+    // If the URL contains a question mark, strip everything after it
+    const questionMarkIndex = url.indexOf('?');
+    if (questionMarkIndex !== -1) {
+      console.log(`Removing query parameters from URL for OpenAI API: ${url}`);
+      return url.substring(0, questionMarkIndex);
+    }
+    return url;
+  } catch (error) {
+    console.error("Error cleaning URL:", error);
+    return url; // Return original URL as fallback
+  }
+}
+
+/**
  * Create a direct image URL from a blob using FileReader
  * This is used as a fallback for large images
  */
 export async function createDirectImageUrl(blob: Blob | string): Promise<string> {
   // If it's a string (URL), return it directly for OpenAI to process
   if (typeof blob === 'string') {
-    // If it's a ZIP URL, just return it and let OpenAI handle it
-    if (blob.includes('.zip')) {
-      console.log("ZIP URL detected, returning for direct OpenAI processing");
-      return blob;
-    }
-    return blob;
+    // Remove any query parameters that might cause OpenAI to timeout
+    return cleanUrlForApi(blob);
   }
   
   return new Promise<string>((resolve, reject) => {

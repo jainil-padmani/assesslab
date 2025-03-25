@@ -38,6 +38,24 @@ function validateZipContents(files: {name: string, dataUrl: string}[]): boolean 
 }
 
 /**
+ * Removes query parameters from a URL to prevent OpenAI timeouts
+ */
+function cleanUrlForApi(url: string): string {
+  try {
+    // If the URL contains a question mark, strip everything after it
+    const questionMarkIndex = url.indexOf('?');
+    if (questionMarkIndex !== -1) {
+      console.log(`Removing query parameters from URL for OpenAI API: ${url}`);
+      return url.substring(0, questionMarkIndex);
+    }
+    return url;
+  } catch (error) {
+    console.error("Error cleaning URL:", error);
+    return url; // Return original URL as fallback
+  }
+}
+
+/**
  * Extracts text from a ZIP file containing images using GPT-4o
  */
 export async function extractTextFromZip(
@@ -48,11 +66,15 @@ export async function extractTextFromZip(
   try {
     console.log("Processing ZIP URL for enhanced OCR:", zipUrl);
     
+    // Clean the URL by removing any query parameters
+    const cleanedZipUrl = cleanUrlForApi(zipUrl);
+    console.log(`Using cleaned ZIP URL for OCR: ${cleanedZipUrl}`);
+    
     // Fetch the ZIP file with a longer timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    const zipResponse = await fetch(zipUrl, { 
+    const zipResponse = await fetch(cleanedZipUrl, { 
       signal: controller.signal,
       headers: { 'Cache-Control': 'no-cache' }
     });
