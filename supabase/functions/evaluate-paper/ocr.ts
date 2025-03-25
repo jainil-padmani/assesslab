@@ -84,7 +84,7 @@ async function processImagesWithOpenAI(imageContents: any[], apiKey: string, sys
 
 /**
  * Extract text from a ZIP file containing images
- * This function tries to handle OpenAI's limitation by processing each image as PNG
+ * This function tries to handle OpenAI's limitation by sending direct data URLs
  */
 export async function extractTextFromZip(zipUrl: string, apiKey: string, systemPrompt: string = ''): Promise<string> {
   try {
@@ -151,15 +151,15 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
         // Get the image data
         const imageData = await zip.files[imageFile].async('blob');
         
-        // Ensure the image is a PNG (OpenAI requires PNG, JPEG, GIF, or WEBP)
-        // Even if the filename says it's a PNG, let's convert it just to be sure
-        const pngDataUrl = await ensurePngFormat(imageData);
+        // Generate a direct URL for the OpenAI API
+        // This avoids the need for browser-specific Image objects
+        const imageUrl = await createDirectImageUrl(imageData);
         
         // Add image to the batch
         imageContents.push({
           type: "image_url",
           image_url: {
-            url: pngDataUrl
+            url: imageUrl
           }
         });
       }
@@ -193,53 +193,31 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
 }
 
 /**
- * Helper function to ensure an image is in PNG format
- * Converts any image to PNG using canvas
+ * Creates a base64 data URL for an image blob
+ * This works in Deno environment without requiring browser APIs
  */
-async function ensurePngFormat(imageBlob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // Create image URL
-    const imageUrl = URL.createObjectURL(imageBlob);
-    
-    // Create an image element to load the blob
-    const img = new Image();
-    img.onload = () => {
-      // Create canvas to convert the image
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      // Draw the image on the canvas (with white background)
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        URL.revokeObjectURL(imageUrl);
-        reject(new Error('Could not get canvas context'));
-        return;
-      }
-      
-      // Fill with white background first (in case of transparent images)
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw the image
-      ctx.drawImage(img, 0, 0);
-      
-      // Convert to PNG data URL
-      const pngDataUrl = canvas.toDataURL('image/png');
-      
-      // Clean up
-      URL.revokeObjectURL(imageUrl);
-      
-      resolve(pngDataUrl);
-    };
-    
-    img.onerror = () => {
-      URL.revokeObjectURL(imageUrl);
-      reject(new Error('Failed to load image for PNG conversion'));
-    };
-    
-    img.src = imageUrl;
-  });
+async function createDirectImageUrl(imageBlob: Blob): Promise<string> {
+  // Read the blob as an array buffer
+  const arrayBuffer = await imageBlob.arrayBuffer();
+  
+  // Convert to base64
+  const base64 = encodeBase64(arrayBuffer);
+  
+  // Create data URL with the appropriate MIME type
+  const mimeType = imageBlob.type || 'image/png';
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  
+  return dataUrl;
+}
+
+/**
+ * Encodes an ArrayBuffer to base64 string
+ * This implementation works in Deno environment
+ */
+function encodeBase64(buffer: ArrayBuffer): string {
+  // Use Deno's built-in encoding utilities
+  const uint8Array = new Uint8Array(buffer);
+  return btoa(String.fromCharCode.apply(null, [...uint8Array]));
 }
 
 /**
