@@ -1,12 +1,18 @@
 
-// Import the correct hooks from the UploadThing React package
-import { useUploadThing } from "@uploadthing/react";
-import { generateUploadButton, generateUploadDropzone } from "@uploadthing/react";
+// Import the correct functions from the UploadThing React package
+import { generateClientDropzoneAccept } from "uploadthing/client";
+import {
+  generateUploadButton,
+  generateUploadDropzone,
+  generateUploader
+} from "@uploadthing/react";
 import type { OurFileRouter } from "./uploadthingConfig";
 
-// Export the hooks for use in other components
-export { useUploadThing };
-
 // Create and export UI components and upload helper functions
-export const { StartUpload: startUpload, UploadButton } = generateUploadButton<OurFileRouter>();
+export const { UploadButton } = generateUploadButton<OurFileRouter>();
 export const { UploadDropzone } = generateUploadDropzone<OurFileRouter>();
+export const { startUpload } = generateUploader<OurFileRouter>();
+export const { genAcceptFromExtension, getAcceptedFiles } = generateClientDropzoneAccept();
+
+// Export types
+export type { UploadFileResponse } from "uploadthing/types";

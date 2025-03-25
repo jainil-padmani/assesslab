@@ -11,6 +11,7 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       console.log("Upload complete:", file.url);
       // Return void as expected in current version
+      return;
     }),
 
   // Define the "questionPaper" route - accepts PDFs and images up to 8MB
@@ -18,6 +19,7 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       console.log("Question paper uploaded:", file.url);
       // Return void as expected in current version
+      return;
     }),
 
   // Define the "answerKey" route - accepts PDFs and docs up to 8MB
@@ -25,6 +27,7 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       console.log("Answer key uploaded:", file.url);
       // Return void as expected in current version
+      return;
     }),
 
   // Define the "subjectFile" route - accepts PDFs, docs and images up to 8MB
@@ -32,6 +35,7 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       console.log("Subject file uploaded:", file.url);
       // Return void as expected in current version
+      return;
     }),
 
   // Define the "generalFile" route for all other file types
@@ -39,6 +43,7 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       console.log("File uploaded:", file.url);
       // Return void as expected in current version
+      return;
     }),
 } satisfies FileRouter;
 
