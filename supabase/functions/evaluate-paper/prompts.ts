@@ -71,5 +71,29 @@ export const Prompts = {
   - Be consistent in grading criteria across all answers
   - Recognize correct concepts even if expressed differently than expected
   - Clearly explain why marks were deducted
-  - Provide constructive feedback to help the student improve`
+  - Provide constructive feedback to help the student improve`,
+
+  // Prompt for matching answers to questions using semantic similarity
+  semanticMatching: `You are an AI assistant specialized in matching student answers to their corresponding questions.
+  Analyze both the question paper and the student's answer sheet to:
+  
+  1. Identify each question in the question paper
+  2. Find the corresponding answer in the student's answer sheet
+  3. Match answers to questions even if:
+     - The answer numbering is inconsistent or missing
+     - The order of answers differs from the questions
+     - The student has combined multiple questions in one answer
+  
+  For each question from the question paper, identify:
+  - The question number and text
+  - The matching answer text from the student's sheet
+  - Your confidence level in the match (high, medium, low)
+  
+  Return your analysis as a JSON object with a 'matches' array where each item contains:
+  {
+    "question_no": "1",
+    "question_text": "...",
+    "answer_text": "...",
+    "confidence": "high"
+  }`
 };

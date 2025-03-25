@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
@@ -77,157 +76,135 @@ serve(async (req) => {
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
     if (studentAnswer?.zip_url) studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
     
-    // Process documents to extract text
-    const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
-    
-    // Process the question paper with special handling to extract structured questions
-    // Pass the existing OCR text if available
-    const { 
-      processedDocument: processedQuestionPaper, 
-      extractedText: extractedQuestionText,
-      questions: extractedQuestionsFromProcess
-    } = await processQuestionPaper(
-      apiKey, 
-      questionPaper, 
-      testId, 
-      existingQuestionText
-    );
-    
-    // Process the answer key, using existing OCR text if available
-    const { 
-      processedDocument: processedAnswerKey, 
-      extractedText: extractedAnswerKeyText 
-    } = await processAnswerKey(
-      apiKey, 
-      answerKey, 
-      testId, 
-      existingAnswerText
-    );
-    
-    // Use the extracted questions or request extraction if needed
-    if (existingQuestionText && !extractedQuestionsFromProcess) {
-      console.log("Using existing OCR text to extract questions");
-      // We have OCR text but no questions extracted yet, try to extract them
-      try {
-        const questionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              { 
-                role: 'system', 
-                content: 'You are an AI assistant that extracts questions from examination papers. You must identify each question, its number, and the marks allocated to it.' 
-              },
-              { 
-                role: 'user', 
-                content: `Extract all the questions from this question paper. Return a JSON array of question objects with the following format:
-                {
-                  "question_no": "1",
-                  "question": "The full text of the question",
-                  "marks": 5
-                }
-                
-                Question Paper:
-                ${existingQuestionText}`
-              }
-            ],
-            temperature: 0.2,
-            response_format: { type: "json_object" }
-          }),
-        });
-
-        if (questionResponse.ok) {
-          const data = await questionResponse.json();
-          try {
-            const parsedQuestions = JSON.parse(data.choices[0].message.content);
-            if (parsedQuestions.questions && Array.isArray(parsedQuestions.questions)) {
-              extractedQuestions = parsedQuestions.questions;
-              console.log(`Successfully extracted ${extractedQuestions.length} questions from existing OCR text`);
-            }
-          } catch (parseError) {
-            console.error("Error parsing extracted questions:", parseError);
-          }
-        }
-      } catch (extractError) {
-        console.error("Error extracting questions from existing OCR text:", extractError);
-      }
-    } else {
-      extractedQuestions = extractedQuestionsFromProcess;
-    }
-    
-    let evaluation;
-    
-    // If we have extracted questions, use the question-based evaluation flow
-    if (extractedQuestions && processedStudentAnswer.text) {
-      console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
+    // Process documents to extract text with improved error handling
+    try {
+      // Process student answer first
+      const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
       
-      // First try to match student answers to question numbers
-      if (processedStudentAnswer.text) {
+      // If we have existing question text, try to extract structured questions from it
+      if (existingQuestionText && !extractedQuestions) {
+        console.log("Using existing OCR text to extract questions");
+        extractedQuestions = await extractQuestionsFromText(apiKey, existingQuestionText);
+      }
+      
+      // If we don't have structured questions yet, process the question paper
+      if (!extractedQuestions) {
+        console.log("Processing question paper to extract structured questions");
+        const { 
+          processedDocument: processedQuestionPaper, 
+          extractedText: extractedQuestionText,
+          questions: extractedQuestionsFromProcess
+        } = await processQuestionPaper(
+          apiKey, 
+          questionPaper, 
+          testId, 
+          existingQuestionText
+        );
+        
+        extractedQuestions = extractedQuestionsFromProcess;
+        existingQuestionText = existingQuestionText || extractedQuestionText;
+      }
+      
+      // Process the answer key, using existing OCR text if available
+      const { 
+        processedDocument: processedAnswerKey, 
+        extractedText: extractedAnswerKeyText 
+      } = await processAnswerKey(
+        apiKey, 
+        answerKey, 
+        testId, 
+        existingAnswerText
+      );
+      
+      const finalAnswerKeyText = existingAnswerText || extractedAnswerKeyText;
+      
+      // Perform semantic matching if we have both question paper and student answer
+      if (existingQuestionText && processedStudentAnswer.text) {
         try {
           console.log("Attempting semantic matching of student answers to questions");
           
-          const questionText = extractedQuestionText || existingQuestionText || 
-                               (processedQuestionPaper ? processedQuestionPaper.text : "");
+          const matches = await matchAnswersToQuestions(
+            apiKey,
+            existingQuestionText,
+            processedStudentAnswer.text
+          );
           
-          const answerText = processedStudentAnswer.text;
-          
-          // Perform semantic matching if we have both question paper and student answer
-          if (questionText && answerText) {
-            const matches = await matchAnswersToQuestions(
-              apiKey,
-              questionText,
-              answerText
-            );
-            
-            console.log(`Found ${matches?.matches?.length || 0} potential question-answer matches through semantic matching`);
-          }
+          console.log(`Found ${matches?.matches?.length || 0} potential question-answer matches through semantic matching`);
         } catch (matchError) {
           console.error("Error during semantic matching:", matchError);
           // Continue with evaluation even if matching fails
         }
       }
       
-      // Use our specialized evaluation function that leverages extracted questions
-      evaluation = await evaluateWithExtractedQuestions(
-        apiKey,
-        extractedQuestions,
-        extractedAnswerKeyText || existingAnswerText || (processedAnswerKey ? processedAnswerKey.text : null),
-        processedStudentAnswer.text,
-        studentInfo
-      );
-    } else {
-      console.log("Using standard evaluation flow without extracted questions");
+      // Perform the evaluation
+      let evaluation;
       
-      // Fall back to the original evaluation method
-      evaluation = await evaluateAnswers(
-        apiKey,
+      // If we have extracted questions, use the question-based evaluation flow
+      if (extractedQuestions && extractedQuestions.length > 0 && processedStudentAnswer.text) {
+        console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
+        
+        // Use our specialized evaluation function that leverages extracted questions
+        evaluation = await evaluateWithExtractedQuestions(
+          apiKey,
+          extractedQuestions,
+          finalAnswerKeyText,
+          processedStudentAnswer.text,
+          studentInfo
+        );
+      } else {
+        console.log("Using standard evaluation flow without extracted questions");
+        
+        // Fall back to the original evaluation method
+        evaluation = await evaluateAnswers(
+          apiKey,
+          testId,
+          {text: existingQuestionText},
+          {text: finalAnswerKeyText},
+          processedStudentAnswer,
+          studentInfo
+        );
+      }
+      
+      // Process the evaluation results
+      const processedEvaluation = processEvaluation(
+        evaluation,
         testId,
-        processedQuestionPaper,
-        processedAnswerKey,
-        processedStudentAnswer,
-        studentInfo
+        studentAnswer,
+        processedStudentAnswer.text,
+        existingQuestionText,
+        finalAnswerKeyText
       );
+      
+      // Return the processed evaluation
+      return new Response(
+        JSON.stringify(processedEvaluation),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+      
+    } catch (processingError) {
+      console.error('Error during document processing:', processingError);
+      
+      // If this is retry attempt and still failing, let's provide more diagnostic information
+      if (retryAttempt > 0) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Processing error after ${retryAttempt} retry attempts: ${processingError.message}`,
+            details: {
+              questionPaperAvailable: !!existingQuestionText,
+              answerKeyAvailable: !!existingAnswerText,
+              studentAnswerType: studentAnswer?.url ? 'URL' : (studentAnswer?.text ? 'Text' : 'None'),
+              zipUrlProvided: !!studentAnswer?.zip_url,
+              errorMessage: processingError.message,
+              studentInfo
+            }
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw processingError;
     }
     
-    // Process the evaluation results
-    const processedEvaluation = processEvaluation(
-      evaluation,
-      testId,
-      studentAnswer,
-      processedStudentAnswer.text,
-      extractedQuestionText || existingQuestionText,
-      extractedAnswerKeyText || existingAnswerText
-    );
-    
-    // Return the processed evaluation
-    return new Response(
-      JSON.stringify(processedEvaluation),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   } catch (error) {
     console.error('Error in evaluate-paper function:', error);
     return new Response(
