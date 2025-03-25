@@ -34,8 +34,8 @@ export async function createDirectImageUrl(imageBlob: Blob): Promise<string> {
 }
 
 /**
- * Encodes an ArrayBuffer to base64 string
- * Fixed implementation for Deno environment to prevent call stack overflows
+ * Encodes an ArrayBuffer to base64 string using a chunk-based approach
+ * for better memory management in Deno environment
  */
 export function encodeBase64(buffer: ArrayBuffer): string {
   if (!buffer) {
@@ -47,7 +47,7 @@ export function encodeBase64(buffer: ArrayBuffer): string {
     const uint8Array = new Uint8Array(buffer);
     
     // Use Deno's built-in btoa but chunk the conversion to avoid call stack issues
-    const CHUNK_SIZE = 8192; // Process in smaller chunks to avoid call stack limits
+    const CHUNK_SIZE = 4096; // Smaller chunk size to avoid memory issues
     let result = '';
     
     for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
@@ -56,13 +56,73 @@ export function encodeBase64(buffer: ArrayBuffer): string {
       const binaryString = Array.from(chunk)
         .map(byte => String.fromCharCode(byte))
         .join('');
-      result += btoa(binaryString);
+      
+      try {
+        result += btoa(binaryString);
+      } catch (e) {
+        console.error(`Error encoding chunk at index ${i}:`, e);
+        // Continue with next chunk if possible
+      }
     }
     
     return result;
   } catch (error) {
     console.error("Error encoding base64:", error);
-    throw error;
+    
+    // Fallback method for encoding
+    try {
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer) as unknown as number[]));
+    } catch (fallbackError) {
+      console.error("Base64 encoding fallback also failed:", fallbackError);
+      throw new Error("Failed to encode data as base64: " + error.message);
+    }
+  }
+}
+
+/**
+ * Safely converts a URL to base64 for use with OpenAI API
+ * Handles errors gracefully
+ */
+export async function urlToBase64(url: string): Promise<string> {
+  try {
+    // Add cache buster to URL to prevent caching issues
+    const cacheBustedUrl = url.includes('?') 
+      ? `${url}&cache=${Date.now()}` 
+      : `${url}?cache=${Date.now()}`;
+    
+    console.log(`Fetching image from URL: ${cacheBustedUrl}`);
+    
+    // Set up fetch with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    // Fetch the image with proper error handling
+    const response = await fetch(cacheBustedUrl, { 
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+    
+    // Get image as blob
+    const blob = await response.blob();
+    if (!blob) {
+      throw new Error("Failed to get blob from response");
+    }
+    
+    // Convert to data URL
+    const dataUrl = await createDirectImageUrl(blob);
+    return dataUrl;
+  } catch (error) {
+    console.error("Error converting URL to base64:", error);
+    
+    // Return a more useful error message
+    throw new Error(`Failed to process image at URL: ${url}. Error: ${error.message}`);
   }
 }
 

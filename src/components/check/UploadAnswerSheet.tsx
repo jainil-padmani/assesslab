@@ -121,9 +121,13 @@ export function UploadAnswerSheet({
       }
 
       // Refresh the page to enable evaluate button
+      toast.success("Page will refresh to enable evaluation...", {
+        duration: 2000
+      });
+      
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, 2000);
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
