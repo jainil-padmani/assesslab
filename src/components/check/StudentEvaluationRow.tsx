@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Check, AlertCircle, File, Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ interface StudentEvaluationRowProps {
   selectedTest: string;
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
+  refreshTrigger?: number;
 }
 
 export function StudentEvaluationRow({
@@ -28,12 +29,28 @@ export function StudentEvaluationRow({
   selectedSubject,
   selectedTest,
   testFilesAvailable,
-  onEvaluate
+  onEvaluate,
+  refreshTrigger = 0
 }: StudentEvaluationRowProps) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Force refresh when parent triggers it or when a file is uploaded
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+  }, [refreshTrigger]);
+  
   const { 
     hasAnswerSheet, 
-    answerSheetUrl
-  } = useUploadAssessment(student.id, selectedSubject, selectedTest);
+    answerSheetUrl,
+    refetch
+  } = useUploadAssessment(student.id, selectedSubject, selectedTest, refreshKey);
+
+  const handleUploadComplete = () => {
+    // Refresh the upload assessment data
+    refetch();
+    // Force UI refresh
+    setRefreshKey(prev => prev + 1);
+  };
 
   const renderStatus = () => {
     switch(status) {
@@ -90,6 +107,7 @@ export function StudentEvaluationRow({
             selectedSubject={selectedSubject} 
             testId={selectedTest}
             isEvaluating={isEvaluating}
+            onUploadComplete={handleUploadComplete}
           />
         )}
       </TableCell>

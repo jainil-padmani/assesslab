@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, Edit, X, FileText } from "lucide-react";
+import { Save, Edit, X, FileText, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Test, TestGrade } from "@/types/tests";
 import type { PaperEvaluation } from "@/hooks/useTestDetail";
@@ -143,8 +143,9 @@ export function StudentGradesTable({
                               variant="outline" 
                               size="sm"
                               onClick={() => navigate(`/dashboard/tests/detail/${test.id}?student=${grade.student_id}`)}
+                              title="View Evaluation Details"
                             >
-                              <FileText className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
                           )}
                         </>

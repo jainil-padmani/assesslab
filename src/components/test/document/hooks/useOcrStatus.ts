@@ -5,12 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Hook to check if OCR text exists for documents in the database
  */
-export function useOcrStatus(questionPaperUrl: string, answerKeyUrl: string) {
+export function useOcrStatus(questionPaperUrl: string, answerKeyUrl: string, refreshFlag: number = 0) {
   const [questionOcrText, setQuestionOcrText] = useState<string | null>(null);
   const [answerOcrText, setAnswerOcrText] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Check if OCR text exists in storage or cache
   const checkOcrStatus = async () => {
+    if (!questionPaperUrl || !answerKeyUrl) return;
+    
+    setIsLoading(true);
     try {
       // Check if question paper OCR text exists
       const questionResponse = await supabase
@@ -35,6 +39,8 @@ export function useOcrStatus(questionPaperUrl: string, answerKeyUrl: string) {
       }
     } catch (error) {
       console.error("Error checking OCR status:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -42,12 +48,13 @@ export function useOcrStatus(questionPaperUrl: string, answerKeyUrl: string) {
     if (questionPaperUrl && answerKeyUrl) {
       checkOcrStatus();
     }
-  }, [questionPaperUrl, answerKeyUrl]);
+  }, [questionPaperUrl, answerKeyUrl, refreshFlag]);
 
   return {
     questionOcrText,
     answerOcrText,
     setQuestionOcrText,
-    setAnswerOcrText
+    setAnswerOcrText,
+    isLoading
   };
 }

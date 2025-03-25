@@ -1,5 +1,5 @@
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,21 @@ export function StudentAnswerSheetsCard({
   onEvaluateAll,
   onDeleteEvaluation
 }: StudentAnswerSheetsCardProps) {
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Listen for answer sheet upload events
+  useEffect(() => {
+    const handleAnswerSheetUploaded = () => {
+      console.log('Answer sheet uploaded event received in StudentAnswerSheetsCard');
+      setRefreshTrigger(prev => prev + 1);
+    };
+    
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+    return () => {
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+    };
+  }, []);
+
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
     const questionPapers = testFiles.filter(file => file.question_paper_url);
@@ -123,6 +138,7 @@ export function StudentAnswerSheetsCard({
                 selectedTest={selectedTest} 
                 testFilesAvailable={areTestFilesReady}
                 onEvaluate={onEvaluateSingle}
+                refreshTrigger={refreshTrigger}
               />
             ))}
           </TableBody>

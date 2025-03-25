@@ -29,6 +29,12 @@ export async function evaluateAnswers(
     const systemPrompt = Prompts.evaluation(testId);
 
     const userPrompt = `
+You are an AI evaluator responsible for grading a student's answer sheet.
+The user will provide you with the question paper(s), answer key(s) / answer criteria, and the student's answer sheet(s).
+Analyse the question paper to understand the questions and their marks.
+Analyse the answer key to understand the correct answers and valuation criteria.
+Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
+
 Question Paper for Test ID ${testId}:
 ${JSON.stringify(processedQuestionPaper)}
 

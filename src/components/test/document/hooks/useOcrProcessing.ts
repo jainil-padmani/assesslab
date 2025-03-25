@@ -13,13 +13,17 @@ interface OcrProcessingProps {
  * Main hook that combines all OCR-related functionality
  */
 export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessingProps) {
-  // Get OCR status and state setters
+  // Get OCR dialog management functionality
+  const ocrDialogs = useOcrDialogs();
+  
+  // Get OCR status and state setters with refresh support
   const {
     questionOcrText,
     answerOcrText,
     setQuestionOcrText,
-    setAnswerOcrText
-  } = useOcrStatus(questionPaperUrl, answerKeyUrl);
+    setAnswerOcrText,
+    isLoading
+  } = useOcrStatus(questionPaperUrl, answerKeyUrl, ocrDialogs.refreshFlag);
 
   // Get text editor functionality
   const textEditor = useTextEditor({
@@ -36,19 +40,17 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
     setQuestionOcrText,
     setAnswerOcrText,
     startEditingQuestionText: textEditor.startEditingQuestionText,
-    startEditingAnswerText: textEditor.startEditingAnswerText
+    startEditingAnswerText: textEditor.startEditingAnswerText,
+    triggerRefresh: ocrDialogs.triggerRefresh
   });
-
-  // Get dialog management
-  const ocrDialogs = useOcrDialogs();
 
   // Combine all functionality into a single object
   return {
     // OCR states
     questionOcrText,
     answerOcrText,
-    loadingOcrQuestion: ocrProcessor.loadingOcrQuestion,
-    loadingOcrAnswer: ocrProcessor.loadingOcrAnswer,
+    loadingOcrQuestion: ocrProcessor.loadingOcrQuestion || isLoading,
+    loadingOcrAnswer: ocrProcessor.loadingOcrAnswer || isLoading,
     showOcrQuestionDialog: ocrDialogs.showOcrQuestionDialog,
     showOcrAnswerDialog: ocrDialogs.showOcrAnswerDialog,
     
@@ -73,6 +75,7 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
     startEditingQuestionText: textEditor.startEditingQuestionText,
     startEditingAnswerText: textEditor.startEditingAnswerText,
     handleSaveQuestionText: textEditor.handleSaveQuestionText,
-    handleSaveAnswerText: textEditor.handleSaveAnswerText
+    handleSaveAnswerText: textEditor.handleSaveAnswerText,
+    triggerRefresh: ocrDialogs.triggerRefresh
   };
 }

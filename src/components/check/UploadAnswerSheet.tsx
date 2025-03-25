@@ -14,13 +14,15 @@ interface UploadAnswerSheetProps {
   selectedSubject: string;
   isEvaluating: boolean;
   testId?: string;
+  onUploadComplete?: () => void;
 }
 
 export function UploadAnswerSheet({ 
   studentId, 
   selectedSubject,
   isEvaluating,
-  testId
+  testId,
+  onUploadComplete
 }: UploadAnswerSheetProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [processingStep, setProcessingStep] = useState<string>("");
@@ -76,6 +78,11 @@ export function UploadAnswerSheet({
         detail: { studentId, subjectId: selectedSubject, testId, zipUrl }
       });
       document.dispatchEvent(customEvent);
+      
+      // Call the callback if provided
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');

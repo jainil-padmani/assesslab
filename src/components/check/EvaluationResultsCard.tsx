@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PaperEvaluation } from "@/hooks/useEvaluations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Student } from "@/types/dashboard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check, X, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import { Loader2, Check, X, ZoomIn, ZoomOut, RotateCw, FileText } from "lucide-react";
 
 interface EvaluationResultsCardProps {
   evaluations?: PaperEvaluation[];
@@ -23,6 +24,7 @@ export function EvaluationResultsCard({
 }: EvaluationResultsCardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [zoomLevel, setZoomLevel] = useState(100);
+  const navigate = useNavigate();
 
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + 25, 200));
@@ -34,6 +36,10 @@ export function EvaluationResultsCard({
 
   const handleResetZoom = () => {
     setZoomLevel(100);
+  };
+
+  const viewEvaluationDetails = (studentId: string) => {
+    navigate(`/dashboard/tests/detail/${selectedTest}?student=${studentId}`);
   };
 
   if (!evaluations || evaluations.length === 0) {
@@ -126,7 +132,7 @@ export function EvaluationResultsCard({
                           <div className="font-medium">{student?.name || 'Unknown Student'}</div>
                           <div className="text-sm text-muted-foreground">{student?.roll_number || ''}</div>
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-3">
                           <div className={`text-lg font-bold ${
                             percentage >= 70 ? 'text-green-600' : 
                             percentage >= 50 ? 'text-amber-600' : 
@@ -134,6 +140,15 @@ export function EvaluationResultsCard({
                           }`}>
                             {percentage}%
                           </div>
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => viewEvaluationDetails(evaluation.student_id)}
+                            className="ml-2"
+                          >
+                            <FileText className="h-4 w-4 mr-1" />
+                            Details
+                          </Button>
                         </div>
                       </div>
                     );
@@ -146,7 +161,7 @@ export function EvaluationResultsCard({
           <TabsContent value="details">
             <div className="space-y-4">
               <div className="text-center text-muted-foreground">
-                Select a student to view detailed evaluation
+                Select a student above to view detailed evaluation
               </div>
             </div>
           </TabsContent>
