@@ -11,7 +11,7 @@ import { Trash2 } from "lucide-react";
 import { DocumentSection } from './document/DocumentSection';
 import { OCRTextDialog } from './document/OCRTextDialog';
 import { TextEditorDialog } from './document/TextEditorDialog';
-import { useOcrProcessing } from './document/useOcrProcessing';
+import { useOcrProcessing } from './document/hooks/useOcrProcessing';
 
 interface TestFile {
   id: string;
