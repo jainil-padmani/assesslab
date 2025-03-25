@@ -1,10 +1,9 @@
-
 // Import necessary modules and functions
-import { extractTextFromFile, extractTextFromZip, extractQuestionsFromPaper } from './ocr.ts';
+import { extractTextFromFile, extractQuestionsFromPaper } from './ocr.ts';
 
 /**
  * Processes a student's answer sheet document
- * Handles both direct URL processing and ZIP files with multiple images
+ * Handles direct URL processing (ZIP extraction has been disabled)
  */
 export async function processStudentAnswer(
   apiKey: string,
@@ -23,34 +22,19 @@ export async function processStudentAnswer(
       };
     }
     
-    // Check if we have a ZIP URL available (preferred for better quality OCR)
+    // Check if we have a ZIP URL available - log but skip processing
     if (studentAnswer.zip_url) {
-      console.log("Found ZIP URL for student answer, using it for OCR:", studentAnswer.zip_url);
+      console.log("Found ZIP URL for student answer, but ZIP extraction is disabled:", studentAnswer.zip_url);
       
-      try {
-        // Try to extract text from the ZIP file
-        const extractedText = await extractTextFromZip(
-          studentAnswer.zip_url,
-          apiKey,
-          "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
-        );
-        
-        console.log(`Successfully extracted ${extractedText.length} characters from student answer ZIP`);
-        return { text: extractedText };
-      } catch (zipError) {
-        console.error("Error extracting text from ZIP:", zipError);
-        
-        // If ZIP extraction fails and we have a direct URL, fall back to that
-        if (studentAnswer.url) {
-          console.log("Falling back to direct URL processing due to ZIP extraction failure");
-          // Continue to the URL processing below
-        } else {
-          throw zipError;
-        }
+      // If we have a direct URL, process that instead
+      if (studentAnswer.url) {
+        console.log("Processing student answer from direct URL instead of ZIP:", studentAnswer.url);
+      } else {
+        throw new Error("ZIP extraction is disabled and no direct URL is provided. Please provide a direct image URL.");
       }
     }
     
-    // If no ZIP or ZIP failed, check for direct URL
+    // Process direct URL if available
     if (studentAnswer.url) {
       console.log("Processing student answer from direct URL:", studentAnswer.url);
       
@@ -65,7 +49,7 @@ export async function processStudentAnswer(
     }
     
     // If we reached here, there's no text source available
-    throw new Error("No valid text source found for student answer. Need either text, URL, or ZIP URL.");
+    throw new Error("No valid text source found for student answer. Need either text or direct URL.");
   } catch (error) {
     console.error("Error processing student answer:", error);
     throw error;

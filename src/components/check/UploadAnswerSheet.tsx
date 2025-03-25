@@ -98,7 +98,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId || '',
         publicUrl,
-        file.type === 'application/pdf' ? 'PDF converted to PNG images for OCR' : 'Image converted to PNG for OCR',
+        file.type === 'application/pdf' ? 'PDF converted to PNG for direct OCR' : 'Image converted to PNG for direct OCR',
         zipUrl
       );
       

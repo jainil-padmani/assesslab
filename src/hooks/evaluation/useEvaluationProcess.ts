@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,8 +56,11 @@ export function useEvaluationProcess(
         throw new Error("No answer sheet found for this student");
       }
       
-      // Get the zip URL if available
+      // Get the zip URL if available (but we won't use it for extraction now)
       const zipUrl = await getAnswerSheetZipUrl(studentId, subjectId, testId);
+      if (zipUrl) {
+        console.log("ZIP URL found but will not be used for extraction:", zipUrl);
+      }
       
       // Check for existing evaluations
       const { data: existingEvaluations, error: fetchError } = await supabase
