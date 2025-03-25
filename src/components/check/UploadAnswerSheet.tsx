@@ -5,9 +5,9 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   uploadAnswerSheetFile,
-  saveTestAnswer 
+  saveTestAnswer,
+  validateFileFormat 
 } from "@/utils/assessment/fileUploadUtils";
-import { validateFileFormat } from "@/utils/assessment/fileValidation";
 
 interface UploadAnswerSheetProps {
   studentId: string;
@@ -51,8 +51,14 @@ export function UploadAnswerSheet({
       // Show processing toast
       toast.info('Processing file...');
       
+      // Processing step depends on file type
+      if (selectedFile.type === 'application/pdf') {
+        setProcessingStep("Converting PDF to PNG images...");
+      } else if (selectedFile.type.startsWith('image/')) {
+        setProcessingStep("Converting image to PNG format...");
+      }
+      
       // Upload the file to storage
-      setProcessingStep("Converting file...");
       const { publicUrl, zipUrl } = await uploadAnswerSheetFile(selectedFile, studentId);
       
       setProcessingStep("Saving to database...");
@@ -62,7 +68,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId,
         publicUrl,
-        selectedFile.type === 'application/pdf' ? 'PDF uploaded - awaiting OCR extraction' : 'Image uploaded',
+        selectedFile.type === 'application/pdf' ? 'PDF converted to PNG images for OCR' : 'Image converted to PNG for OCR',
         zipUrl
       );
       
@@ -71,7 +77,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded successfully');
+      toast.success('Answer sheet uploaded and converted to PNG format successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {

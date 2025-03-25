@@ -82,19 +82,15 @@ async function extractTextFromFile(
 }
 
 /**
- * Extract text from a ZIP file containing multiple pages
+ * Validate ZIP file before attempting to extract text
+ * This is a lightweight check to ensure the ZIP contains valid images
  */
-async function extractTextFromZip(
-  zipUrl: string,
-  apiKey: string,
-  systemPrompt: string
-): Promise<string> {
+async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean> {
   try {
-    console.log(`Extracting text from ZIP file: ${zipUrl}`);
+    console.log(`Validating ZIP file: ${zipUrl}`);
     
-    // First check if the ZIP file contains valid image formats
-    // This is done by sending a small request to check the metadata
-    const zipCheckResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Send a quick check request to OpenAI
+    const validationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -105,12 +101,12 @@ async function extractTextFromZip(
         messages: [
           { 
             role: 'system', 
-            content: 'You will validate if the provided ZIP file contains valid image files. Respond with "valid" if you can see any content, otherwise describe the issue.'
+            content: 'You are an image validator. Simply respond with "valid" if you can see any valid image content, otherwise respond with "invalid".'
           },
           { 
             role: 'user', 
             content: [
-              { type: 'text', text: 'Check if this ZIP file contains valid images:' },
+              { type: 'text', text: 'Is this a valid image?' },
               { 
                 type: 'image_url', 
                 image_url: {
@@ -121,20 +117,51 @@ async function extractTextFromZip(
             ]
           }
         ],
-        max_tokens: 100,
+        max_tokens: 50,
         temperature: 0
       }),
     });
     
-    if (!zipCheckResponse.ok) {
-      const errorData = await zipCheckResponse.json();
-      console.error("OpenAI API error when checking ZIP:", JSON.stringify(errorData));
+    if (!validationResponse.ok) {
+      const errorData = await validationResponse.json();
+      console.error("ZIP validation failed:", JSON.stringify(errorData));
       
       if (errorData.error?.code === 'invalid_image_format') {
-        throw new Error(`OCR extraction failed for ZIP file: ${JSON.stringify(errorData.error)}`);
-      } else {
-        throw new Error(`Failed to process ZIP file: ${JSON.stringify(errorData)}`);
+        console.error("ZIP contains unsupported image formats");
+        return false;
       }
+      
+      throw new Error(`ZIP validation failed: ${JSON.stringify(errorData.error || errorData)}`);
+    }
+    
+    const validationResult = await validationResponse.json();
+    const validationText = validationResult.choices[0].message.content.toLowerCase();
+    
+    const isValid = validationText.includes('valid') && !validationText.includes('invalid');
+    console.log(`ZIP validation result: ${isValid ? 'Valid' : 'Invalid'}`);
+    
+    return isValid;
+  } catch (error) {
+    console.error("Error validating ZIP file:", error);
+    return false;
+  }
+}
+
+/**
+ * Extract text from a ZIP file containing multiple pages
+ */
+async function extractTextFromZip(
+  zipUrl: string,
+  apiKey: string,
+  systemPrompt: string
+): Promise<string> {
+  try {
+    console.log(`Extracting text from ZIP file: ${zipUrl}`);
+    
+    // First validate that the ZIP file contains supported images
+    const isValid = await validateZipFile(zipUrl, apiKey);
+    if (!isValid) {
+      throw new Error("The ZIP file contains unsupported image formats. Please ensure all images are PNG, JPG, JPEG, GIF, or WEBP.");
     }
     
     // If validation passed, extract the text
