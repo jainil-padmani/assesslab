@@ -1,5 +1,5 @@
 
-import { hmacSha256 } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
+import { createHmac } from "https://deno.land/std@0.177.0/node/crypto.ts";
 
 /**
  * Service for interacting with AWS Bedrock API
@@ -84,17 +84,44 @@ export class BedrockService {
    * Compute HMAC SHA-256
    */
   private async hmac(key: string | ArrayBuffer, message: string): Promise<string> {
-    let keyData: ArrayBuffer;
-    
-    if (typeof key === 'string') {
-      keyData = new TextEncoder().encode(key);
-    } else {
-      keyData = key;
-    }
+    const keyData = typeof key === 'string' 
+      ? new TextEncoder().encode(key) 
+      : key;
     
     const messageData = new TextEncoder().encode(message);
-    const hmacResult = await hmacSha256(keyData, messageData);
-    return Array.from(new Uint8Array(hmacResult))
+    
+    // Create HMAC using Deno's standard crypto module
+    let hmacKey: CryptoKey;
+    
+    if (typeof key === 'string') {
+      // Import the key
+      hmacKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+    } else {
+      // Use the provided key buffer
+      hmacKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+    }
+    
+    // Sign the message
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      hmacKey,
+      messageData
+    );
+    
+    // Convert to hex string
+    return Array.from(new Uint8Array(signature))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
   }
