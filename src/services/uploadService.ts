@@ -1,28 +1,17 @@
 
-import { uploadFiles } from "@/utils/uploadthing/uploadThingClient";
 import { toast } from "sonner";
 
-// Central service for handling file uploads via UploadThing
+// This is a placeholder service for UploadThing integration
+// The actual implementation will use the UploadThing API
 export const uploadService = {
-  uploadFile: async (file: File, type: 'questionPaper' | 'answerKey' | 'handwrittenPaper' | 'answerSheet' | 'subjectFile' | 'generalFile'): Promise<string> => {
+  uploadFile: async (file: File, type: 'questionPaper' | 'answerKey' | 'handwrittenPaper'): Promise<string> => {
     try {
+      // Simulate a file upload process
       console.log(`Uploading ${type}: ${file.name}`);
       
-      // Map the type to the appropriate UploadThing route
-      const endpoint = type === 'handwrittenPaper' ? 'answerSheet' : type;
-      
-      // Upload the file to UploadThing using uploadFiles
-      const res = await uploadFiles({
-        endpoint,
-        files: [file],
-      });
-      
-      if (!res || !res[0] || !res[0].url) {
-        throw new Error("Upload failed - no URL returned");
-      }
-      
-      console.log(`Successfully uploaded ${type} to: ${res[0].url}`);
-      return res[0].url;
+      // In a real implementation, we would use the UploadThing API here
+      // For now, just return a mock URL
+      return Promise.resolve(`https://uploadthing.com/mock-${type}-${file.name.replace(/\s/g, '-')}`);
     } catch (error) {
       console.error("Error uploading file:", error);
       toast.error("Failed to upload file. Please try again.");
@@ -34,49 +23,37 @@ export const uploadService = {
     questionPaper: File | null, 
     answerKey: File | null, 
     handwrittenPaper: File | null
-  ): Promise<{
-    questionPaperUrl: string | null;
-    answerKeyUrl: string | null;
-    handwrittenPaperUrl: string | null;
-  }> => {
+  ): Promise<boolean> => {
     try {
       // Check if required files are provided
       if (!questionPaper || !answerKey) {
         toast.error("Question paper and answer key are required");
-        return {
-          questionPaperUrl: null,
-          answerKeyUrl: null,
-          handwrittenPaperUrl: null
-        };
+        return false;
       }
       
       // Upload each file
-      const uploads = {
-        questionPaperUrl: questionPaper ? uploadService.uploadFile(questionPaper, 'questionPaper') : Promise.resolve(null),
-        answerKeyUrl: answerKey ? uploadService.uploadFile(answerKey, 'answerKey') : Promise.resolve(null),
-        handwrittenPaperUrl: handwrittenPaper ? uploadService.uploadFile(handwrittenPaper, 'answerSheet') : Promise.resolve(null)
-      };
+      const uploads = [];
+      
+      if (questionPaper) {
+        uploads.push(uploadService.uploadFile(questionPaper, 'questionPaper'));
+      }
+      
+      if (answerKey) {
+        uploads.push(uploadService.uploadFile(answerKey, 'answerKey'));
+      }
+      
+      if (handwrittenPaper) {
+        uploads.push(uploadService.uploadFile(handwrittenPaper, 'handwrittenPaper'));
+      }
       
       // Wait for all uploads to complete
-      const [questionPaperUrl, answerKeyUrl, handwrittenPaperUrl] = await Promise.all([
-        uploads.questionPaperUrl,
-        uploads.answerKeyUrl,
-        uploads.handwrittenPaperUrl
-      ]);
+      await Promise.all(uploads);
       
-      return {
-        questionPaperUrl: questionPaperUrl || null,
-        answerKeyUrl: answerKeyUrl || null,
-        handwrittenPaperUrl: handwrittenPaperUrl || null
-      };
+      return true;
     } catch (error) {
       console.error("Error submitting files:", error);
       toast.error("Failed to submit files. Please try again.");
-      return {
-        questionPaperUrl: null,
-        answerKeyUrl: null,
-        handwrittenPaperUrl: null
-      };
+      return false;
     }
   }
 };

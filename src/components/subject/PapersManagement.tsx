@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   Card,
@@ -73,14 +72,10 @@ export function PapersManagement({ subject, subjectFiles, fetchSubjectFiles }: P
       const sanitizedTopic = topic.replace(/\s+/g, '_');
       
       // Upload question paper (required)
-      if (questionPaper) {
-        await uploadSubjectFile(subject.id, sanitizedTopic, questionPaper, 'questionPaper');
-      }
+      await uploadSubjectFile(subject.id, sanitizedTopic, questionPaper, 'questionPaper');
       
       // Upload answer key (required)
-      if (answerKey) {
-        await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
-      }
+      await uploadSubjectFile(subject.id, sanitizedTopic, answerKey, 'answerKey');
       
       // Upload handwritten paper (optional)
       if (handwrittenPaper) {

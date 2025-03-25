@@ -33,7 +33,6 @@ export const processPdfToZip = async (
     
     // Upload the ZIP file to storage
     const zipUrl = await uploadZipFile(zipBlob, identifier, folderType);
-    console.log(`Processed ${file.type} to ZIP and uploaded at: ${zipUrl}`);
     
     return { 
       zipBlob,

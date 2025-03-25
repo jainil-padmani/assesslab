@@ -2,63 +2,70 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Save a test answer to the database
+ * Saves or updates an answer sheet record using the test_answers table
  */
 export const saveTestAnswer = async (
   studentId: string,
   subjectId: string,
   testId: string,
   answerSheetUrl: string,
-  notes: string = "",
+  textContent?: string,
   zipUrl?: string
 ): Promise<string> => {
   try {
-    // Check for existing answer
-    const { data: existingAnswers, error: fetchError } = await supabase
+    // Check for existing test answer
+    const { data: existingData, error: checkError } = await supabase
       .from('test_answers')
-      .select('id, answer_sheet_url')
-      .match({ student_id: studentId, subject_id: subjectId, test_id: testId });
-      
-    if (fetchError) throw fetchError;
+      .select('id')
+      .eq('student_id', studentId)
+      .eq('subject_id', subjectId)
+      .eq('test_id', testId)
+      .maybeSingle();
     
-    if (existingAnswers && existingAnswers.length > 0) {
-      // Update existing answer
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+    
+    // Prepare the data
+    const answerData = {
+      student_id: studentId,
+      subject_id: subjectId,
+      test_id: testId,
+      answer_sheet_url: answerSheetUrl,
+      text_content: textContent || null,
+      zip_url: zipUrl || null
+    };
+    
+    if (existingData?.id) {
+      // Update existing record
       const { error: updateError } = await supabase
         .from('test_answers')
-        .update({
-          answer_sheet_url: answerSheetUrl,
-          zip_url: zipUrl
-        })
-        .eq('id', existingAnswers[0].id);
-        
+        .update(answerData)
+        .eq('id', existingData.id);
+      
       if (updateError) throw updateError;
-      
-      return existingAnswers[0].id;
+      return existingData.id;
     } else {
-      // Insert new answer
-      const { data: insertData, error: insertError } = await supabase
+      // Insert new record
+      const { data: newData, error: insertError } = await supabase
         .from('test_answers')
-        .insert({
-          student_id: studentId,
-          subject_id: subjectId,
-          test_id: testId,
-          answer_sheet_url: answerSheetUrl,
-          zip_url: zipUrl
-        })
-        .select('id');
-        
-      if (insertError) throw insertError;
+        .insert(answerData)
+        .select('id')
+        .single();
       
-      return insertData?.[0]?.id;
+      if (insertError) throw insertError;
+      if (!newData) throw new Error("Failed to create test answer");
+      
+      return newData.id;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error saving test answer:", error);
-    throw error;
+    throw new Error(error.message || "Failed to save test answer");
   }
 };
 
 /**
- * Get the answer sheet URL for a student's test
+ * Retrieves an answer sheet URL for a specific student, subject, and test
  */
 export const getAnswerSheetUrl = async (
   studentId: string,
@@ -72,25 +79,35 @@ export const getAnswerSheetUrl = async (
       .eq('student_id', studentId)
       .eq('subject_id', subjectId)
       .eq('test_id', testId)
-      .single();
-      
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No records found - not an error
-        return null;
-      }
-      throw error;
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching answer sheet URL:', error);
+      return null;
     }
     
-    return data?.answer_sheet_url || null;
+    // Return null if data doesn't exist
+    if (!data) {
+      return null;
+    }
+    
+    // Use type assertion to ensure TypeScript knows 'data' exists
+    const typedData = data as { answer_sheet_url?: string | null };
+    
+    // Now check if the property exists
+    if ('answer_sheet_url' in typedData && typedData.answer_sheet_url) {
+      return typedData.answer_sheet_url;
+    }
+    
+    return null;
   } catch (error) {
-    console.error("Error getting answer sheet URL:", error);
+    console.error('Error in getAnswerSheetUrl:', error);
     return null;
   }
 };
 
 /**
- * Get the ZIP URL (if any) for a student's test answer
+ * Retrieves the ZIP URL containing PNG images of the student's answer sheet
  */
 export const getAnswerSheetZipUrl = async (
   studentId: string,
@@ -104,19 +121,29 @@ export const getAnswerSheetZipUrl = async (
       .eq('student_id', studentId)
       .eq('subject_id', subjectId)
       .eq('test_id', testId)
-      .single();
-      
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No records found - not an error
-        return null;
-      }
-      throw error;
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching answer sheet ZIP URL:', error);
+      return null;
     }
     
-    return data?.zip_url || null;
+    // Return null if data doesn't exist
+    if (!data) {
+      return null;
+    }
+    
+    // Use type assertion to ensure TypeScript knows 'data' exists
+    const typedData = data as { zip_url?: string | null };
+    
+    // Now check if the property exists
+    if ('zip_url' in typedData && typedData.zip_url) {
+      return typedData.zip_url;
+    }
+    
+    return null;
   } catch (error) {
-    console.error("Error getting answer sheet ZIP URL:", error);
+    console.error('Error in getAnswerSheetZipUrl:', error);
     return null;
   }
 };
