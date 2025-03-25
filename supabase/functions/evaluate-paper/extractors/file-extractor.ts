@@ -33,7 +33,7 @@ export async function extractTextFromFile(
       );
     }
     
-    // Check if this is a PDF file - if so, convert to images first
+    // CRITICAL - Check if this is a PDF file - if so, convert to images first
     if (isPdfUrl(fileUrl)) {
       console.log("PDF file detected, converting to images first before OCR");
       try {

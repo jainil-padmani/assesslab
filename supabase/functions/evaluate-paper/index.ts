@@ -106,50 +106,58 @@ serve(async (req) => {
       console.log(`Answer key: ${answerKey.url} (Topic: ${answerKey.topic})`);
       console.log(`Student answer sheet: ${studentAnswer.url}`);
 
-      // Process image URLs - ALWAYS convert PDFs to images first
+      // CRITICAL: Process image URLs - ALWAYS FULLY convert PDFs to images first before sending to Bedrock
       let questionPaperImages: string[] = [];
       let answerKeyImages: string[] = [];
       let studentAnswerImages: string[] = [];
       
       try {
-        // Process question paper - ALWAYS convert PDFs
+        // Process question paper - ALWAYS FULLY convert PDF files
+        console.log("Processing question paper:", questionPaper.url);
         if (isPdfUrl(questionPaper.url)) {
-          console.log("Converting question paper PDF to images");
+          console.log("Question paper is PDF, converting to images");
           questionPaperImages = await getDocumentPagesAsImages(questionPaper.url);
           console.log(`Converted question paper to ${questionPaperImages.length} images`);
         } else {
+          console.log("Question paper is not PDF, using direct URL");
           questionPaperImages = [questionPaper.url];
         }
         
-        // Process answer key - ALWAYS convert PDFs
+        // Process answer key - ALWAYS FULLY convert PDF files
+        console.log("Processing answer key:", answerKey.url);
         if (isPdfUrl(answerKey.url)) {
-          console.log("Converting answer key PDF to images");
+          console.log("Answer key is PDF, converting to images");
           answerKeyImages = await getDocumentPagesAsImages(answerKey.url);
           console.log(`Converted answer key to ${answerKeyImages.length} images`);
         } else {
+          console.log("Answer key is not PDF, using direct URL");
           answerKeyImages = [answerKey.url];
         }
         
-        // Process student answer - prefer zip_url if available as it might contain pre-processed images
+        // Process student answer - ALWAYS FULLY convert PDF files or use pre-processed images if available
         if (studentAnswer.zip_url) {
           console.log("Using pre-processed images for student answer");
           studentAnswerImages = Array.isArray(studentAnswer.zip_url) ? 
             studentAnswer.zip_url : [studentAnswer.zip_url];
         } else if (isPdfUrl(studentAnswer.url)) {
-          console.log("Converting student answer PDF to images");
+          console.log("Student answer is PDF, converting to images");
           studentAnswerImages = await getDocumentPagesAsImages(studentAnswer.url);
           console.log(`Converted student answer to ${studentAnswerImages.length} images`);
         } else {
+          console.log("Student answer is not PDF, using direct URL");
           studentAnswerImages = [studentAnswer.url];
         }
         
-        // Ensure no PDFs are in the images list - this would cause errors
+        // Final check for PDFs - verify no PDFs remain in the images lists
         const allImages = [...questionPaperImages, ...answerKeyImages, ...studentAnswerImages];
         for (const imageUrl of allImages) {
           if (isPdfUrl(imageUrl)) {
+            console.error(`PDF file detected in processed images: ${imageUrl}`);
             throw new Error(`PDF file detected in processed images: ${imageUrl}. All PDFs must be converted to images first.`);
           }
         }
+        
+        console.log("All PDFs have been successfully converted to images");
       } catch (imageProcessingError) {
         console.error("Error converting documents to images:", imageProcessingError);
         return new Response(
@@ -210,6 +218,7 @@ serve(async (req) => {
       for (let i = 0; i < allImages.length; i += batchSize) {
         const batch = allImages.slice(i, i + batchSize);
         console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allImages.length/batchSize)} with ${batch.length} images`);
+        console.log("Batch images:", batch);
         
         const batchPrompt = `${userPrompt}\n\n[This is batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allImages.length/batchSize)}]`;
         

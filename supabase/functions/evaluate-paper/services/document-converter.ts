@@ -1,3 +1,4 @@
+
 /**
  * Document Converter Service
  * Handles conversion of different document types for OCR processing
@@ -21,7 +22,7 @@ export function detectFileType(url: string, contentType?: string): 'pdf' | 'imag
   
   // Otherwise detect from URL extension
   const urlLower = url.toLowerCase();
-  if (urlLower.endsWith('.pdf')) {
+  if (urlLower.endsWith('.pdf') || urlLower.includes('.pdf?')) {
     return 'pdf';
   }
   
@@ -99,7 +100,7 @@ export async function getDocumentPagesAsImages(documentUrl: string): Promise<str
       const baseStoragePath = documentUrl.substring(0, documentUrl.lastIndexOf('/'));
       
       // Look for the PDF identifier
-      const pdfIdMatch = documentUrl.match(/\/([a-f0-9-]+)\.pdf$/i);
+      const pdfIdMatch = documentUrl.match(/\/([a-f0-9-]+)\.pdf$/i) || documentUrl.match(/\/([a-f0-9-]+)\.pdf\?/i);
       
       if (pdfIdMatch && pdfIdMatch[1]) {
         const pdfId = pdfIdMatch[1];

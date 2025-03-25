@@ -30,12 +30,18 @@ export function DocumentSection({
   if (!url) return null;
 
   const isHandwritten = type === 'handwritten';
+  const isPdf = url.toLowerCase().includes('.pdf');
 
   return (
     <div className={`flex flex-col p-3 border rounded-md hover:bg-muted/50 transition-colors h-full ${className}`}>
       <div className="flex flex-col space-y-2">
         <div className="flex items-center flex-wrap">
           <DocumentLink url={url} type={type} label={label} />
+          {isPdf && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded ml-2">
+              PDF
+            </span>
+          )}
         </div>
         
         {!isHandwritten && (

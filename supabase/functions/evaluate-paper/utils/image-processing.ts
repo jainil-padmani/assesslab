@@ -17,14 +17,10 @@ export async function urlToBase64(url: string): Promise<string> {
       return url;
     }
     
-    // For document files, don't try to convert to base64 at all - pass URL directly
-    if (url.toLowerCase().endsWith('.zip') || 
-        url.toLowerCase().endsWith('.pdf')) {
-      console.log("Document file detected, but PDF files must be converted to images before processing");
-      if (url.toLowerCase().endsWith('.pdf')) {
-        throw new Error("PDF files must be converted to images before processing with vision models");
-      }
-      return cleanUrlForApi(url);
+    // CRITICAL - For PDF files, always reject them - must be converted to images first
+    if (isPdfUrl(url)) {
+      console.error("PDF detected in urlToBase64 - PDFs must be converted to images first");
+      throw new Error("PDF files must be converted to images before processing with vision models");
     }
     
     // For all other files, make a fresh fetch with a longer timeout
@@ -49,6 +45,13 @@ export async function urlToBase64(url: string): Promise<string> {
       
       // Get image type from Content-Type header
       const contentType = response.headers.get('Content-Type');
+      
+      // Double-check no PDFs get through
+      if (contentType && contentType.includes('pdf')) {
+        console.error("PDF content type detected - must convert to images first");
+        throw new Error("PDF files must be converted to images before processing with vision models");
+      }
+      
       let mimeType = 'image/jpeg'; // Default to JPEG
       
       if (contentType && contentType.startsWith('image/')) {
@@ -109,7 +112,7 @@ export function cleanUrlForApi(url: string): string {
  */
 export function isPdfUrl(url: string): boolean {
   if (!url) return false;
-  return url.toLowerCase().endsWith('.pdf');
+  return url.toLowerCase().endsWith('.pdf') || url.includes('.pdf?');
 }
 
 /**

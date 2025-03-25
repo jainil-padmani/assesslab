@@ -1,7 +1,8 @@
 
 import { createBedrockService } from "../services/bedrock-service.ts";
-import { cleanUrlForApi } from "../utils/image-processing.ts";
+import { cleanUrlForApi, isPdfUrl } from "../utils/image-processing.ts";
 import { createImageBatches, cleanImageUrlsForProcessing } from "../utils/image-batch-processing.ts";
+import { getDocumentPagesAsImages } from "../services/document-converter.ts";
 
 /**
  * Process image files in batches directly with Claude 3.5 Vision
@@ -28,13 +29,9 @@ export async function extractTextFromImageFile(
       credentials.region
     );
     
-    // For simple image URLs, just process directly
-    const cleanUrl = cleanUrlForApi(fileUrl);
-    console.log("Using direct URL for image processing:", cleanUrl);
-    
     // For multi-page documents or batch processing if provided
     // We need to determine if this is a single image or multiple
-    let imageUrls: string[] = [cleanUrl];
+    let imageUrls: string[] = [];
     
     // Check if fileUrl might be a JSON string containing multiple images
     if (fileUrl.startsWith('[') && fileUrl.endsWith(']')) {
@@ -47,18 +44,47 @@ export async function extractTextFromImageFile(
       } catch (e) {
         // If parsing fails, continue with the single URL
         console.log("Not a valid JSON array, treating as single image URL");
+        imageUrls = [fileUrl];
+      }
+    } else {
+      // For simple URL
+      imageUrls = [fileUrl];
+    }
+    
+    // CRITICAL - Process any PDF URLs and convert them to images first
+    let finalImageUrls: string[] = [];
+    
+    for (const url of imageUrls) {
+      if (isPdfUrl(url)) {
+        console.log(`Converting PDF to images first: ${url}`);
+        try {
+          // Get the pre-converted images
+          const convertedImages = await getDocumentPagesAsImages(url);
+          
+          if (convertedImages && convertedImages.length > 0) {
+            console.log(`Successfully converted PDF to ${convertedImages.length} images`);
+            finalImageUrls.push(...convertedImages);
+          } else {
+            throw new Error(`Failed to convert PDF to images: ${url}`);
+          }
+        } catch (pdfError) {
+          console.error(`Error converting PDF to images: ${url}`, pdfError);
+          throw new Error(`PDF conversion error: ${pdfError.message}`);
+        }
+      } else {
+        // Not a PDF, add directly
+        finalImageUrls.push(cleanUrlForApi(url));
       }
     }
     
-    // Validate no PDFs in the URLs - they must be converted to images first
-    for (const url of imageUrls) {
-      if (url.toLowerCase().endsWith('.pdf')) {
-        throw new Error(`PDF detected (${url}). PDFs must be converted to images before processing with Bedrock.`);
-      }
+    if (finalImageUrls.length === 0) {
+      throw new Error("No valid images to process after PDF conversion");
     }
+    
+    console.log(`Final list of ${finalImageUrls.length} images for processing`);
     
     // Create batches of images (Claude 3.5 supports up to 4 images per request)
-    const batches = createImageBatches(imageUrls);
+    const batches = createImageBatches(finalImageUrls);
     console.log(`Created ${batches.length} batch(es) of images`);
     
     // Process each batch and combine results
@@ -67,6 +93,7 @@ export async function extractTextFromImageFile(
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
       console.log(`Processing batch ${i+1}/${batches.length} with ${batch.length} image(s)`);
+      console.log(`Batch ${i+1} images:`, batch);
       
       const promptText = userPrompt || 
         `Extract all the text from ${batch.length > 1 ? 'these images' : 'this image'}, preserving structure and formatting:` +
