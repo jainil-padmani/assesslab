@@ -3,7 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
-import { evaluateWithExtractedQuestions } from './ocr.ts';
+import { evaluateWithExtractedQuestions, matchAnswersToQuestions } from './ocr.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -165,11 +165,37 @@ serve(async (req) => {
     if (extractedQuestions && processedStudentAnswer.text) {
       console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
       
+      // First try to match student answers to question numbers
+      if (processedStudentAnswer.text) {
+        try {
+          console.log("Attempting semantic matching of student answers to questions");
+          
+          const questionText = extractedQuestionText || existingQuestionText || 
+                               (processedQuestionPaper ? processedQuestionPaper.text : "");
+          
+          const answerText = processedStudentAnswer.text;
+          
+          // Perform semantic matching if we have both question paper and student answer
+          if (questionText && answerText) {
+            const matches = await matchAnswersToQuestions(
+              apiKey,
+              questionText,
+              answerText
+            );
+            
+            console.log(`Found ${matches?.matches?.length || 0} potential question-answer matches through semantic matching`);
+          }
+        } catch (matchError) {
+          console.error("Error during semantic matching:", matchError);
+          // Continue with evaluation even if matching fails
+        }
+      }
+      
       // Use our specialized evaluation function that leverages extracted questions
       evaluation = await evaluateWithExtractedQuestions(
         apiKey,
         extractedQuestions,
-        extractedAnswerKeyText || processedAnswerKey?.text,
+        extractedAnswerKeyText || existingAnswerText || (processedAnswerKey ? processedAnswerKey.text : null),
         processedStudentAnswer.text,
         studentInfo
       );

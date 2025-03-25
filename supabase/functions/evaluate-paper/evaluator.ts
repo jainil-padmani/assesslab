@@ -1,82 +1,69 @@
-import { Prompts } from './prompts.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface DocumentInfo {
-  url?: string;
-  zip_url?: string;
-  topic?: string;
-  text?: string;
-}
-
-/**
- * Evaluate the student's answers using the question paper and answer key
- */
+// Function to evaluate student answers against question paper and answer key
 export async function evaluateAnswers(
   apiKey: string,
   testId: string,
-  processedQuestionPaper: DocumentInfo,
-  processedAnswerKey: DocumentInfo,
-  processedStudentAnswer: DocumentInfo,
+  questionPaper: any,
+  answerKey: any,
+  studentAnswer: any,
   studentInfo: any
-): Promise<any> {
+) {
   try {
-    // Prepare the prompts for OpenAI evaluation
-    const systemPrompt = Prompts.evaluation(testId);
-
-    // Determine if we have an answer key or not
-    const hasAnswerKey = !!(processedAnswerKey?.text || processedAnswerKey?.topic);
+    console.log("Starting evaluation process for test:", testId);
+    
+    // Build the prompt for the evaluation
+    const systemPrompt = `You are an AI assistant specialized in evaluating student exam answers. You will be given a question paper, an answer key, and a student's answer sheet. Your task is to evaluate the student's answers, assign marks, and provide detailed feedback.`;
     
     const userPrompt = `
-You are an AI evaluator responsible for grading a student's answer sheet.
-The user will provide you with the question paper(s)${hasAnswerKey ? ', answer key(s) / answer criteria,' : ''} and the student's answer sheet(s).
-Analyse the question paper to understand the questions and their marks.
-${hasAnswerKey ? 'Analyse the answer key to understand the correct answers and valuation criteria.' : 'Without an official answer key, use your expertise to evaluate the answers based on the question paper.'}
-Assess the answers generously. Award 0 marks for completely incorrect or unattempted answers.
+Evaluate this student's answer sheet against the provided question paper and answer key.
 
-Question Paper for Test ID ${testId}:
-${JSON.stringify(processedQuestionPaper)}
+STUDENT INFORMATION:
+${JSON.stringify(studentInfo, null, 2)}
 
-${hasAnswerKey ? `Answer Key for Test ID ${testId}:
-${JSON.stringify(processedAnswerKey)}` : 'No answer key provided for this test. Use your expertise to evaluate the answers.'}
+QUESTION PAPER:
+${questionPaper?.text || "No question paper provided"}
 
-Student Answer Sheet for Test ID ${testId}:
-${JSON.stringify(processedStudentAnswer)}
+ANSWER KEY:
+${answerKey?.text || "No answer key provided (use your judgment to evaluate)"}
 
-Student Info:
-${JSON.stringify(studentInfo)}
+STUDENT'S ANSWER SHEET:
+${studentAnswer?.text || "No student answer provided"}
 
-Provide the response in a JSON format that contains:
+Analyze the student's answer sheet carefully. For each question:
+1. Identify the question number and text from the question paper
+2. Extract the student's answer for that question
+3. Compare it with the answer key
+4. Assign appropriate marks based on correctness
+5. Provide specific feedback
 
-student_name: "${studentInfo?.name || 'Unknown'}"
-roll_no: "${studentInfo?.roll_number || 'Unknown'}"
-class: "${studentInfo?.class || 'Unknown'}"
-subject: "${studentInfo?.subject || 'Unknown'}"
-test_id: "${testId || 'Unknown'}"
-
-answers: an array of objects containing the following fields:
-- question_no: the question number
-- question: the question content
-- answer: the student's answer
-- score: an array containing [assigned_score, total_score]
-- remarks: any remarks or comments regarding the answer
-- confidence: a number between 0 and 1 indicating confidence in the grading
-
-Return ONLY the JSON object without any additional text or markdown formatting.
+Format your evaluation as a JSON object with this structure:
+{
+  "student_name": "${studentInfo?.name || 'Unknown'}",
+  "roll_no": "${studentInfo?.roll_number || 'Unknown'}",
+  "class": "${studentInfo?.class || 'Unknown'}",
+  "subject": "${studentInfo?.subject || 'Unknown'}",
+  "answers": [
+    {
+      "question_no": "1",
+      "question": "The question text from paper",
+      "answer": "Student's answer for this question",
+      "expected_answer": "The expected answer from the answer key",
+      "score": [5, 10],  // [assigned score, maximum score]
+      "remarks": "Detailed feedback on the answer",
+      "confidence": 0.9,  // your confidence in the evaluation
+      "match_method": "direct_numbering" or "semantic_matching"
+    },
+    // Repeat for all questions
+  ],
+  "summary": {
+    "totalScore": [25, 50],  // [total assigned, total possible]
+    "percentage": 50
+  }
+}
 `;
 
-    console.log("Sending request to OpenAI for evaluation");
-    
-    // Make request to OpenAI with the correct API key format and extended timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
-    
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      signal: controller.signal,
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
@@ -87,110 +74,60 @@ Return ONLY the JSON object without any additional text or markdown formatting.
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.2,
+        temperature: 0.3,
         response_format: { type: "json_object" }
       }),
     });
-    
-    clearTimeout(timeoutId);
 
-    if (!openAIResponse.ok) {
-      const errorBody = await openAIResponse.text();
-      console.error("OpenAI API error:", errorBody);
-      throw new Error(`OpenAI API error: ${errorBody}`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`API error: ${JSON.stringify(errorData)}`);
     }
 
-    const aiResponse = await openAIResponse.json();
-    console.log("Received response from OpenAI");
-    
-    if (!aiResponse.choices || !aiResponse.choices[0]?.message?.content) {
-      console.error("Invalid response format from OpenAI:", JSON.stringify(aiResponse));
-      throw new Error('Invalid response from OpenAI');
-    }
-
-    // Parse the evaluation results
-    const evaluationText = aiResponse.choices[0].message.content;
-    console.log("Evaluation content received:", evaluationText.substring(0, 200) + "...");
+    const data = await response.json();
+    const content = data.choices[0].message.content;
     
     try {
-      // Validate and clean up the evaluation data
-      const evaluation = JSON.parse(evaluationText);
+      // Parse and validate the response
+      const evaluation = JSON.parse(content);
+      
+      // Validate the structure of the response
+      if (!evaluation.answers || !Array.isArray(evaluation.answers) || !evaluation.summary) {
+        throw new Error("Invalid evaluation structure");
+      }
       
       return evaluation;
-    } catch (parseError) {
-      console.error("Error parsing evaluation results:", parseError, evaluationText);
-      throw new Error(`Failed to parse evaluation results: ${parseError.message}`);
+    } catch (error) {
+      console.error("Error parsing evaluation response:", error);
+      throw new Error("Failed to parse evaluation response");
     }
   } catch (error) {
-    console.error("Error in evaluation function:", error);
+    console.error("Error in evaluateAnswers:", error);
     throw error;
   }
 }
 
-/**
- * Process the evaluation result to add summary information
- */
+// Process the evaluation data and prepare it for storage
 export function processEvaluation(
-  evaluation: any, 
-  testId: string, 
-  studentAnswer: DocumentInfo,
-  extractedStudentText: string | null,
-  extractedQuestionText: string | null,
-  extractedAnswerKeyText: string | null
-): any {
-  try {
-    // If evaluation already has summary data, use it
-    if (evaluation.summary) {
-      console.log("Using existing summary data in evaluation");
-    }
-    // Otherwise calculate total score
-    else {
-      let totalAssignedScore = 0;
-      let totalPossibleScore = 0;
-      
-      if (evaluation.answers && Array.isArray(evaluation.answers)) {
-        evaluation.answers.forEach((answer: any) => {
-          if (Array.isArray(answer.score) && answer.score.length === 2) {
-            totalAssignedScore += Number(answer.score[0]);
-            totalPossibleScore += Number(answer.score[1]);
-          }
-        });
-      }
-      
-      // Add summary information
-      evaluation.summary = {
-        totalScore: [totalAssignedScore, totalPossibleScore],
-        percentage: totalPossibleScore > 0 ? Math.round((totalAssignedScore / totalPossibleScore) * 100) : 0
-      };
-    }
-    
-    // Add metadata to ensure proper syncing
-    evaluation.test_id = testId;
-    evaluation.answer_sheet_url = studentAnswer.url;
-    
-    // Add the extracted texts if available
-    if (extractedStudentText) {
-      evaluation.text = extractedStudentText;
-      evaluation.isOcrProcessed = true;
-      if (studentAnswer?.zip_url) {
-        evaluation.zipProcessed = true;
-        evaluation.zip_url = studentAnswer.zip_url;
-      }
-    }
-    
-    if (extractedQuestionText) {
-      evaluation.questionPaperText = extractedQuestionText;
-    }
-    
-    if (extractedAnswerKeyText) {
-      evaluation.answerKeyText = extractedAnswerKeyText;
-    }
-    
-    console.log(`Evaluation completed: ${evaluation.summary.totalScore[0]}/${evaluation.summary.totalScore[1]} (${evaluation.summary.percentage}%)`);
-    
-    return evaluation;
-  } catch (error) {
-    console.error("Error processing evaluation:", error);
-    throw error;
-  }
+  evaluation: any,
+  testId: string,
+  studentAnswer: any,
+  extractedStudentText: string,
+  questionPaperText: string | null,
+  answerKeyText: string | null
+) {
+  // Add metadata to the evaluation
+  return {
+    ...evaluation,
+    metadata: {
+      test_id: testId,
+      evaluation_timestamp: new Date().toISOString(),
+      answer_sheet_url: studentAnswer?.url,
+      ocr_processed: true
+    },
+    question_paper_text: questionPaperText,
+    answer_key_text: answerKeyText,
+    text: extractedStudentText,
+    isOcrProcessed: true
+  };
 }

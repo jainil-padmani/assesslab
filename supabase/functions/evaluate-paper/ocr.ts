@@ -231,7 +231,7 @@ export async function extractQuestionsFromPaper(
   }
 }
 
-// Evaluate student answers using the extracted questions
+// Evaluate student answers using the extracted questions and semantic matching
 export async function evaluateWithExtractedQuestions(
   apiKey: string,
   questions: any[],
@@ -260,6 +260,13 @@ Student Information:
 ${JSON.stringify(studentInfo, null, 2)}
 
 Evaluate each question and assign marks based on the correctness of the answer.
+Your task:
+1. First, map each answer in the student's sheet to the corresponding question using semantic matching
+2. If student answers are numbered, use those numbers to match with questions
+3. If numbering is unclear or missing, match based on content similarity
+4. Evaluate each answer against the expected answer from the answer key or your expertise
+5. Provide partial credit where appropriate based on the correctness of the answer
+
 Provide a detailed evaluation in JSON format with the following structure:
 
 {
@@ -272,9 +279,11 @@ Provide a detailed evaluation in JSON format with the following structure:
       "question_no": "1",
       "question": "The question text",
       "answer": "Student's answer",
+      "expected_answer": "The expected answer based on answer key or expertise",
       "score": [5, 10],
-      "remarks": "Comments on the answer",
-      "confidence": 0.9
+      "remarks": "Comments on the answer including justification for partial credit if given",
+      "confidence": 0.9,
+      "match_method": "direct_numbering or semantic_matching"
     },
     ...
   ],
@@ -325,3 +334,75 @@ Return ONLY the JSON object, without any additional text.
     throw error;
   }
 }
+
+// New function to match student answers with question paper using NLP/semantic matching
+export async function matchAnswersToQuestions(
+  apiKey: string,
+  questionPaperText: string,
+  studentAnswerText: string
+): Promise<{ matches: any[] }> {
+  try {
+    console.log('Matching student answers to question paper using semantic matching');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an AI assistant specialized in matching student answers to exam questions. Your task is to identify and match each answer in a student\'s answer sheet to the corresponding question in a question paper, even if numbering is unclear or answers are in a different order.' 
+          },
+          { 
+            role: 'user', 
+            content: `I need to match student answers to questions from a question paper.
+
+Question Paper:
+${questionPaperText}
+
+Student's Answer Sheet:
+${studentAnswerText}
+
+Please identify which parts of the student's answer sheet correspond to which questions in the question paper. Return the results as a JSON array with the following format:
+[
+  {
+    "question_number": "1",
+    "question_text": "The full question text from the paper",
+    "student_answer": "The student's answer for this question",
+    "match_confidence": 0.95,
+    "match_method": "direct_numbering or semantic_matching"
+  },
+  ...
+]` 
+          }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Answer matching API error: ${JSON.stringify(errorData)}`);
+    }
+    
+    const data = await response.json();
+    let matchingResult;
+    
+    try {
+      matchingResult = JSON.parse(data.choices[0].message.content);
+      return matchingResult;
+    } catch (error) {
+      console.error('Error parsing answer matching result:', error);
+      throw new Error('Failed to parse answer matching result');
+    }
+  } catch (error) {
+    console.error('Error in matchAnswersToQuestions:', error);
+    throw error;
+  }
+}
+
