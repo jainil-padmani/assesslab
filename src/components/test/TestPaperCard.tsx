@@ -53,9 +53,9 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
           </div>
         </CardHeader>
         <CardContent className="p-4">
-          {/* Main content with side-by-side layout */}
+          {/* Main content with responsive layout */}
           <div className="space-y-3">
-            {/* Question Paper and Answer Key Side-by-Side */}
+            {/* Question Paper and Answer Key Side-by-Side on larger screens, stacked on mobile */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Question Paper Section */}
               {file.question_paper_url && (

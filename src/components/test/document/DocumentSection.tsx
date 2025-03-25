@@ -32,9 +32,9 @@ export function DocumentSection({
   const isHandwritten = type === 'handwritten';
 
   return (
-    <div className={`flex flex-col p-2 border rounded-md hover:bg-muted/50 transition-colors ${className}`}>
+    <div className={`flex flex-col p-3 border rounded-md hover:bg-muted/50 transition-colors h-full ${className}`}>
       <div className="flex flex-col space-y-2">
-        <div className="flex items-center">
+        <div className="flex items-center flex-wrap">
           <DocumentLink url={url} type={type} label={label} />
         </div>
         

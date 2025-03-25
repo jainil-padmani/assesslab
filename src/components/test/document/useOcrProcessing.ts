@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { processPdfToZip } from "@/utils/assessment/pdfProcessingUtils";
 
 interface OcrProcessingProps {
   questionPaperUrl: string;
@@ -71,12 +71,53 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
       // Extract file name from URL for logging
       const fileName = fileUrl.split('/').pop() || 'unknown';
       
+      // Check if the file is a PDF (based on URL)
+      const isPdf = fileName.toLowerCase().endsWith('.pdf');
+      let zipUrl = null;
+      
+      if (isPdf) {
+        try {
+          // Fetch the PDF file
+          const fileResponse = await fetch(fileUrl);
+          if (!fileResponse.ok) {
+            throw new Error(`Failed to fetch PDF: ${fileResponse.statusText}`);
+          }
+          
+          const pdfBlob = await fileResponse.blob();
+          const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+          
+          // Generate a unique identifier for this file
+          const fileIdentifier = fileUrl.substring(fileUrl.lastIndexOf('/') + 1, fileUrl.lastIndexOf('.'));
+          
+          // Process the PDF to create a ZIP file with PNG images
+          const result = await processPdfToZip(pdfFile, fileIdentifier, `${fileType}_papers`);
+          zipUrl = result.zipUrl;
+          
+          console.log(`PDF processed, ZIP URL: ${zipUrl}`);
+          toast.info('PDF converted to images for better OCR processing.');
+        } catch (pdfError) {
+          console.error("Error processing PDF:", pdfError);
+          toast.error("Failed to process PDF. Using manual text entry instead.");
+          
+          // If PDF processing fails, switch to manual entry
+          if (fileType === 'question') {
+            setEditingQuestionText(true);
+            setLoadingOcrQuestion(false);
+          } else {
+            setEditingAnswerText(true);
+            setLoadingOcrAnswer(false);
+          }
+          return;
+        }
+      }
+      
       // Call the extract-text function to process the file
       const response = await supabase.functions.invoke('extract-text', {
         body: {
           fileUrl,
           fileName,
           fileType: fileType === 'question' ? 'questionPaper' : 'answerKey',
+          zipUrl: zipUrl // Pass the ZIP URL if available (for PDF files)
         }
       });
 
@@ -86,13 +127,8 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
       }
 
       // Check if the response indicates a PDF file that can't be directly processed
-      if (response.data?.is_pdf) {
-        toast.info('PDF files cannot be directly extracted. Please use "Enter Text" instead.');
-        if (fileType === 'question') {
-          setEditingQuestionText(true);
-        } else {
-          setEditingAnswerText(true);
-        }
+      if (response.data?.is_pdf && !zipUrl) {
+        toast.info('PDF files require conversion to images. Please wait...');
         return;
       }
 
@@ -151,7 +187,6 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
     setEditingAnswerText(true);
   };
 
-  // Function to handle direct text entry for question paper
   const handleSaveQuestionText = async () => {
     if (!newQuestionText.trim()) {
       toast.error('Please enter some text for the question paper');
@@ -208,7 +243,6 @@ export function useOcrProcessing({ questionPaperUrl, answerKeyUrl }: OcrProcessi
     }
   };
 
-  // Function to handle direct text entry for answer key
   const handleSaveAnswerText = async () => {
     if (!newAnswerText.trim()) {
       toast.error('Please enter some text for the answer key');
