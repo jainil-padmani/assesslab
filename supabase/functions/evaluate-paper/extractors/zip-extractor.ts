@@ -4,7 +4,7 @@ import { cleanUrlForApi } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a ZIP file containing images
- * This implementation processes the ZIP file contents for better OCR results
+ * Optimized to use direct URLs instead of base64 conversion
  */
 export async function extractTextFromZip(zipUrl: string, apiKey: string, systemPrompt: string = ''): Promise<string> {
   try {
@@ -14,10 +14,8 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     const cleanedZipUrl = cleanUrlForApi(zipUrl);
     console.log(`Using cleaned ZIP URL for OCR processing: ${cleanedZipUrl}`);
     
-    // Since we're now using pre-converted optimized JPEG images in the ZIP file,
-    // we can directly process the ZIP file with OpenAI's vision capabilities
-    
     // Extract text from the ZIP using OpenAI's vision capabilities
+    // No base64 conversion - use URL directly
     const extractedText = await extractTextFromImageFile(
       cleanedZipUrl,
       apiKey,
@@ -28,6 +26,12 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     return extractedText;
   } catch (error: any) {
     console.error("Error in ZIP handling:", error);
+    
+    // Provide a more helpful error message
+    if (error.message?.includes("Timeout") || error.message?.includes("invalid_image_format")) {
+      throw new Error(`ZIP file may be too large or contain too many images. Consider reducing the number of pages in your document.`);
+    }
+    
     throw new Error(`Error in ZIP handling: ${error.message || "Unknown error"}`);
   }
 }

@@ -4,6 +4,7 @@ import { urlToBase64, cleanUrlForApi } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a file using OpenAI Vision API
+ * With improved memory handling for large files
  */
 export async function extractTextFromFile(fileUrl: string, apiKey: string, systemPrompt: string = '', userPrompt?: string): Promise<string> {
   try {
@@ -13,7 +14,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     
     console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Check if this is a ZIP file - if so, we can pass it directly to OpenAI
+    // Check if this is a ZIP file - if so, pass it directly to OpenAI
     if (/\.zip/i.test(fileUrl)) {
       console.log("ZIP file detected, sending directly to OpenAI for processing");
       // Clean the URL by removing any query parameters
@@ -27,19 +28,23 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       );
     }
     
-    // Process the image URL to get a base64 representation
+    // Process the image URL - this will return either a base64 string or a direct URL
     let imageData;
     try {
+      // With the improved function, this will either return base64 or a direct URL
       imageData = await urlToBase64(fileUrl);
-      console.log(`Successfully processed image to data URL. Length: ${imageData?.length || 0} chars`);
+      console.log(`Successfully processed image, result length: ${imageData?.length || 0} chars`);
       
-      // Basic validation of the data URL format
-      if (!imageData?.startsWith('data:image/')) {
-        throw new Error("Invalid image format: The data URL must have an image MIME type");
+      // If it's a very short result, it's likely a direct URL, not base64 data
+      if (imageData.length < 200 && imageData.startsWith('http')) {
+        console.log("Using direct image URL instead of base64 for better memory efficiency");
       }
     } catch (imageError) {
       console.error("Error processing image URL:", imageError);
-      throw new Error(`Failed to process image URL: ${imageError.message}`);
+      
+      // If we can't convert to base64, try using the URL directly
+      console.log("Falling back to direct URL for OpenAI");
+      imageData = cleanUrlForApi(fileUrl);
     }
     
     const openAIService = createOpenAIService(apiKey);
@@ -103,7 +108,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
 
 /**
  * Extracts text from a single image file
- * Now directly sends ZIP URLs to OpenAI for processing with increased timeout
+ * Optimized for memory efficiency and reliability
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
@@ -123,32 +128,13 @@ export async function extractTextFromImageFile(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
     
-    let imageUrl = fileUrl;
-    
-    // If it's not a ZIP file, convert to base64 first (needed for OpenAI API)
-    if (!fileUrl.includes('.zip')) {
-      try {
-        imageUrl = await urlToBase64(fileUrl);
-        console.log("Successfully converted image to data URL for direct API call");
-        
-        // Validate the image format
-        if (!imageUrl.startsWith('data:image/') && !fileUrl.includes('.zip')) {
-          throw new Error("Invalid image format: The data URL must have an image MIME type");
-        }
-      } catch (e) {
-        console.error("Could not convert to base64, error:", e);
-        throw new Error(`Failed to process image: ${e.message}`);
-      }
-    } else {
-      console.log("Using ZIP URL directly for OCR processing");
-      // Make sure we're using a clean URL without query parameters for ZIP files
-      imageUrl = cleanUrlForApi(fileUrl);
-      console.log(`Cleaned ZIP URL for OCR: ${imageUrl}`);
-    }
+    // For most efficiency, we'll use the URL directly rather than converting to base64
+    // This prevents memory issues with large files
+    let imageUrl = cleanUrlForApi(fileUrl);
+    console.log(`Using direct URL for OCR: ${imageUrl}`);
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
     
-    // Try with a few different approaches
     try {
       // Approach 1: Try direct fetch with OpenAI API
       console.log("Attempting OCR with direct OpenAI API call");
@@ -189,9 +175,11 @@ export async function extractTextFromImageFile(
         const errorText = await ocrResponse.text();
         console.error("OpenAI OCR error:", errorText);
         
-        // If it's a timeout specifically when downloading the ZIP
-        if (errorText.includes("Timeout while downloading") && fileUrl.includes(".zip")) {
-          throw new Error("Timeout downloading ZIP file. Will try fallback processing method.");
+        // Specific error handling for ZIP files
+        if ((errorText.includes("Timeout while downloading") || 
+             errorText.includes("invalid_image_format")) && 
+            fileUrl.includes(".zip")) {
+          throw new Error("Timeout or format error processing ZIP file. The file may be too large or in an unsupported format.");
         }
         
         throw new Error("OCR extraction failed: " + errorText);
@@ -211,14 +199,16 @@ export async function extractTextFromImageFile(
     } catch (error: any) {
       clearTimeout(timeoutId);
       
-      if (error.message?.includes("Timeout downloading ZIP") && fileUrl.includes(".zip")) {
-        console.error("Timeout downloading ZIP. Suggesting document splitting:", error);
+      if ((error.message?.includes("Timeout") || 
+           error.message?.includes("invalid_image_format")) && 
+          fileUrl.includes(".zip")) {
+        console.error("Error processing ZIP file:", error);
         
         // Return a helpful error message for users
-        return `The document is too large for direct processing. Please consider these options:
+        return `The document is too large or complex for direct processing. Please consider these options:
 1. Split the PDF into smaller files (1-2 pages each)
 2. Upload individual images of pages instead of a large PDF
-3. Try again later when the service might be less busy
+3. Try again with a lower resolution scan
 
 Technical Error: ${error.message}`;
       }
