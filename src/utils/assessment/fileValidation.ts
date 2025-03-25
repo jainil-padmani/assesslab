@@ -21,7 +21,7 @@ export const validateFileFormat = (file: File): boolean => {
 export const getFileExtension = (url: string): string => {
   if (!url) return '';
   
-  // Remove any query parameters
+  // Remove any query parameters or cache busters
   const urlWithoutParams = url.split('?')[0];
   // Get the last part after the last dot
   return urlWithoutParams.split('.').pop()?.toLowerCase() || '';

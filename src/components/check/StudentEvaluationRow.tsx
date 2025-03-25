@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Check, AlertCircle, File, Loader2 } from "lucide-react";
+import { Check, AlertCircle, File, Loader2, Eye } from "lucide-react";
 import { useUploadAssessment } from "@/hooks/useUploadAssessment";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { Badge } from "@/components/ui/badge";
 import type { Student } from "@/types/dashboard";
 import { EvaluationStatus } from "@/types/assessments";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface StudentEvaluationRowProps {
   student: Student;
@@ -56,28 +57,28 @@ export function StudentEvaluationRow({
     switch(status) {
       case EvaluationStatus.COMPLETED:
         return (
-          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">
+          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100 font-medium">
             <Check className="h-3 w-3 mr-1" />
             Completed
           </Badge>
         );
       case EvaluationStatus.IN_PROGRESS:
         return (
-          <Badge variant="warning" className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+          <Badge variant="warning" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-medium">
             <Loader2 className="h-3 w-3 mr-1 animate-spin" />
             In Progress
           </Badge>
         );
       case EvaluationStatus.FAILED:
         return (
-          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">
+          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100 font-medium">
             <AlertCircle className="h-3 w-3 mr-1" />
             Failed
           </Badge>
         );
       default:
         return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100">
+          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 font-medium">
             <AlertCircle className="h-3 w-3 mr-1" />
             Pending
           </Badge>
@@ -86,29 +87,55 @@ export function StudentEvaluationRow({
   };
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{student.name}</TableCell>
-      <TableCell>{student.roll_number || '-'}</TableCell>
+    <TableRow className="hover:bg-muted/40 transition-colors">
+      <TableCell className="font-medium">
+        <div className="flex items-center space-x-2">
+          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+            {student.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="font-medium">{student.name}</p>
+            <p className="text-xs text-muted-foreground">{student.email || "No email"}</p>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-sm font-medium">
+          {student.roll_number || '-'}
+        </span>
+      </TableCell>
       <TableCell>
         {hasAnswerSheet ? (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            asChild
-          >
-            <a href={answerSheetUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center">
-              <File className="h-4 w-4 mr-2" />
-              View Sheet
-            </a>
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-slate-200 hover:bg-slate-100"
+                  asChild
+                >
+                  <a href={answerSheetUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                    <File className="h-4 w-4 mr-2 text-blue-600" />
+                    View Sheet
+                  </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View student answer sheet</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
-          <UploadAnswerSheet 
-            studentId={student.id} 
-            selectedSubject={selectedSubject} 
-            testId={selectedTest}
-            isEvaluating={isEvaluating}
-            onUploadComplete={handleUploadComplete}
-          />
+          <div className="max-w-60">
+            <UploadAnswerSheet 
+              studentId={student.id} 
+              selectedSubject={selectedSubject} 
+              testId={selectedTest}
+              isEvaluating={isEvaluating}
+              onUploadComplete={handleUploadComplete}
+            />
+          </div>
         )}
       </TableCell>
       <TableCell>
@@ -116,11 +143,11 @@ export function StudentEvaluationRow({
       </TableCell>
       <TableCell className="text-right">
         <Button 
-          variant="default" 
+          variant={hasAnswerSheet ? "default" : "outline"}
           size="sm"
           onClick={() => onEvaluate(student.id)}
           disabled={isEvaluating || !hasAnswerSheet || !testFilesAvailable}
-          className="w-full md:w-auto"
+          className={`${hasAnswerSheet ? "bg-primary hover:bg-primary/90" : "border-slate-200"} rounded-md transition-all duration-200 focus:ring-2 focus:ring-primary/30`}
         >
           {isEvaluating ? (
             <>
@@ -128,7 +155,10 @@ export function StudentEvaluationRow({
               Evaluating...
             </>
           ) : (
-            'Evaluate'
+            <>
+              <Eye className="h-4 w-4 mr-2" />
+              Evaluate
+            </>
           )}
         </Button>
       </TableCell>
