@@ -1,11 +1,11 @@
 
 import { validatePdfFile } from "../fileValidation";
-import { processPdfToZip } from "../pdfProcessingUtils";
+import { processPdfToImages } from "../pdfProcessingUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 
 /**
- * Uploads a PDF file and processes it to ZIP if needed
+ * Uploads a PDF file and processes it to optimized JPEG images if needed
  * 
  * @param file - The PDF file to upload
  * @param studentId - Optional student ID for answer sheets
@@ -45,15 +45,15 @@ export const uploadPdfFile = async (
 
   let zipUrl: string | undefined;
   
-  // Process PDF to ZIP for better OCR processing
+  // Process PDF to optimized JPEG images for better OCR processing
   try {
-    console.log(`Processing PDF to ZIP for ${folderPath}`);
+    console.log(`Processing PDF to optimized JPEG images for ${folderPath}`);
     const fileIdentifier = studentId || uuidv4();
-    const { zipUrl: newZipUrl } = await processPdfToZip(file, fileIdentifier, folderPath);
-    zipUrl = newZipUrl;
-    console.log("ZIP URL created:", zipUrl);
-  } catch (zipError) {
-    console.error("Error processing PDF to ZIP:", zipError);
+    const { imageUrls } = await processPdfToImages(file, fileIdentifier, folderPath);
+    zipUrl = imageUrls.length > 0 ? imageUrls[0] : undefined;
+    console.log("Image URL created:", zipUrl);
+  } catch (processError) {
+    console.error("Error processing PDF to optimized images:", processError);
   }
   
   return { 
