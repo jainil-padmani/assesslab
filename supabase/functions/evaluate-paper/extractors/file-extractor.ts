@@ -5,7 +5,7 @@ import { createImageBatches, cleanImageUrlsForProcessing } from "../utils/image-
 
 /**
  * Extract text from a file using Claude 3.5 Vision
- * With improved memory handling for large files
+ * With improved error handling for large files
  */
 export async function extractTextFromFile(fileUrl: string, credentials: { accessKeyId: string, secretAccessKey: string, region: string }, systemPrompt: string = '', userPrompt?: string): Promise<string> {
   try {
@@ -33,6 +33,35 @@ export async function extractTextFromFile(fileUrl: string, credentials: { access
     let imageData = cleanUrlForApi(fileUrl);
     console.log("Using direct image URL for processing:", imageData);
     
+    // Check if URL actually works before proceeding
+    try {
+      const testResponse = await fetch(imageData, { 
+        method: 'HEAD',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!testResponse.ok) {
+        console.error(`URL validation failed for ${imageData}: ${testResponse.status} ${testResponse.statusText}`);
+        throw new Error(`Document URL not accessible (HTTP ${testResponse.status}). Please check if the file exists and is publicly accessible.`);
+      }
+      
+      // Check content type to verify it's an image/pdf
+      const contentType = testResponse.headers.get('content-type') || '';
+      console.log(`URL content type: ${contentType}`);
+      
+      if (!contentType.startsWith('image/') && 
+          contentType !== 'application/pdf' && 
+          !contentType.includes('octet-stream')) {
+        console.warn(`URL has unexpected content type: ${contentType}. This might cause OCR issues.`);
+      }
+      
+    } catch (urlError) {
+      console.error("Error validating document URL:", urlError);
+      // Continue despite the error - we'll let the actual processing try anyway
+    }
+    
     const bedrockService = createBedrockService(
       credentials.accessKeyId,
       credentials.secretAccessKey,
@@ -55,11 +84,17 @@ export async function extractTextFromFile(fileUrl: string, credentials: { access
       return extractedText;
     } catch (apiError: any) {
       console.error("AWS Bedrock API error:", apiError);
+      
+      // If API error contains information about failed images, make it more user-friendly
+      if (apiError.message && apiError.message.includes("Failed to process any of the provided images")) {
+        throw new Error(`OCR extraction failed: The document couldn't be processed. Please verify the document is accessible and is in a supported format (PDF or image).`);
+      }
+      
       throw new Error(`OCR extraction failed: ${apiError.message || "Unknown API error"}`);
     }
   } catch (error: any) {
     console.error("Error extracting text from file:", error);
-    throw new Error(`OCR extraction failed: ${error.message || "Unknown error"}`);
+    throw error;
   }
 }
 
@@ -147,6 +182,10 @@ export async function extractTextFromImageFile(
       }
     }
     
+    if (!combinedText.trim()) {
+      throw new Error("Failed to extract any text from the provided images. Please check the document format and accessibility.");
+    }
+    
     console.log(`Successfully extracted text from all images: ${combinedText.length} characters`);
     console.log("Sample extracted text:", combinedText.substring(0, 100) + "...");
     
@@ -155,4 +194,10 @@ export async function extractTextFromImageFile(
     console.error("Error during OCR processing:", error);
     throw error;
   }
+}
+
+// Backward compatibility function for legacy code
+export async function extractTextFromZip(zipUrl: string, credentials: any, systemPrompt: string = ''): Promise<string> {
+  console.log("extractTextFromZip is now a compatibility wrapper for extractTextFromImageFile");
+  return await extractTextFromImageFile(zipUrl, credentials, systemPrompt);
 }
