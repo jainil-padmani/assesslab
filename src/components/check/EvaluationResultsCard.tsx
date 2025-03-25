@@ -1,7 +1,12 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardContent 
+} from "@/components/ui/card";
 import { PaperEvaluation } from "@/hooks/useEvaluations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Student } from "@/types/dashboard";
@@ -210,7 +215,7 @@ export function EvaluationResultsCard({
                     <div className="text-xl font-bold">{scoreRanges.average}</div>
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-900/30">
-                    <div className="text-red-600 dark:text-red-400 font-medium text-sm">Needs Help (<40%)</div>
+                    <div className="text-red-600 dark:text-red-400 font-medium text-sm">Needs Help (&lt;40%)</div>
                     <div className="text-xl font-bold">{scoreRanges.poor}</div>
                   </div>
                 </div>
