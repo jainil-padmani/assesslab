@@ -21,6 +21,9 @@ class BedrockService {
     this.accessKeyId = accessKeyId;
     this.secretAccessKey = secretAccessKey;
     this.region = region || 'us-east-1'; // Default to us-east-1 if region is not provided
+    
+    console.log(`BedrockService initialized with region: ${this.region}, service: ${this.service}`);
+    console.log(`Using AWS key ID starting with: ${this.accessKeyId.substring(0, 4)}...`);
   }
 
   /**
@@ -173,6 +176,7 @@ class BedrockService {
     
     // Using the specific bedrock-runtime endpoint for the region
     const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
+    console.log(`Sending request to ${endpoint}${path}`);
     
     const response = await fetch(`${endpoint}${path}`, {
       method: 'POST',

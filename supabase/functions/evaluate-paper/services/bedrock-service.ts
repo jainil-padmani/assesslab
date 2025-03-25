@@ -52,12 +52,10 @@ export class BedrockService {
       
       // Prepare the request body according to Bedrock requirements
       const requestBody = {
-        modelId: this.model,
-        input: {
-          messages: messages
-        },
+        anthropic_version: params.anthropic_version || "bedrock-2023-05-31",
         max_tokens: params.max_tokens || 4000,
-        temperature: params.temperature || 0.5
+        temperature: params.temperature || 0.5,
+        messages: messages
       };
       
       const payload = JSON.stringify(requestBody);
@@ -74,7 +72,9 @@ export class BedrockService {
       // Using the specific bedrock-runtime endpoint for the region
       const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
       console.log(`Sending request to Bedrock API: ${endpoint}${path}`);
-      console.log(`Request payload structure: ${JSON.stringify(Object.keys(requestBody))}`);
+      console.log(`Request body structure: ${JSON.stringify(Object.keys(requestBody))}`);
+      console.log(`Using region: ${this.region}, service: ${this.service}`);
+      console.log(`AWS Access Key ID (first 4 chars): ${this.accessKeyId.substring(0, 4)}...`);
       
       // Add timeout to avoid hanging requests
       const controller = new AbortController();
