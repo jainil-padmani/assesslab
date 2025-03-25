@@ -1,3 +1,4 @@
+
 // Import necessary modules and functions
 import { extractTextFromFile, extractQuestionsFromPaper } from './ocr.ts';
 
@@ -26,6 +27,7 @@ export async function processStudentAnswer(
     if (studentAnswer.zip_url) {
       console.log("Found ZIP URL with PNG images for student answer:", studentAnswer.zip_url);
       
+      // Use a specialized prompt for student answers
       const extractedText = await extractTextFromFile(
         studentAnswer.zip_url,
         apiKey,

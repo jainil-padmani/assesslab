@@ -118,9 +118,10 @@ export async function extractTextFromImageFile(
     
     console.log("Processing file for OCR extraction");
     
-    // Direct API call to OpenAI
+    // Direct API call to OpenAI with increased timeout
+    // Increase timeout to 120 seconds (2 minutes) for large ZIP files
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
     
     let imageUrl = fileUrl;
     

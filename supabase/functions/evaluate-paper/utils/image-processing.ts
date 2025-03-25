@@ -16,12 +16,19 @@ export async function urlToBase64(url: string): Promise<string> {
       return url;
     }
     
+    // Fetch the image with a longer timeout (60 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
     // Fetch the image
     const response = await fetch(url, {
+      signal: controller.signal,
       headers: {
         'Cache-Control': 'no-cache',
       }
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
