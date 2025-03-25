@@ -19,6 +19,8 @@ export const uploadAnswerSheetFile = async (file: File, studentId?: string): Pro
   try {
     // For PDF files and images, use the specialized converter
     if (validateFileFormat(file)) {
+      console.log(`Processing ${file.type} file for student: ${studentId || 'unknown'}`);
+      
       // Process PDF or image to ZIP of PNG files
       const fileIdentifier = studentId || uuidv4();
       const { zipUrl } = await processPdfToZip(file, fileIdentifier, 'answer_sheets');
@@ -46,6 +48,8 @@ export const uploadAnswerSheetFile = async (file: File, studentId?: string): Pro
       if (!urlData) {
         throw new Error("Failed to get public URL");
       }
+      
+      console.log(`Successfully uploaded answer sheet file with ZIP conversion. Original: ${urlData.publicUrl}, ZIP: ${zipUrl}`);
       
       return { 
         publicUrl: urlData.publicUrl,

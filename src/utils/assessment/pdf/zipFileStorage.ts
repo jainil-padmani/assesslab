@@ -12,16 +12,22 @@ export async function uploadZipFile(
   folderType: string = 'answer_sheets'
 ): Promise<string> {
   try {
+    // Ensure the ZIP file has the correct content type
+    const properZipBlob = new Blob([zipBlob], { type: 'application/zip' });
+    
     // Generate a unique filename
     const fileName = `${folderType}_${identifier}_${uuidv4()}.zip`;
     const filePath = `${folderType}_zip/${fileName}`;
     
-    console.log(`Uploading ZIP file: ${filePath}, size: ${zipBlob.size} bytes`);
+    console.log(`Uploading ZIP file: ${filePath}, size: ${properZipBlob.size} bytes`);
     
     // Upload the ZIP file to Supabase storage
     const { error: uploadError } = await supabase.storage
       .from('files')
-      .upload(filePath, zipBlob);
+      .upload(filePath, properZipBlob, {
+        contentType: 'application/zip',
+        cacheControl: 'max-age=3600'
+      });
     
     if (uploadError) {
       throw uploadError;

@@ -91,7 +91,41 @@ async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean>
   try {
     console.log(`Validating ZIP file: ${zipUrl}`);
     
-    // Send a quick check request to OpenAI
+    // Use a fetch with timeout to first check if the ZIP file is accessible
+    // This helps prevent the OpenAI API from timing out on inaccessible files
+    try {
+      console.log("Pre-validating ZIP file accessibility...");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10-second timeout
+      
+      const headResponse = await fetch(zipUrl, {
+        method: 'HEAD',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!headResponse.ok) {
+        console.error(`Failed to access ZIP file: ${headResponse.status} ${headResponse.statusText}`);
+        return false;
+      }
+      
+      const contentType = headResponse.headers.get('content-type');
+      console.log(`ZIP file content type: ${contentType}`);
+      
+      if (contentType && !contentType.includes('zip') && !contentType.includes('octet-stream')) {
+        console.warn(`ZIP file has unexpected content type: ${contentType}`);
+      }
+    } catch (fetchError) {
+      console.error("Error pre-validating ZIP file:", fetchError);
+      throw new Error(`Failed to download ZIP file: ${fetchError.message}`);
+    }
+    
+    // Send a quick check request to OpenAI with a shorter timeout
+    console.log("Validating ZIP file content with OpenAI...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20-second timeout
+    
     const validationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -122,15 +156,23 @@ async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean>
         max_tokens: 50,
         temperature: 0
       }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!validationResponse.ok) {
       const errorData = await validationResponse.json();
       console.error("ZIP validation failed:", JSON.stringify(errorData));
       
       if (errorData.error?.code === 'invalid_image_format') {
-        console.error("ZIP contains unsupported image formats");
+        console.error("ZIP contains unsupported image formats. Error:", errorData.error?.message);
         return false;
+      }
+      
+      if (errorData.error?.code === 'invalid_image_url') {
+        console.error("ZIP file download failed. Error:", errorData.error?.message);
+        throw new Error(`ZIP file download failed: ${errorData.error?.message}`);
       }
       
       throw new Error(`ZIP validation failed: ${JSON.stringify(errorData.error || errorData)}`);
@@ -145,7 +187,13 @@ async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean>
     return isValid;
   } catch (error) {
     console.error("Error validating ZIP file:", error);
-    return false;
+    
+    // If the error is an AbortError, it means we timed out
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout while validating ZIP file: ${zipUrl}`);
+    }
+    
+    throw error;
   }
 }
 
@@ -161,12 +209,23 @@ async function extractTextFromZip(
     console.log(`Extracting text from ZIP file: ${zipUrl}`);
     
     // First validate that the ZIP file contains supported images
-    const isValid = await validateZipFile(zipUrl, apiKey);
-    if (!isValid) {
-      throw new Error("The ZIP file contains unsupported image formats. Please ensure all images are PNG, JPG, JPEG, GIF, or WEBP.");
+    let isValid = false;
+    try {
+      isValid = await validateZipFile(zipUrl, apiKey);
+    } catch (validationError) {
+      // If validation failed due to timeout or download issues, try a direct extraction
+      console.warn(`ZIP validation failed, attempting direct extraction: ${validationError.message}`);
     }
     
-    // If validation passed, extract the text
+    if (!isValid) {
+      console.warn("ZIP validation failed, but attempting extraction anyway...");
+    }
+    
+    // Set up a timeout for the extraction request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60-second timeout
+    
+    // If validation passed or we're attempting extraction anyway, extract the text
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -197,11 +256,21 @@ async function extractTextFromZip(
         max_tokens: 4000,
         temperature: 0
       }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json();
       console.error("OpenAI API error when extracting from ZIP:", JSON.stringify(errorData));
+      
+      // Check for specific error messages
+      if (errorData.error?.code === 'invalid_image_url') {
+        throw new Error(`Failed to download ZIP file: ${errorData.error.message}`);
+      } else if (errorData.error?.code === 'invalid_image_format') {
+        throw new Error(`ZIP contains unsupported image formats: ${errorData.error.message}`);
+      }
       
       // Provide fallback using individual page extraction if available
       throw new Error(`OCR extraction failed for ZIP file: ${JSON.stringify(errorData.error)}`);
@@ -215,6 +284,12 @@ async function extractTextFromZip(
     return extractedText;
   } catch (error) {
     console.error("Error in extractTextFromZip:", error);
+    
+    // If the error is an AbortError, it means we timed out
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout while extracting text from ZIP file: ${zipUrl}`);
+    }
+    
     throw error;
   }
 }
