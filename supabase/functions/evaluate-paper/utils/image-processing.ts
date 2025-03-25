@@ -92,7 +92,17 @@ export function encodeBase64(arrayBuffer: ArrayBuffer): string {
  * Create a direct image URL from a blob using FileReader
  * This is used as a fallback for large images
  */
-export async function createDirectImageUrl(blob: Blob): Promise<string> {
+export async function createDirectImageUrl(blob: Blob | string): Promise<string> {
+  // If it's a string (URL), return it directly for OpenAI to process
+  if (typeof blob === 'string') {
+    // If it's a ZIP URL, just return it and let OpenAI handle it
+    if (blob.includes('.zip')) {
+      console.log("ZIP URL detected, returning for direct OpenAI processing");
+      return blob;
+    }
+    return blob;
+  }
+  
   return new Promise<string>((resolve, reject) => {
     try {
       // Ensure MIME type is recognized as an image

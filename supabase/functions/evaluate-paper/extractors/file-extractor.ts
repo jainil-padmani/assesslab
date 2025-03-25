@@ -13,9 +13,14 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
     
     console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Handle ZIP files differently - they should go through the zip extractor
+    // Check if this is a ZIP file - if so, we can pass it directly to OpenAI
     if (/\.zip/i.test(fileUrl)) {
-      throw new Error("ZIP files should be processed through extractTextFromZip function");
+      console.log("ZIP file detected, sending directly to OpenAI for processing");
+      return await extractTextFromImageFile(
+        fileUrl,
+        apiKey,
+        systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately."
+      );
     }
     
     // Process the image URL to get a base64 representation
@@ -94,7 +99,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
 
 /**
  * Extracts text from a single image file
- * Improved version to handle Deno environment
+ * Now directly sends ZIP URLs to OpenAI for processing
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
@@ -109,36 +114,28 @@ export async function extractTextFromImageFile(
     
     console.log("Processing file for OCR extraction");
     
-    // Skip ZIP files - they should be handled by the zip extractor
-    if (/\.zip/i.test(fileUrl)) {
-      throw new Error("ZIP files should be processed through extractTextFromZip function");
-    }
-    
-    // First, try processing the file using OpenAI client
-    try {
-      return await extractTextFromFile(fileUrl, apiKey, systemPrompt, userPrompt);
-    } catch (clientError) {
-      console.log("Client-based extraction failed, falling back to direct API call:", clientError);
-      // Continue with fallback approach
-    }
-    
-    // Fallback: Direct API call to OpenAI
+    // Direct API call to OpenAI
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     
-    // Process URL to base64 for OpenAI API
-    let imageUrl;
-    try {
-      imageUrl = await urlToBase64(fileUrl);
-      console.log("Successfully converted image to data URL for direct API call");
-      
-      // Validate the image format
-      if (!imageUrl.startsWith('data:image/')) {
-        throw new Error("Invalid image format: The data URL must have an image MIME type");
+    let imageUrl = fileUrl;
+    
+    // If it's not a ZIP file, convert to base64 first (needed for OpenAI API)
+    if (!fileUrl.includes('.zip')) {
+      try {
+        imageUrl = await urlToBase64(fileUrl);
+        console.log("Successfully converted image to data URL for direct API call");
+        
+        // Validate the image format
+        if (!imageUrl.startsWith('data:image/') && !fileUrl.includes('.zip')) {
+          throw new Error("Invalid image format: The data URL must have an image MIME type");
+        }
+      } catch (e) {
+        console.error("Could not convert to base64, error:", e);
+        throw new Error(`Failed to process image: ${e.message}`);
       }
-    } catch (e) {
-      console.error("Could not convert to base64, error:", e);
-      throw new Error(`Failed to process image: ${e.message}`);
+    } else {
+      console.log("Using ZIP URL directly for OCR processing");
     }
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
