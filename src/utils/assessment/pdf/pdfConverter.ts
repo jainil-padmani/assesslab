@@ -21,7 +21,7 @@ export function dataURLToBlob(dataURL: string): Blob {
 }
 
 /**
- * Convert any image to PNG format using canvas
+ * Convert any image to PNG format using canvas with higher quality settings
  */
 export async function convertImageToPng(imageUrl: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,7 +29,7 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
     img.crossOrigin = "anonymous";
     
     img.onload = () => {
-      // Create canvas and draw image
+      // Create canvas with original dimensions for best quality
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
@@ -43,12 +43,16 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
       // Draw image with white background to handle transparency
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw image with high quality settings
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0);
       
-      // Convert to PNG
+      // Convert to PNG with maximum quality
       try {
-        const pngDataUrl = canvas.toDataURL('image/png');
-        console.log(`Converted image to PNG, data URL length: ${pngDataUrl.length}`);
+        const pngDataUrl = canvas.toDataURL('image/png', 1.0);
+        console.log(`Converted image to high-quality PNG, data URL length: ${pngDataUrl.length}`);
         resolve(pngDataUrl);
       } catch (err) {
         reject(err);
@@ -59,12 +63,15 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
       reject(new Error(`Failed to load image: ${imageUrl}`));
     };
     
-    img.src = imageUrl;
+    // Add cache-busting parameter to avoid caching issues
+    const cacheBuster = imageUrl.includes('?') ? `&cache=${Date.now()}` : `?cache=${Date.now()}`;
+    img.src = imageUrl + cacheBuster;
   });
 }
 
 /**
  * Converts PDF pages to PNG images and adds them to a ZIP file
+ * Improved for higher quality PNG conversion
  */
 export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{ 
   zipBlob: Blob, 
@@ -85,7 +92,7 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
     const pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
     const numPages = pdfDoc.numPages;
     
-    console.log(`Processing PDF with ${numPages} pages`);
+    console.log(`Processing PDF with ${numPages} pages for conversion to PNG`);
     
     // Process each page
     for (let i = 1; i <= numPages; i++) {
@@ -93,12 +100,12 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
       const page = await pdfDoc.getPage(i);
       
       // Set scale for better image quality (higher scale = better quality but larger file size)
-      const scale = 2.0;
+      const scale = 2.5; // Increased for better OCR results
       const viewport = page.getViewport({ scale });
       
       // Create a canvas element
       const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       
       if (!context) {
         throw new Error('Canvas context not available');
@@ -108,15 +115,15 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       
-      // Render the page to the canvas
+      // Render the page to the canvas with high quality
       await page.render({
         canvasContext: context,
         viewport
       }).promise;
       
-      // Convert canvas to PNG image (always use PNG format)
-      const pngDataUrl = canvas.toDataURL('image/png');
-      console.log(`Created PNG for page ${i}, data URL length: ${pngDataUrl.length}`);
+      // Convert canvas to PNG image with maximum quality
+      const pngDataUrl = canvas.toDataURL('image/png', 1.0);
+      console.log(`Created high-quality PNG for page ${i}, data URL length: ${pngDataUrl.length}`);
       
       // Convert data URL to blob
       const pngBlob = dataURLToBlob(pngDataUrl);
@@ -125,17 +132,21 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
       const paddedPageNum = String(i).padStart(3, '0');
       zip.file(`page_${paddedPageNum}.png`, pngBlob);
       
-      console.log(`Added page ${i} as PNG image to ZIP file`);
+      console.log(`Added page ${i} as high-quality PNG image to ZIP file`);
     }
     
-    // Generate the ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    // Generate the ZIP file with compression to reduce size
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 } // Balanced between size and speed
+    });
     console.log(`Created ZIP file with size: ${zipBlob.size} bytes`);
     
     // Clean up the PDF URL
     URL.revokeObjectURL(pdfUrl);
     
-    console.log(`Successfully created ZIP with ${numPages} PNG images`);
+    console.log(`Successfully created ZIP with ${numPages} high-quality PNG images`);
     
     return { 
       zipBlob,
@@ -149,14 +160,14 @@ export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{
 
 /**
  * Converts any image file to PNG format and adds it to a ZIP file
- * Used for handling single image uploads
+ * Enhanced for better quality conversion for OCR
  */
 export async function convertImageFileToZip(imageFile: File | Blob): Promise<Blob> {
   try {
     // Create a URL for the image file
     const imageUrl = URL.createObjectURL(imageFile);
     
-    // Convert to PNG using canvas
+    // Convert to high-quality PNG using canvas
     const pngDataUrl = await convertImageToPng(imageUrl);
     
     // Convert data URL to blob
@@ -166,14 +177,18 @@ export async function convertImageFileToZip(imageFile: File | Blob): Promise<Blo
     const zip = new JSZip();
     zip.file("image_001.png", pngBlob);
     
-    // Generate ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    // Generate ZIP file with compression
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
     console.log(`Created ZIP file from image, size: ${zipBlob.size} bytes`);
     
     // Clean up the image URL
     URL.revokeObjectURL(imageUrl);
     
-    console.log(`Successfully created ZIP with PNG image`);
+    console.log(`Successfully created ZIP with high-quality PNG image`);
     
     return zipBlob;
   } catch (error) {

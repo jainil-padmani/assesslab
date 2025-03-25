@@ -79,13 +79,13 @@ export function UploadAnswerSheet({
     
     try {
       // Show processing toast
-      toast.info('Processing file...');
+      toast.info('Processing file for evaluation...');
       
       // Processing step depends on file type
       if (file.type === 'application/pdf') {
-        setProcessingStep("Converting PDF to PNG images...");
+        setProcessingStep("Converting PDF to high-quality PNG images...");
       } else if (file.type.startsWith('image/')) {
-        setProcessingStep("Converting image to PNG format...");
+        setProcessingStep("Converting image to high-quality PNG format...");
       }
       
       // Upload the file to storage
@@ -98,7 +98,7 @@ export function UploadAnswerSheet({
         selectedSubject,
         testId || '',
         publicUrl,
-        file.type === 'application/pdf' ? 'PDF converted to PNG for direct OCR' : 'Image converted to PNG for direct OCR',
+        file.type === 'application/pdf' ? 'PDF converted to high-quality PNG for OCR' : 'Image converted to high-quality PNG for OCR',
         zipUrl
       );
       
@@ -107,7 +107,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and converted to PNG format successfully');
+      toast.success('Answer sheet uploaded and converted to high-quality PNG format successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
@@ -185,7 +185,7 @@ export function UploadAnswerSheet({
         </div>
         
         <p className="text-sm font-medium mb-1">
-          {isUploading ? 'Uploading...' : 'Upload Answer Sheet'}
+          {isUploading ? 'Processing...' : 'Upload Answer Sheet'}
         </p>
         
         <p className="text-xs text-muted-foreground text-center mb-1">
@@ -193,7 +193,7 @@ export function UploadAnswerSheet({
         </p>
         
         <p className="text-xs text-muted-foreground text-center">
-          PDF, PNG, JPG (max 10MB)
+          PDF, PNG, JPG (max 10MB) - Files will be converted to high-quality PNG for OCR
         </p>
         
         {isUploading && (

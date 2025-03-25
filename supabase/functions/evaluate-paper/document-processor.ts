@@ -1,9 +1,10 @@
+
 // Import necessary modules and functions
 import { extractTextFromFile, extractQuestionsFromPaper } from './ocr.ts';
 
 /**
  * Processes a student's answer sheet document
- * Handles direct URL processing (ZIP extraction has been disabled)
+ * Now handles ZIP files with converted PNGs for better OCR results
  */
 export async function processStudentAnswer(
   apiKey: string,
@@ -22,16 +23,18 @@ export async function processStudentAnswer(
       };
     }
     
-    // Check if we have a ZIP URL available - log but skip processing
+    // Check if we have a ZIP URL available with PNG images
     if (studentAnswer.zip_url) {
-      console.log("Found ZIP URL for student answer, but ZIP extraction is disabled:", studentAnswer.zip_url);
+      console.log("Found ZIP URL with PNG images for student answer:", studentAnswer.zip_url);
       
-      // If we have a direct URL, process that instead
-      if (studentAnswer.url) {
-        console.log("Processing student answer from direct URL instead of ZIP:", studentAnswer.url);
-      } else {
-        throw new Error("ZIP extraction is disabled and no direct URL is provided. Please provide a direct image URL.");
-      }
+      const extractedText = await extractTextFromFile(
+        studentAnswer.zip_url,
+        apiKey,
+        "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
+      );
+      
+      console.log(`Successfully extracted ${extractedText.length} characters from student answer ZIP`);
+      return { text: extractedText };
     }
     
     // Process direct URL if available
@@ -49,7 +52,7 @@ export async function processStudentAnswer(
     }
     
     // If we reached here, there's no text source available
-    throw new Error("No valid text source found for student answer. Need either text or direct URL.");
+    throw new Error("No valid text source found for student answer. Need either text, direct URL, or ZIP URL with PNG images.");
   } catch (error) {
     console.error("Error processing student answer:", error);
     throw error;
