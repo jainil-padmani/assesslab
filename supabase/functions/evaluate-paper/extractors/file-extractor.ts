@@ -15,15 +15,14 @@ export async function extractTextFromFile(fileUrl: string, credentials: { access
     
     console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Check if this is a ZIP file - if so, process it as batched images
+    // Check if this is a ZIP file - if so, redirect to image extraction process
     if (/\.zip/i.test(fileUrl)) {
-      console.log("ZIP file detected, redirecting to direct image processing");
-      // Clean the URL by removing any query parameters
-      const cleanedUrl = cleanUrlForApi(fileUrl);
-      console.log(`Using cleaned URL for OCR: ${cleanedUrl}`);
+      console.log("ZIP file detected, redirecting to image extraction function");
       
-      return await extractTextFromImageFile(
-        cleanedUrl,
+      // We should NOT send zip files directly to Claude
+      // Instead use the extractTextFromZip function that handles image extraction
+      return await extractTextFromZip(
+        fileUrl,
         credentials,
         systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately."
       );
@@ -196,8 +195,67 @@ export async function extractTextFromImageFile(
   }
 }
 
-// Backward compatibility function for legacy code
+/**
+ * Extract text from ZIP files containing images
+ * This properly extracts images instead of sending the ZIP directly to Claude
+ */
 export async function extractTextFromZip(zipUrl: string, credentials: any, systemPrompt: string = ''): Promise<string> {
-  console.log("extractTextFromZip is now a compatibility wrapper for extractTextFromImageFile");
-  return await extractTextFromImageFile(zipUrl, credentials, systemPrompt);
+  try {
+    console.log("Processing ZIP file for OCR extraction:", zipUrl);
+    
+    // IMPORTANT: We need to fetch the actual images inside this ZIP file
+    // For now, we'll try to get the first image from storage based on the ZIP URL pattern
+    
+    // Extract the file identifier from the ZIP URL
+    // Example URL: .../answer_sheets_zip/answer_sheets_677d129e-c10c-45f9-b460-2894cd3b9c8e_86a3da1b-bc74-40c1-91bf-5234eb32d2f1.zip
+    const fileIdMatch = zipUrl.match(/answer_sheets_([^_]+)_([^\.]+)\.zip/);
+    
+    if (!fileIdMatch) {
+      console.error("Could not extract file identifier from ZIP URL:", zipUrl);
+      throw new Error("Invalid ZIP file URL format. Cannot extract image references.");
+    }
+    
+    // Look for JPG files in the same storage path but with optimized_pdf_pages prefix
+    // This is where individual extracted images should be
+    const baseStoragePath = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
+    const storageBucket = baseStoragePath.substring(0, baseStoragePath.lastIndexOf('/'));
+    
+    // Try to find the JPG files by constructing a pattern
+    // Based on how our storage structure works for extracted PDF pages
+    const optimizedImagesPath = `${storageBucket}/optimized_pdf_pages`;
+    
+    // Log what we're looking for
+    console.log("Looking for optimized images at path:", optimizedImagesPath);
+    console.log("With file identifiers:", fileIdMatch[1], fileIdMatch[2]);
+    
+    // Since we can't list files in the function, we'll try a common pattern for the first page
+    const likelyFirstPageUrl = `${optimizedImagesPath}/pdf_page_1_${fileIdMatch[2]}.jpg`;
+    console.log("Attempting to use image at:", likelyFirstPageUrl);
+    
+    // Check if this image exists
+    try {
+      const imageResponse = await fetch(likelyFirstPageUrl, { method: 'HEAD' });
+      if (imageResponse.ok) {
+        console.log("Found image file, will use it for extraction");
+        // Process this image file instead of the ZIP
+        return await extractTextFromImageFile(
+          likelyFirstPageUrl,
+          credentials,
+          systemPrompt
+        );
+      } else {
+        console.log("Image not found at expected path, status:", imageResponse.status);
+      }
+    } catch (e) {
+      console.error("Error checking for image file:", e);
+    }
+    
+    // Fallback: If we can't find the optimized images, we can't process the ZIP directly
+    // So we'll need to notify the user
+    console.error("Could not find extracted images from ZIP file:", zipUrl);
+    throw new Error("ZIP file processing failed: Could not locate extracted images. Please ensure the ZIP contains images or upload individual image files instead.");
+  } catch (error) {
+    console.error("Error processing ZIP file:", error);
+    throw error;
+  }
 }
