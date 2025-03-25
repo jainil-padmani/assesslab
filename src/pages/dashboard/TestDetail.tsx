@@ -1,6 +1,6 @@
 
-import React from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import React, { useEffect } from "react";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useTestDetail } from "@/hooks/useTestDetail";
 import { TestHeader } from "@/components/test/TestHeader";
 import { TestPapersManagement } from "@/components/test/TestPapersManagement";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function TestDetail() {
   const { testId } = useParams<{ testId: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   // Get student ID from URL if present
   const studentId = searchParams.get('student');
@@ -29,6 +30,14 @@ export default function TestDetail() {
     handleUpdateAnswerScore
   } = useTestDetail(testId);
 
+  // Determine which tab should be active based on URL parameters
+  const determineDefaultTab = () => {
+    if (studentId) {
+      return "grades";
+    }
+    return "papers";
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Loading...</div>;
   }
@@ -42,16 +51,27 @@ export default function TestDetail() {
     ? grades?.find(grade => grade.student_id === studentId)
     : null;
 
+  const handleTabChange = (value: string) => {
+    // If changing away from grades tab and a student is selected,
+    // clear the student parameter
+    if (value !== "grades" && studentId) {
+      navigate(`/dashboard/tests/${testId}?tab=${value}`, { replace: true });
+    }
+  };
+
   return (
     <div className="container mx-auto">
       {/* Test Header */}
       <TestHeader test={test} />
       
-      <Tabs defaultValue="papers" className="mt-6">
+      <Tabs defaultValue={determineDefaultTab()} className="mt-6" onValueChange={handleTabChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="papers">Papers</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
-          <TabsTrigger value="grades">Grades & Evaluation</TabsTrigger>
+          <TabsTrigger value="grades">
+            Grades & Evaluation
+            {studentId && <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-primary text-white">1</span>}
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="papers">

@@ -21,6 +21,23 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
     }
   }, [studentId, subjectId, testId, refreshKey]);
 
+  // Set up listener for answerSheetUploaded event specifically for this student
+  useEffect(() => {
+    const handleAnswerSheetUploaded = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail.studentId === studentId && detail.subjectId === subjectId && detail.testId === testId) {
+        console.log(`Upload event detected for student ${studentId}, refreshing answer sheet data`);
+        checkExistingAnswerSheet();
+      }
+    };
+
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    
+    return () => {
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    };
+  }, [studentId, subjectId, testId]);
+
   const checkExistingAnswerSheet = async () => {
     try {
       // Use test_answers table

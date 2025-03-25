@@ -46,6 +46,22 @@ export function StudentEvaluationRow({
     refetch
   } = useUploadAssessment(student.id, selectedSubject, selectedTest, refreshKey);
 
+  // Set up event listener for answer sheet uploads
+  useEffect(() => {
+    const handleAnswerSheetUploaded = (event: CustomEvent) => {
+      if (event.detail.studentId === student.id) {
+        console.log(`Answer sheet uploaded for student ${student.id}, refreshing data`);
+        refetch();
+      }
+    };
+    
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    
+    return () => {
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    };
+  }, [student.id, refetch]);
+
   const handleUploadComplete = () => {
     // Refresh the upload assessment data
     refetch();

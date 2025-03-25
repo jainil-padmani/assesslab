@@ -156,15 +156,8 @@ export function UploadAnswerSheet({
       if (onUploadComplete) {
         onUploadComplete();
       }
-
-      // Refresh the page to enable evaluate button
-      toast.success("Page will refresh to enable evaluation...", {
-        duration: 2000
-      });
       
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // No longer refreshing the page
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
