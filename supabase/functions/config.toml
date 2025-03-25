@@ -3,7 +3,7 @@ project_id = "aigunjkwusokdunyyfdt"
 
 [evaluate-paper]
 verify_jwt = false
-timeout_ms = 120000
+timeout_ms = 300000
 
 [extract-text]
 verify_jwt = false

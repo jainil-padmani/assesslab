@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster, stripQueryParams } from './document-processor.ts';
@@ -37,7 +36,16 @@ serve(async (req) => {
     const awsRegion = Deno.env.get('AWS_REGION') || 'us-east-1';
     
     if (!awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error('AWS credentials environment variables are not set');
+      return new Response(
+        JSON.stringify({ 
+          error: 'AWS credentials not configured', 
+          details: 'Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in the Supabase Edge Function secrets. Your IAM user must have access to Amazon Bedrock services.'
+        }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
     
     const awsCredentials = {
@@ -46,7 +54,7 @@ serve(async (req) => {
       region: awsRegion
     };
     
-    console.log("Using AWS credentials with key ID: " + awsAccessKeyId.substring(0, 5) + '...');
+    console.log("Using AWS credentials with key ID: " + awsAccessKeyId.substring(0, 5) + '...' + " in region: " + awsRegion);
     
     // Parse the request body
     let requestBody;
@@ -74,6 +82,58 @@ serve(async (req) => {
     console.log("ZIP URL available:", studentAnswer?.zip_url ? "Yes" : "No");
     console.log("Test ID for evaluation:", testId);
     console.log("Retry attempt:", retryAttempt);
+    
+    // Verify Bedrock service connectivity before proceeding
+    try {
+      console.log("Verifying AWS Bedrock service connectivity");
+      // Create a simple request to test the connection
+      const bedrockService = createBedrockService(
+        awsCredentials.accessKeyId,
+        awsCredentials.secretAccessKey,
+        awsCredentials.region
+      );
+      
+      // We'll keep the test simple to avoid unnecessary costs
+      await bedrockService.invokeModel({
+        messages: [
+          { role: "user", content: "Test connection" }
+        ],
+        max_tokens: 10,
+        temperature: 0,
+        system: "Reply with 'Connected' only"
+      });
+      
+      console.log("AWS Bedrock service connection verified successfully");
+    } catch (bedrockError) {
+      console.error("Error connecting to AWS Bedrock service:", bedrockError);
+      
+      let errorMessage = "Failed to connect to AWS Bedrock service";
+      let helpText = "Please check your AWS credentials, IAM permissions, and region configuration";
+      
+      // Add more specific error details based on the nature of the error
+      if (bedrockError.message.includes("Authentication")) {
+        errorMessage = "AWS Bedrock authentication failed";
+        helpText = "Your IAM user needs permissions for bedrock:* actions. Please update your IAM policy or use different credentials.";
+      } else if (bedrockError.message.includes("not found")) {
+        errorMessage = "AWS Bedrock model not found";
+        helpText = `The model may not be available in region ${awsRegion} or your account doesn't have access to it. Try a different region like us-east-1 or us-west-2.`;
+      } else if (bedrockError.message.includes("timeout")) {
+        errorMessage = "AWS Bedrock service connection timed out";
+        helpText = `The Bedrock service in region ${awsRegion} may be experiencing issues or not available. Try a different region like us-east-1 or us-west-2.`;
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: errorMessage, 
+          details: bedrockError.message,
+          help: helpText
+        }),
+        { 
+          status: 503, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
     
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
