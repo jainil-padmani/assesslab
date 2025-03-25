@@ -9,7 +9,7 @@ export class BedrockService {
   private accessKeyId: string;
   private secretAccessKey: string;
   private region: string;
-  private service = 'bedrock-runtime'; // Service name for Bedrock
+  private service = 'bedrock-runtime'; // FIXED: Changed from 'bedrock' to 'bedrock-runtime'
   private model = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
   constructor(accessKeyId: string, secretAccessKey: string, region: string) {

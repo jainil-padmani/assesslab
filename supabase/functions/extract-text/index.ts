@@ -1,7 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { hmacSha256 } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
+import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts"; // FIXED: Changed import
 
 // CORS headers to allow requests from any origin
 const corsHeaders = {
@@ -14,7 +14,7 @@ class BedrockService {
   private accessKeyId: string;
   private secretAccessKey: string;
   private region: string;
-  private service = 'bedrock';
+  private service = 'bedrock-runtime'; // FIXED: Changed from 'bedrock' to 'bedrock-runtime'
   private model = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
   constructor(accessKeyId: string, secretAccessKey: string, region: string) {
@@ -99,7 +99,9 @@ class BedrockService {
     }
     
     const messageData = new TextEncoder().encode(message);
-    const hmacResult = await hmacSha256(keyData, messageData);
+    
+    // Calculate HMAC
+    const hmacResult = await hmac("sha256", keyData, messageData);
     return Array.from(new Uint8Array(hmacResult))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
