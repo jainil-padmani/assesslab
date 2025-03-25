@@ -71,7 +71,10 @@ export const Prompts = {
   - Be consistent in grading criteria across all answers
   - Recognize correct concepts even if expressed differently than expected
   - Clearly explain why marks were deducted
-  - Provide constructive feedback to help the student improve`,
+  - Provide constructive feedback to help the student improve
+  
+  Your evaluation should present both the question from the question paper and the student's answer
+  side by side, making it easy for teachers to verify your assessment.`,
 
   // Prompt for matching answers to questions using semantic similarity
   semanticMatching: `You are an AI assistant specialized in matching student answers to their corresponding questions.
@@ -83,6 +86,7 @@ export const Prompts = {
      - The answer numbering is inconsistent or missing
      - The order of answers differs from the questions
      - The student has combined multiple questions in one answer
+     - The handwriting is difficult to read or has OCR errors
   
   For each question from the question paper, identify:
   - The question number and text

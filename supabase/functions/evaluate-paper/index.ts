@@ -1,8 +1,9 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
-import { evaluateWithExtractedQuestions, matchAnswersToQuestions } from './ocr.ts';
+import { evaluateWithExtractedQuestions, matchAnswersToQuestions, extractQuestionsFromText } from './ocr.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,10 +22,31 @@ serve(async (req) => {
   try {
     // Get OpenAI API key from environment
     const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
     console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
     
     // Parse the request body
-    const { questionPaper, answerKey, studentAnswer, studentInfo, testId, retryAttempt = 0 } = await req.json();
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (jsonError) {
+      console.error("Error parsing request body:", jsonError);
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { questionPaper, answerKey, studentAnswer, studentInfo, testId, retryAttempt = 0 } = requestBody;
+
+    if (!testId) {
+      return new Response(
+        JSON.stringify({ error: "Test ID is required" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log("Received evaluation request for student:", studentInfo?.name);
     console.log("Student answer type:", studentAnswer?.url ? "URL provided" : "Text provided");
@@ -35,6 +57,11 @@ serve(async (req) => {
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase environment variables are not set');
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Check if we already have OCR text for question paper and answer key
@@ -44,29 +71,43 @@ serve(async (req) => {
     
     if (questionPaper?.url) {
       console.log("Checking for existing OCR text for question paper");
-      const { data: questionDoc } = await supabase
-        .from('subject_documents')
-        .select('ocr_text')
-        .eq('document_url', questionPaper.url)
-        .maybeSingle();
-        
-      if (questionDoc?.ocr_text) {
-        console.log("Found existing OCR text for question paper");
-        existingQuestionText = questionDoc.ocr_text;
+      
+      try {
+        const { data: questionDoc, error } = await supabase
+          .from('subject_documents')
+          .select('ocr_text')
+          .eq('document_url', questionPaper.url)
+          .maybeSingle();
+          
+        if (error) {
+          console.error("Error fetching OCR text for question paper:", error);
+        } else if (questionDoc?.ocr_text) {
+          console.log("Found existing OCR text for question paper");
+          existingQuestionText = questionDoc.ocr_text;
+        }
+      } catch (dbError) {
+        console.error("Database error when checking existing OCR text:", dbError);
       }
     }
     
     if (answerKey?.url) {
       console.log("Checking for existing OCR text for answer key");
-      const { data: answerDoc } = await supabase
-        .from('subject_documents')
-        .select('ocr_text')
-        .eq('document_url', answerKey.url)
-        .maybeSingle();
-        
-      if (answerDoc?.ocr_text) {
-        console.log("Found existing OCR text for answer key");
-        existingAnswerText = answerDoc.ocr_text;
+      
+      try {
+        const { data: answerDoc, error } = await supabase
+          .from('subject_documents')
+          .select('ocr_text')
+          .eq('document_url', answerKey.url)
+          .maybeSingle();
+          
+        if (error) {
+          console.error("Error fetching OCR text for answer key:", error);
+        } else if (answerDoc?.ocr_text) {
+          console.log("Found existing OCR text for answer key");
+          existingAnswerText = answerDoc.ocr_text;
+        }
+      } catch (dbError) {
+        console.error("Database error when checking existing OCR text:", dbError);
       }
     }
     
@@ -119,17 +160,18 @@ serve(async (req) => {
       const finalAnswerKeyText = existingAnswerText || extractedAnswerKeyText;
       
       // Perform semantic matching if we have both question paper and student answer
+      let matchResults = null;
       if (existingQuestionText && processedStudentAnswer.text) {
         try {
           console.log("Attempting semantic matching of student answers to questions");
           
-          const matches = await matchAnswersToQuestions(
+          matchResults = await matchAnswersToQuestions(
             apiKey,
             existingQuestionText,
             processedStudentAnswer.text
           );
           
-          console.log(`Found ${matches?.matches?.length || 0} potential question-answer matches through semantic matching`);
+          console.log(`Found ${matchResults?.matches?.length || 0} potential question-answer matches through semantic matching`);
         } catch (matchError) {
           console.error("Error during semantic matching:", matchError);
           // Continue with evaluation even if matching fails
@@ -163,6 +205,11 @@ serve(async (req) => {
           processedStudentAnswer,
           studentInfo
         );
+      }
+      
+      // Add semantic matching results to the evaluation
+      if (matchResults && matchResults.matches && matchResults.matches.length > 0) {
+        evaluation.semantic_matches = matchResults.matches;
       }
       
       // Process the evaluation results
@@ -208,7 +255,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in evaluate-paper function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
