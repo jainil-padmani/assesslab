@@ -18,6 +18,7 @@ export function useEvaluationProcess(
   const [evaluationProgress, setEvaluationProgress] = useState(0);
   const [evaluationResults, setEvaluationResults] = useState<Record<string, any>>({});
   const [showResults, setShowResults] = useState(false);
+  const [retryCount, setRetryCount] = useState<Record<string, number>>({});
 
   const evaluatePaperMutation = useMutation({
     mutationFn: async ({ 
@@ -28,7 +29,8 @@ export function useEvaluationProcess(
       questionPaperTopic,
       answerKeyUrl,
       answerKeyTopic,
-      studentInfo
+      studentInfo,
+      retryAttempt = 0
     }: { 
       studentId: string; 
       testId: string; 
@@ -43,9 +45,10 @@ export function useEvaluationProcess(
         roll_number: string;
         class: string;
         subject: string;
-      }
+      };
+      retryAttempt?: number;
     }) => {
-      console.log("Starting evaluation for student:", studentInfo.name, "for test:", testId);
+      console.log("Starting evaluation for student:", studentInfo.name, "for test:", testId, "attempt:", retryAttempt);
       
       // Get the student's answer sheet URL
       const answerSheetUrl = await getAnswerSheetUrl(studentId, subjectId, testId);
@@ -112,22 +115,44 @@ export function useEvaluationProcess(
       
       // Call the edge function to evaluate the paper
       try {
+        // Add cache-busting parameters to URLs
+        const timestamp = Date.now();
+        const cacheBustedQuestionUrl = questionPaperUrl.includes('?') 
+          ? `${questionPaperUrl}&cache=${timestamp}` 
+          : `${questionPaperUrl}?cache=${timestamp}`;
+          
+        const cacheBustedAnswerKeyUrl = answerKeyUrl.includes('?') 
+          ? `${answerKeyUrl}&cache=${timestamp}` 
+          : `${answerKeyUrl}?cache=${timestamp}`;
+          
+        const cacheBustedAnswerSheetUrl = answerSheetUrl.includes('?') 
+          ? `${answerSheetUrl}&cache=${timestamp}` 
+          : `${answerSheetUrl}?cache=${timestamp}`;
+          
+        let cacheBustedZipUrl = null;
+        if (zipUrl) {
+          cacheBustedZipUrl = zipUrl.includes('?') 
+            ? `${zipUrl}&cache=${timestamp}` 
+            : `${zipUrl}?cache=${timestamp}`;
+        }
+        
         const evaluationResponse = await supabase.functions.invoke('evaluate-paper', {
           body: {
             questionPaper: {
-              url: questionPaperUrl,
+              url: cacheBustedQuestionUrl,
               topic: questionPaperTopic
             },
             answerKey: {
-              url: answerKeyUrl,
+              url: cacheBustedAnswerKeyUrl,
               topic: answerKeyTopic
             },
             studentAnswer: {
-              url: answerSheetUrl,
-              zip_url: zipUrl
+              url: cacheBustedAnswerSheetUrl,
+              zip_url: cacheBustedZipUrl
             },
             studentInfo,
-            testId
+            testId,
+            retryAttempt
           }
         });
         
@@ -209,21 +234,83 @@ export function useEvaluationProcess(
           }
         }
         
+        // Clear retry count for this student
+        setRetryCount(prev => {
+          const newCounts = {...prev};
+          delete newCounts[studentId];
+          return newCounts;
+        });
+        
         return evaluationData;
       } catch (error) {
         console.error("Evaluation failed:", error);
         
-        // Update evaluation status to failed
-        await supabase
-          .from('paper_evaluations')
-          .update({
-            evaluation_data: {},
-            status: 'failed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', evaluationId);
+        // Check if this is a download or OCR error that might be resolved with a retry
+        const errorMessage = error.message || '';
+        const isRetryableError = 
+          errorMessage.includes('Timeout while downloading') || 
+          errorMessage.includes('invalid_image_url') ||
+          errorMessage.includes('Failed to download') ||
+          errorMessage.includes('OCR extraction failed');
           
-        throw error;
+        // Update current retry count
+        const currentRetryCount = retryCount[studentId] || 0;
+        
+        // Try to automatically retry for timeout errors (up to 2 times)
+        if (isRetryableError && currentRetryCount < 2) {
+          // Update retry count
+          const newRetryCount = currentRetryCount + 1;
+          setRetryCount(prev => ({...prev, [studentId]: newRetryCount}));
+          
+          // Update evaluation status to in_progress (for retry)
+          await supabase
+            .from('paper_evaluations')
+            .update({
+              evaluation_data: {
+                error: errorMessage,
+                retry_attempt: newRetryCount,
+                last_error_timestamp: new Date().toISOString()
+              },
+              status: 'in_progress',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', evaluationId);
+            
+          // Delay and retry
+          const delayMs = 5000 * Math.pow(2, newRetryCount - 1); // 5s, 10s
+          toast.info(`Retrying evaluation for ${studentInfo.name} in ${delayMs/1000}s (attempt ${newRetryCount}/2)...`);
+          
+          // Wait for delay
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          
+          // Recursive call with retry attempt count
+          return evaluatePaperMutation.mutateAsync({
+            studentId, 
+            testId, 
+            subjectId, 
+            questionPaperUrl,
+            questionPaperTopic,
+            answerKeyUrl,
+            answerKeyTopic,
+            studentInfo,
+            retryAttempt: newRetryCount
+          });
+        } else {
+          // Update evaluation status to failed (no more retries or non-retryable error)
+          await supabase
+            .from('paper_evaluations')
+            .update({
+              evaluation_data: {
+                error: errorMessage,
+                retries_attempted: currentRetryCount
+              },
+              status: 'failed',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', evaluationId);
+            
+          throw error;
+        }
       }
     },
     onSuccess: (data, variables) => {
@@ -238,7 +325,24 @@ export function useEvaluationProcess(
     },
     onError: (error, variables) => {
       console.error('Error evaluating paper:', error);
-      toast.error(`Evaluation failed for ${variables.studentInfo.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Get retry count for this student
+      const currentRetryCount = retryCount[variables.studentId] || 0;
+      
+      // Provide more context in the error message if we've retried
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (currentRetryCount > 0) {
+        errorMessage += ` (after ${currentRetryCount} retry attempts)`;
+      }
+      
+      toast.error(`Evaluation failed for ${variables.studentInfo.name}: ${errorMessage}`);
+      
+      // Clear retry count from state
+      setRetryCount(prev => {
+        const newCounts = {...prev};
+        delete newCounts[variables.studentId];
+        return newCounts;
+      });
     }
   });
 

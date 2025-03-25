@@ -23,8 +23,72 @@ interface DocumentInfo {
  */
 export function addCacheBuster(url: string): string {
   if (!url) return url;
+  // Remove any existing cache busters to prevent URL growing too long
+  let cleanUrl = url;
+  if (url.includes('?cache=')) {
+    cleanUrl = url.substring(0, url.indexOf('?cache='));
+  } else if (url.includes('&cache=')) {
+    const cacheBusterStart = url.indexOf('&cache=');
+    cleanUrl = url.substring(0, cacheBusterStart) + url.substring(url.indexOf('&', cacheBusterStart + 1) || url.length);
+  }
+  
   const cacheBuster = `cache=${Date.now()}`;
-  return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
+  return cleanUrl.includes('?') ? `${cleanUrl}&${cacheBuster}` : `${cleanUrl}?${cacheBuster}`;
+}
+
+/**
+ * Attempts to download a file with retries
+ * @param url The URL to download
+ * @param maxRetries Maximum number of retry attempts
+ * @returns The downloaded response or throws after max retries
+ */
+async function downloadWithRetry(url: string, maxRetries = 3): Promise<Response> {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Increase timeout for each retry attempt
+      const timeout = attempt * 15000; // 15s, 30s, 45s
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      console.log(`Download attempt ${attempt} for ${url} with timeout ${timeout}ms`);
+      
+      // Try to download with current timeout
+      const response = await fetch(url, { 
+        signal: controller.signal,
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+      }
+      
+      console.log(`Successfully downloaded from ${url} on attempt ${attempt}`);
+      return response;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Download attempt ${attempt} failed for ${url}: ${error.message}`);
+      
+      if (error.name === 'AbortError') {
+        console.warn(`Request timed out on attempt ${attempt}`);
+      }
+      
+      // If this was the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to download after ${maxRetries} attempts: ${error.message}`);
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      console.log(`Waiting ${delay}ms before retry ${attempt + 1}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
 }
 
 /**
@@ -45,8 +109,11 @@ export async function processStudentAnswer(
       console.log("Found ZIP URL for enhanced OCR processing:", studentAnswer.zip_url);
       
       try {
+        const cacheBustedUrl = addCacheBuster(studentAnswer.zip_url);
+        console.log("Processing ZIP with cache buster:", cacheBustedUrl);
+        
         extractedStudentText = await extractTextFromZip(
-          addCacheBuster(studentAnswer.zip_url),
+          cacheBustedUrl,
           apiKey,
           Prompts.answerSheet
         );
@@ -61,15 +128,48 @@ export async function processStudentAnswer(
         };
       } catch (zipError) {
         console.error("Error processing ZIP file:", zipError);
-        extractedStudentText = "Error processing ZIP file: " + zipError.message;
         
-        processedStudentAnswer = {
-          ...studentAnswer,
-          text: `Error processing ZIP file: ${zipError.message}`,
-          isOcrProcessed: false,
-          zipProcessed: false,
-          ocrError: zipError.message
-        };
+        // Try fallback to direct image URL if available
+        if (studentAnswer?.url) {
+          console.log("Trying fallback to direct image URL after ZIP processing failure");
+          
+          try {
+            const userPrompt = `This is a student's answer sheet for test ID: ${testId}. The ZIP processing failed, so we're trying direct image processing. Extract all the text, focusing on identifying question numbers and their corresponding answers:`;
+            
+            extractedStudentText = await extractTextFromFile(
+              addCacheBuster(studentAnswer.url),
+              apiKey, 
+              Prompts.answerSheet,
+              userPrompt
+            );
+            
+            processedStudentAnswer = {
+              ...studentAnswer,
+              text: extractedStudentText,
+              isOcrProcessed: true,
+              zipProcessed: false,
+              testId: testId
+            };
+          } catch (fallbackError) {
+            console.error("Fallback OCR also failed:", fallbackError);
+            
+            processedStudentAnswer = {
+              ...studentAnswer,
+              text: `Could not extract text from answer sheet. We tried both ZIP and direct processing methods. Error: ${zipError.message}. Fallback error: ${fallbackError.message}`,
+              isOcrProcessed: false,
+              zipProcessed: false,
+              ocrError: `${zipError.message}. Fallback error: ${fallbackError.message}`
+            };
+          }
+        } else {
+          processedStudentAnswer = {
+            ...studentAnswer,
+            text: "Error processing ZIP file. Technical details: " + zipError.message,
+            isOcrProcessed: false,
+            zipProcessed: false,
+            ocrError: zipError.message
+          };
+        }
       }
     } 
     // Process PDF or image files directly if no ZIP is available
@@ -96,8 +196,11 @@ export async function processStudentAnswer(
           // For direct image processing (JPEG, PNG)
           const userPrompt = `This is a student's answer sheet for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:`;
           
+          const cacheBustedUrl = addCacheBuster(studentAnswer.url);
+          console.log("Processing direct image with cache buster:", cacheBustedUrl);
+          
           extractedStudentText = await extractTextFromFile(
-            addCacheBuster(studentAnswer.url),
+            cacheBustedUrl,
             apiKey, 
             Prompts.answerSheet,
             userPrompt
@@ -186,8 +289,11 @@ export async function processQuestionPaper(
       try {
         const userPrompt = `This is a question paper for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their content:`;
         
+        const cacheBustedUrl = addCacheBuster(questionPaper.url);
+        console.log("Processing question paper with cache buster:", cacheBustedUrl);
+        
         extractedQuestionText = await extractTextFromFile(
-          addCacheBuster(questionPaper.url),
+          cacheBustedUrl,
           apiKey, 
           Prompts.questionPaper,
           userPrompt
@@ -251,8 +357,11 @@ export async function processAnswerKey(
       try {
         const userPrompt = `This is an answer key for test ID: ${testId}. Extract all the text, focusing on identifying question numbers and their corresponding answers:`;
         
+        const cacheBustedUrl = addCacheBuster(answerKey.url);
+        console.log("Processing answer key with cache buster:", cacheBustedUrl);
+        
         extractedAnswerKeyText = await extractTextFromFile(
-          addCacheBuster(answerKey.url),
+          cacheBustedUrl,
           apiKey, 
           Prompts.answerKey,
           userPrompt
