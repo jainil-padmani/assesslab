@@ -70,7 +70,7 @@ export const processPdfToZip = async (
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file);
       
       if (isPdf) {
-        console.log("Converting downloaded PDF to ZIP of PNG images");
+        console.log("Converting downloaded PDF to PNG images and creating ZIP");
         const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(fileBlob);
         zipBlob = pdfZipBlob;
       } else if (isImage) {
@@ -81,7 +81,7 @@ export const processPdfToZip = async (
       }
     } else if (file instanceof File) {
       if (validatePdfFile(file)) {
-        console.log("Converting PDF to ZIP of PNG images");
+        console.log("Converting PDF to PNG images and creating ZIP");
         const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
         zipBlob = pdfZipBlob;
       } else if (file.type.startsWith('image/')) {
@@ -92,7 +92,7 @@ export const processPdfToZip = async (
       }
     } else {
       // Blob case - assume PDF if no type information
-      console.log("Processing blob as PDF and converting to ZIP");
+      console.log("Processing blob as PDF and converting to ZIP of PNG images");
       const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
       zipBlob = pdfZipBlob;
     }

@@ -65,7 +65,7 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
 /**
  * Converts PDF pages to PNG images and adds them to a ZIP file
  */
-export async function convertPdfPagesToZip(pdfFile: File): Promise<{ 
+export async function convertPdfPagesToZip(pdfFile: File | Blob): Promise<{ 
   zipBlob: Blob, 
   pdfPages: number
 }> {
@@ -148,7 +148,7 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
  * Converts any image file to PNG format and adds it to a ZIP file
  * Used for handling single image uploads
  */
-export async function convertImageFileToZip(imageFile: File): Promise<Blob> {
+export async function convertImageFileToZip(imageFile: File | Blob): Promise<Blob> {
   try {
     // Create a URL for the image file
     const imageUrl = URL.createObjectURL(imageFile);
