@@ -28,14 +28,34 @@ export async function processStudentAnswer(
       console.log("Found ZIP URL with optimized images for student answer:", studentAnswer.zip_url);
       
       // Use a specialized prompt for student answers
-      const extractedText = await extractTextFromFile(
-        studentAnswer.zip_url,
-        apiKey,
-        "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
-      );
-      
-      console.log(`Successfully extracted ${extractedText.length} characters from student answer ZIP`);
-      return { text: extractedText };
+      try {
+        const extractedText = await extractTextFromFile(
+          studentAnswer.zip_url,
+          apiKey,
+          "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
+        );
+        
+        console.log(`Successfully extracted ${extractedText.length} characters from student answer ZIP`);
+        return { text: extractedText };
+      } catch (zipError) {
+        console.error("Error processing ZIP file:", zipError);
+        
+        // If ZIP processing fails, try the direct URL as fallback
+        if (studentAnswer.url) {
+          console.log("ZIP processing failed, trying direct URL as fallback:", studentAnswer.url);
+          
+          const fallbackText = await extractTextFromFile(
+            studentAnswer.url,
+            apiKey,
+            "You are an OCR tool optimized for extracting text from student answer sheets. Extract all text content accurately, preserving paragraph structure and formatting. Focus on academic content, math equations, and written responses."
+          );
+          
+          console.log(`Successfully extracted ${fallbackText.length} characters from fallback URL`);
+          return { text: fallbackText };
+        }
+        
+        throw zipError;
+      }
     }
     
     // Process direct URL if available

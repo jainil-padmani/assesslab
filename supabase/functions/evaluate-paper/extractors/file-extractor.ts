@@ -119,7 +119,7 @@ export async function extractTextFromImageFile(
     console.log("Processing file for OCR extraction");
     
     // Direct API call to OpenAI with increased timeout
-    // Increase timeout to 120 seconds (2 minutes) for large ZIP files
+    // Increase timeout to 180 seconds (3 minutes) for large ZIP files
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
     
@@ -148,7 +148,11 @@ export async function extractTextFromImageFile(
     
     const promptText = userPrompt || "Extract all the text from this document, focusing on identifying question numbers and their corresponding content:";
     
+    // Try with a few different approaches
     try {
+      // Approach 1: Try direct fetch with OpenAI API
+      console.log("Attempting OCR with direct OpenAI API call");
+      
       const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         signal: controller.signal,
@@ -184,6 +188,12 @@ export async function extractTextFromImageFile(
       if (!ocrResponse.ok) {
         const errorText = await ocrResponse.text();
         console.error("OpenAI OCR error:", errorText);
+        
+        // If it's a timeout specifically when downloading the ZIP
+        if (errorText.includes("Timeout while downloading") && fileUrl.includes(".zip")) {
+          throw new Error("Timeout downloading ZIP file. Will try fallback processing method.");
+        }
+        
         throw new Error("OCR extraction failed: " + errorText);
       }
       
@@ -200,6 +210,19 @@ export async function extractTextFromImageFile(
       return extractedOcrText;
     } catch (error: any) {
       clearTimeout(timeoutId);
+      
+      if (error.message?.includes("Timeout downloading ZIP") && fileUrl.includes(".zip")) {
+        console.error("Timeout downloading ZIP. Suggesting document splitting:", error);
+        
+        // Return a helpful error message for users
+        return `The document is too large for direct processing. Please consider these options:
+1. Split the PDF into smaller files (1-2 pages each)
+2. Upload individual images of pages instead of a large PDF
+3. Try again later when the service might be less busy
+
+Technical Error: ${error.message}`;
+      }
+      
       console.error("Error during OCR processing:", error);
       throw error;
     }

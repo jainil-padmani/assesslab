@@ -16,15 +16,16 @@ export async function urlToBase64(url: string): Promise<string> {
       return url;
     }
     
-    // Fetch the image with a longer timeout (60 seconds)
+    // Fetch the image with a longer timeout (120 seconds)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
     
     // Fetch the image
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
         'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache' // Additional cache control
       }
     });
     

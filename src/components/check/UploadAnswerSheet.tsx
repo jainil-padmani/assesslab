@@ -47,6 +47,11 @@ export function UploadAnswerSheet({
       return;
     }
     
+    // Check file size - warn if greater than 5MB
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      toast.warning('File is larger than 5MB. This may cause processing issues. Consider using smaller files for better results.');
+    }
+    
     processFile(selectedFile);
   };
 
@@ -68,6 +73,11 @@ export function UploadAnswerSheet({
         return;
       }
       
+      // Check file size - warn if greater than 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        toast.warning('File is larger than 5MB. This may cause processing issues. Consider using smaller files for better results.');
+      }
+      
       processFile(file);
     }
   };
@@ -84,6 +94,11 @@ export function UploadAnswerSheet({
       // Processing step depends on file type
       if (file.type === 'application/pdf') {
         setProcessingStep("Converting PDF to optimized images...");
+        
+        // For large PDFs, display a more specific message
+        if (file.size > 3 * 1024 * 1024) {
+          toast.warning('Processing large PDF (>3MB). This may take a moment and could affect OCR quality. Consider using smaller files for better results.');
+        }
       } else if (file.type.startsWith('image/')) {
         setProcessingStep("Optimizing image for OCR...");
       }
@@ -193,7 +208,7 @@ export function UploadAnswerSheet({
         </p>
         
         <p className="text-xs text-muted-foreground text-center">
-          PDF, PNG, JPG (max 10MB) - Files will be optimized for OCR
+          PDF, PNG, JPG (max 5MB) - Files will be optimized for OCR
         </p>
         
         {isUploading && (
