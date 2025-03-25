@@ -617,6 +617,7 @@ export type Database = {
           file_size: number
           file_type: string
           id: string
+          ocr_text: string | null
           subject_id: string | null
           user_id: string | null
         }
@@ -628,6 +629,7 @@ export type Database = {
           file_size: number
           file_type: string
           id?: string
+          ocr_text?: string | null
           subject_id?: string | null
           user_id?: string | null
         }
@@ -639,6 +641,7 @@ export type Database = {
           file_size?: number
           file_type?: string
           id?: string
+          ocr_text?: string | null
           subject_id?: string | null
           user_id?: string | null
         }

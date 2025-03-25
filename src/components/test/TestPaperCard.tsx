@@ -46,7 +46,7 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
         .eq('document_url', file.question_paper_url)
         .single();
 
-      if (questionResponse.data?.ocr_text) {
+      if (questionResponse.data && questionResponse.data.ocr_text) {
         setQuestionOcrText(questionResponse.data.ocr_text);
       }
 
@@ -57,7 +57,7 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
         .eq('document_url', file.answer_key_url)
         .single();
 
-      if (answerResponse.data?.ocr_text) {
+      if (answerResponse.data && answerResponse.data.ocr_text) {
         setAnswerOcrText(answerResponse.data.ocr_text);
       }
     } catch (error) {
