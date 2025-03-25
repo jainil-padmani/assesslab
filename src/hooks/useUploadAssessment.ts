@@ -8,7 +8,7 @@ import {
   getAnswerSheetUrl
 } from "@/utils/assessment/fileUploadUtils";
 
-export function useUploadAssessment(studentId: string, subjectId: string, testId: string) {
+export function useUploadAssessment(studentId: string, subjectId: string, testId: string, refreshKey?: number) {
   const [isUploading, setIsUploading] = useState(false);
   const [answerSheetUrl, setAnswerSheetUrl] = useState<string | null>(null);
   const [hasAnswerSheet, setHasAnswerSheet] = useState(false);
@@ -19,7 +19,7 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
     if (studentId && subjectId && testId) {
       checkExistingAnswerSheet();
     }
-  }, [studentId, subjectId, testId]);
+  }, [studentId, subjectId, testId, refreshKey]);
 
   const checkExistingAnswerSheet = async () => {
     try {
@@ -93,6 +93,11 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
     }
   };
 
+  // Function to manually trigger a refresh of the data
+  const refetch = () => {
+    checkExistingAnswerSheet();
+  };
+
   return {
     isUploading,
     hasAnswerSheet,
@@ -100,6 +105,7 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
     fileInputRef,
     openFileUpload,
     handleFileSelected,
-    checkExistingAnswerSheet
+    checkExistingAnswerSheet,
+    refetch
   };
 }

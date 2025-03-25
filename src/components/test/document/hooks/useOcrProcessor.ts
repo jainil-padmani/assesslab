@@ -24,7 +24,9 @@ export function useOcrProcessor({
   const [loadingOcrQuestion, setLoadingOcrQuestion] = useState(false);
   const [loadingOcrAnswer, setLoadingOcrAnswer] = useState(false);
 
-  const processOcr = async (documentUrl: string, isQuestion: boolean) => {
+  const processOcr = async (documentUrl: string, type: 'question' | 'answer') => {
+    const isQuestion = type === 'question';
+    
     if (isQuestion) {
       setLoadingOcrQuestion(true);
     } else {
