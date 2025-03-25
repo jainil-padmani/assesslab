@@ -111,6 +111,73 @@ class BedrockService {
   }
 
   /**
+   * Test AWS Bedrock connectivity
+   */
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log("Testing AWS Bedrock connection...");
+      
+      // Create a minimal request to test connectivity
+      const path = `/model/${this.model}/invoke`;
+      const requestBody = {
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 10,
+        temperature: 0.2,
+        messages: [{ role: "user", content: "Hello" }]
+      };
+      
+      const payload = JSON.stringify(requestBody);
+      const headers = await this.createSignatureHeaders('POST', path, payload);
+      
+      const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
+      console.log(`Testing connection to: ${endpoint}${path}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      try {
+        const response = await fetch(`${endpoint}${path}`, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          return { 
+            success: false, 
+            message: `AWS Bedrock service error (${response.status}): ${errorText}` 
+          };
+        }
+        
+        return { success: true, message: "AWS Bedrock connection verified successfully" };
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          return { 
+            success: false, 
+            message: `Connection test timed out after 10 seconds. The Bedrock service in region ${this.region} may be experiencing issues.`
+          };
+        }
+        
+        return { 
+          success: false, 
+          message: `Connection test failed: ${fetchError.message || "Unknown error"}` 
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        message: `Failed to test connection: ${error.message || "Unknown error"}` 
+      };
+    }
+  }
+
+  /**
    * Process images with Claude Vision
    */
   async processImagesWithVision(params: {
@@ -167,9 +234,13 @@ class BedrockService {
       anthropic_version: "bedrock-2023-05-31",
       max_tokens: params.max_tokens || 4000,
       temperature: params.temperature || 0.2,
-      messages: [userMessage],
-      system: params.system
+      messages: [userMessage]
     };
+    
+    // Add system if provided
+    if (params.system) {
+      requestBody.system = params.system;
+    }
     
     const payload = JSON.stringify(requestBody);
     const headers = await this.createSignatureHeaders('POST', path, payload);
@@ -190,7 +261,24 @@ class BedrockService {
     }
     
     const result = await response.json();
-    return result.content[0].text;
+    if (!result.output || !result.output.content) {
+      throw new Error(`Invalid response format from Bedrock: ${JSON.stringify(result)}`);
+    }
+    
+    // Extract text from Claude response
+    let textContent = "";
+    for (const item of result.output.content) {
+      if (item.type === "text") {
+        textContent = item.text;
+        break;
+      }
+    }
+    
+    if (!textContent) {
+      throw new Error("No text content found in response");
+    }
+    
+    return textContent;
   }
 }
 
@@ -253,6 +341,24 @@ serve(async (req) => {
     
     // Create Bedrock service
     const bedrockService = new BedrockService(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+    
+    // Test AWS connection before proceeding
+    const connectionTest = await bedrockService.testConnection();
+    if (!connectionTest.success) {
+      return new Response(
+        JSON.stringify({
+          error: 'AWS Bedrock authentication failed',
+          details: connectionTest.message,
+          help: 'Your IAM user needs permissions for bedrock-runtime:InvokeModel actions. Please update your IAM policy or use different credentials.'
+        }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    
+    console.log("AWS Bedrock connection verified, proceeding with OCR");
     
     // Prompt for OCR extraction
     const systemPrompt = "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately, preserving the formatting and structure of text.";

@@ -26,6 +26,81 @@ export class BedrockService {
   }
 
   /**
+   * Run a quick test to verify AWS credentials and service access
+   */
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log("Testing AWS Bedrock connection...");
+      
+      // Set up a simple system prompt for testing
+      const testPrompt = { 
+        messages: [{ role: "user", content: "Hello" }],
+        max_tokens: 10,
+        system: "Reply with 'Connection successful'"
+      };
+      
+      // Use a smaller timeout for quick verification
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        // Create and send a test request
+        const path = `/model/${this.model}/invoke`;
+        const requestBody = {
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 10,
+          temperature: 0.5,
+          messages: [{ role: "user", content: "Hello" }],
+          system: "Reply with 'Connection successful'"
+        };
+        
+        const payload = JSON.stringify(requestBody);
+        const headers = await createSignatureHeaders(
+          'POST', 
+          path, 
+          payload, 
+          this.region, 
+          this.service, 
+          this.accessKeyId, 
+          this.secretAccessKey
+        );
+        
+        const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
+        
+        const response = await fetch(`${endpoint}${path}`, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          return { 
+            success: false, 
+            message: `AWS Bedrock service error (${response.status}): ${errorText}` 
+          };
+        }
+        
+        return { success: true, message: "AWS Bedrock connection successfully verified" };
+      } catch (error) {
+        clearTimeout(timeoutId);
+        return { 
+          success: false, 
+          message: `Connection test failed: ${error.message || "Unknown error"}` 
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        message: `Failed to test connection: ${error.message || "Unknown error"}` 
+      };
+    }
+  }
+
+  /**
    * Invoke Claude 3.5 Sonnet model for text generation
    * Format follows Bedrock request requirements
    */
@@ -42,14 +117,6 @@ export class BedrockService {
       // Create messages array with system message if provided
       const messages = [...params.messages];
       
-      // Add system message if provided
-      if (params.system) {
-        messages.unshift({
-          role: "system",
-          content: params.system
-        });
-      }
-      
       // Prepare the request body according to Bedrock requirements
       const requestBody = {
         anthropic_version: params.anthropic_version || "bedrock-2023-05-31",
@@ -57,6 +124,11 @@ export class BedrockService {
         temperature: params.temperature || 0.5,
         messages: messages
       };
+      
+      // Add system message if provided
+      if (params.system) {
+        requestBody.system = params.system;
+      }
       
       const payload = JSON.stringify(requestBody);
       const headers = await createSignatureHeaders(
