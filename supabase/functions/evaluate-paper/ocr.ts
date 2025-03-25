@@ -1,3 +1,4 @@
+
 import { Configuration, OpenAIApi } from "https://cdn.skypack.dev/openai@3.2.1";
 import { DOMParser } from 'https://deno.land/x/deno_dom/deno-dom-wasm.ts';
 
@@ -107,8 +108,8 @@ export async function extractTextFromZip(zipUrl: string, apiKey: string, systemP
     const zipArrayBuffer = await zipResponse.arrayBuffer();
     
     // Use JSZip to extract images from the ZIP
-    const jszip = await import('jszip');
-    const JSZip = jszip.default;
+    // Fix: Import JSZip properly using URL import
+    const JSZip = await (await import("https://cdn.skypack.dev/jszip@3.10.1")).default;
     
     const zip = await JSZip.loadAsync(zipArrayBuffer);
     
