@@ -1,7 +1,5 @@
 
-import { convertPdfPagesToZip, convertImageFileToZip } from "./pdf/pdfConverter";
-import { uploadZipFile } from "./pdf/zipFileStorage";
-import { validatePdfFile } from "./fileValidation";
+import { convertPdfPagesToImages, convertImageFileToOptimized } from "./pdf/pdfConverter";
 
 // Increased timeout for PDF operations (5 minutes in milliseconds)
 const PDF_PROCESSING_TIMEOUT = 5 * 60 * 1000;
@@ -74,18 +72,18 @@ const isPdfFile = (file: File | Blob | string): boolean => {
 };
 
 /**
- * Processes a PDF or image file and converts it to PNG images
- * These high-quality PNG images are then compressed into a ZIP file for OpenAI processing
+ * Processes a PDF or image file and converts it to optimized JPEG images
+ * Returns URL for direct OpenAI processing (no more ZIP files)
  */
-export const processPdfToZip = async (
+export const processPdfToImages = async (
   file: File | Blob | string, 
   identifier: string, 
   folderType: string = 'answer_sheets'
-): Promise<{ zipBlob: Blob, zipUrl: string }> => {
+): Promise<{ imageUrls: string[] }> => {
   try {
     let fileBlob: Blob;
-    let zipBlob: Blob;
-    console.log("Starting processPdfToZip with identifier:", identifier);
+    let imageUrls: string[] = [];
+    console.log("Starting processPdfToImages with identifier:", identifier);
     
     // Handle different input types
     if (typeof file === 'string') {
@@ -95,24 +93,24 @@ export const processPdfToZip = async (
       
       // Determine file type and process accordingly
       if (isPdfFile(file) || fileBlob.type === 'application/pdf') {
-        console.log("Converting downloaded PDF to high-quality PNG images and creating ZIP");
-        const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(fileBlob);
-        zipBlob = pdfZipBlob;
+        console.log("Converting downloaded PDF to optimized JPEG images");
+        imageUrls = await convertPdfPagesToImages(fileBlob);
       } else if (isImageFile(file) || fileBlob.type.startsWith('image/')) {
-        console.log("Converting downloaded image to high-quality PNG and creating ZIP");
-        zipBlob = await convertImageFileToZip(fileBlob);
+        console.log("Converting downloaded image to optimized JPEG");
+        const imageUrl = await convertImageFileToOptimized(fileBlob);
+        imageUrls = [imageUrl];
       } else {
         throw new Error(`Unsupported file type from URL: ${file}. Only PDF and image files are supported.`);
       }
     } else if (file instanceof File) {
       console.log(`Processing File object: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
-      if (validatePdfFile(file) || file.type === 'application/pdf') {
-        console.log("Converting PDF to high-quality PNG images and creating ZIP");
-        const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
-        zipBlob = pdfZipBlob;
+      if (isPdfFile(file) || file.type === 'application/pdf') {
+        console.log("Converting PDF to optimized JPEG images");
+        imageUrls = await convertPdfPagesToImages(file);
       } else if (file.type.startsWith('image/')) {
-        console.log(`Converting image (${file.type}) to high-quality PNG and creating ZIP`);
-        zipBlob = await convertImageFileToZip(file);
+        console.log(`Converting image (${file.type}) to optimized JPEG`);
+        const imageUrl = await convertImageFileToOptimized(file);
+        imageUrls = [imageUrl];
       } else {
         throw new Error(`Unsupported file type: ${file.type}. Only PDF and image files are supported.`);
       }
@@ -122,46 +120,26 @@ export const processPdfToZip = async (
       console.log(`Processing Blob with type: ${fileType}, size: ${file.size} bytes`);
       
       if (fileType === 'application/pdf' || isPdfFile(file)) {
-        console.log("Converting PDF blob to high-quality PNG images and creating ZIP");
-        const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
-        zipBlob = pdfZipBlob;
+        console.log("Converting PDF blob to optimized JPEG images");
+        imageUrls = await convertPdfPagesToImages(file);
       } else if (fileType.startsWith('image/') || isImageFile(file)) {
-        console.log("Converting image blob to high-quality PNG and creating ZIP");
-        zipBlob = await convertImageFileToZip(file);
+        console.log("Converting image blob to optimized JPEG");
+        const imageUrl = await convertImageFileToOptimized(file);
+        imageUrls = [imageUrl];
       } else {
         // Assume PDF if no type information
-        console.log("No MIME type, assuming PDF and converting to PNG images");
-        const { zipBlob: pdfZipBlob } = await convertPdfPagesToZip(file);
-        zipBlob = pdfZipBlob;
+        console.log("No MIME type, assuming PDF and converting to JPEG images");
+        imageUrls = await convertPdfPagesToImages(file);
       }
     } else {
       throw new Error("Unsupported input type. Expected URL string, File, or Blob.");
     }
     
-    // Upload the ZIP file to storage with retry mechanism
-    const uploadWithRetry = async (retries = 3, delay = 2000): Promise<string> => {
-      try {
-        return await uploadZipFile(zipBlob, identifier, folderType);
-      } catch (error) {
-        if (retries <= 0) throw error;
-        console.log(`Upload failed, retrying in ${delay}ms... (${retries} retries left)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return uploadWithRetry(retries - 1, delay * 1.5);
-      }
-    };
+    console.log(`Processed file to ${imageUrls.length} optimized JPEG images`);
     
-    const zipUrl = await uploadWithRetry();
-    console.log(`Processed file to ZIP of high-quality PNGs and uploaded at: ${zipUrl}`);
-    
-    return { 
-      zipBlob,
-      zipUrl
-    };
+    return { imageUrls };
   } catch (error) {
-    console.error("Error processing file to ZIP:", error);
+    console.error("Error processing file to images:", error);
     throw error;
   }
 };
-
-// Re-export the downloadZipFile function for backward compatibility
-export { downloadZipFile } from "./pdf/zipFileStorage";
