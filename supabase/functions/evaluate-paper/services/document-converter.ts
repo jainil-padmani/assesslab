@@ -77,6 +77,7 @@ export async function checkRemoteFile(url: string): Promise<{ exists: boolean, c
 /**
  * Get document pages as image URLs
  * This function handles both PDF and image files, returning an array of image URLs
+ * For PDFs, it tries to find pre-rendered image versions
  */
 export async function getDocumentPagesAsImages(documentUrl: string): Promise<string[]> {
   try {
@@ -107,26 +108,51 @@ export async function getDocumentPagesAsImages(documentUrl: string): Promise<str
         const optimizedImagesPath = `${baseStoragePath.substring(0, baseStoragePath.lastIndexOf('/'))}/optimized_pdf_pages`;
         
         // Look for converted images with pattern pdf_page_*_<pdfId>.jpg
-        console.log(`Looking for pre-rendered PDF pages at: ${optimizedImagesPath} with ID: ${pdfId}`);
+        console.log(`Looking for pre-rendered PDF pages with ID: ${pdfId}`);
         
-        // For now, we'll try to resolve the first page and return its URL
-        // In a production environment, we would list all available pages
-        const likelyFirstPageUrl = `${optimizedImagesPath}/pdf_page_1_${pdfId}.jpg`;
-        
-        const { exists: pageExists } = await checkRemoteFile(likelyFirstPageUrl);
-        
-        if (pageExists) {
-          console.log(`Found pre-rendered PDF page: ${likelyFirstPageUrl}`);
-          return [likelyFirstPageUrl];
+        // For frontend-uploaded PDFs, check for optimized JPEG images in the storage bucket
+        try {
+          const possibleImagePath = `${optimizedImagesPath}/pdf_page_1_${pdfId}.jpg`;
+          const { exists: imageExists } = await checkRemoteFile(possibleImagePath);
+          
+          if (imageExists) {
+            console.log(`Found pre-rendered PDF image: ${possibleImagePath}`);
+            // Try to find more pages with the same pattern
+            const imageUrls = [possibleImagePath];
+            
+            // Check for pages 2-4 (common numbers of pages)
+            for (let pageNum = 2; pageNum <= 4; pageNum++) {
+              const pagePath = `${optimizedImagesPath}/pdf_page_${pageNum}_${pdfId}.jpg`;
+              const { exists: pageExists } = await checkRemoteFile(pagePath);
+              if (pageExists) {
+                imageUrls.push(pagePath);
+              } else {
+                break; // Stop looking for more pages
+              }
+            }
+            
+            console.log(`Found ${imageUrls.length} pre-rendered PDF pages`);
+            return imageUrls;
+          }
+        } catch (error) {
+          console.error("Error finding pre-rendered PDF images:", error);
         }
-        
-        // If we can't find pre-rendered pages, use original PDF
-        console.log(`No pre-rendered pages found for PDF. Using original PDF URL: ${documentUrl}`);
       }
+      
+      // If we can't find pre-rendered images, we need to tell the caller
+      // that they should convert the PDF first before sending to Bedrock
+      console.error(`PDF detected at ${documentUrl} but no pre-rendered images found. PDF must be converted to images before sending to Bedrock.`);
+      throw new Error(`PDF must be converted to images before processing. No pre-rendered images found for ${documentUrl}`);
     }
     
-    // If it's a simple image or we can't find pre-rendered PDF pages, return the original URL
-    console.log(`Processing ${fileType} document directly: ${documentUrl}`);
+    // If it's a simple image, return the original URL
+    if (fileType === 'image') {
+      console.log(`Processing image document directly: ${documentUrl}`);
+      return [cleanUrlForApi(documentUrl)];
+    }
+    
+    // If we got here with an unknown type, try to process as image but warn
+    console.warn(`Unknown file type for ${documentUrl}, attempting to process as image`);
     return [cleanUrlForApi(documentUrl)];
   } catch (error) {
     console.error("Error getting document pages:", error);

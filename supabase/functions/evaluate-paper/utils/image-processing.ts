@@ -64,12 +64,10 @@ export async function urlToBase64(url: string): Promise<string> {
         }
       }
       
-      // For large files, return direct URL instead to avoid memory issues
+      // Return direct URL without base64 conversion for better performance
       console.log("Returning direct URL without base64 conversion for better performance");
       return cleanUrlForApi(url);
       
-      // Note: We've intentionally removed the base64 conversion code since
-      // we're now using direct URLs for everything, which is more efficient
     } catch (fetchError) {
       clearTimeout(timeoutId);
       console.error("Error fetching URL:", fetchError);
@@ -93,7 +91,7 @@ export function cleanUrlForApi(url: string): string {
     // If the URL contains a question mark, strip everything after it
     const questionMarkIndex = url.indexOf('?');
     if (questionMarkIndex !== -1) {
-      console.log(`Removing query parameters from URL for OpenAI API: ${url}`);
+      console.log(`Removing query parameters from URL for API: ${url}`);
       return url.substring(0, questionMarkIndex);
     }
     return url;
@@ -104,18 +102,17 @@ export function cleanUrlForApi(url: string): string {
 }
 
 /**
- * Create a direct image URL from a blob using FileReader
- * This is used as a fallback for large images
+ * Check if a URL points to a PDF file
  */
-export async function createDirectImageUrl(blob: Blob | string): Promise<string> {
-  // If it's a string (URL), return it directly for OpenAI to process
-  if (typeof blob === 'string') {
-    // Remove any query parameters that might cause OpenAI to timeout
-    return cleanUrlForApi(blob);
-  }
-  
-  // Just return a placeholder - this function is mostly deprecated now
-  // since we're using direct URLs instead of blobs
-  console.log("createDirectImageUrl called but we're using direct URLs now");
-  return "https://example.com/placeholder.jpg";
+export function isPdfUrl(url: string): boolean {
+  if (!url) return false;
+  return url.toLowerCase().endsWith('.pdf');
+}
+
+/**
+ * Check if a URL points to an image file
+ */
+export function isImageUrl(url: string): boolean {
+  if (!url) return false;
+  return /\.(jpe?g|png|gif|webp|bmp|tiff?)$/i.test(url.toLowerCase());
 }

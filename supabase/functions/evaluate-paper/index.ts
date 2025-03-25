@@ -3,7 +3,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import { createBedrockService } from "./services/bedrock-service.ts";
-import { getAnswerSheetUrl, getAnswerSheetZipUrl } from "./utils/file-upload-utils.ts";
+import { getDocumentPagesAsImages } from "./services/document-converter.ts";
+import { detectFileType } from "./services/document-converter.ts";
 
 // CORS headers to allow requests from any origin
 const corsHeaders = {
@@ -104,6 +105,56 @@ serve(async (req) => {
       console.log(`Answer key: ${answerKey.url} (Topic: ${answerKey.topic})`);
       console.log(`Student answer sheet: ${studentAnswer.url}`);
 
+      // Process image URLs - convert PDFs to images first
+      let questionPaperImages: string[] = [];
+      let answerKeyImages: string[] = [];
+      let studentAnswerImages: string[] = [];
+      
+      try {
+        // Process question paper
+        if (detectFileType(questionPaper.url) === 'pdf') {
+          console.log("Converting question paper PDF to images");
+          questionPaperImages = await getDocumentPagesAsImages(questionPaper.url);
+        } else {
+          questionPaperImages = [questionPaper.url];
+        }
+        
+        // Process answer key
+        if (detectFileType(answerKey.url) === 'pdf') {
+          console.log("Converting answer key PDF to images");
+          answerKeyImages = await getDocumentPagesAsImages(answerKey.url);
+        } else {
+          answerKeyImages = [answerKey.url];
+        }
+        
+        // Process student answer - prefer zip_url if available as it might contain pre-processed images
+        if (studentAnswer.zip_url) {
+          console.log("Using pre-processed images for student answer");
+          studentAnswerImages = Array.isArray(studentAnswer.zip_url) ? 
+            studentAnswer.zip_url : [studentAnswer.zip_url];
+        } else if (detectFileType(studentAnswer.url) === 'pdf') {
+          console.log("Converting student answer PDF to images");
+          studentAnswerImages = await getDocumentPagesAsImages(studentAnswer.url);
+        } else {
+          studentAnswerImages = [studentAnswer.url];
+        }
+      } catch (imageProcessingError) {
+        console.error("Error converting documents to images:", imageProcessingError);
+        return new Response(
+          JSON.stringify({
+            error: "Document conversion error",
+            details: imageProcessingError.message,
+            help: "Please ensure all PDFs are pre-converted to images before evaluation."
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      console.log(`Processed documents to images: Question Paper (${questionPaperImages.length}), Answer Key (${answerKeyImages.length}), Student Answer (${studentAnswerImages.length})`);
+
       // Construct the prompt for Claude
       const systemPrompt = `
         You are an expert evaluator of student papers. Your task is to compare a student's answer sheet to an answer key and provide a detailed evaluation.
@@ -124,37 +175,40 @@ serve(async (req) => {
 
         ## Question Paper
         - Topic: ${questionPaper.topic}
-        - URL: ${questionPaper.url}
+        - Number of Images: ${questionPaperImages.length}
 
         ## Answer Key
         - Topic: ${answerKey.topic}
-        - URL: ${answerKey.url}
+        - Number of Images: ${answerKeyImages.length}
 
         ## Student Answer Sheet
-        - URL: ${studentAnswer.url}
-        ${studentAnswer.zip_url ? `- ZIP URL: ${studentAnswer.zip_url}` : ''}
+        - Number of Images: ${studentAnswerImages.length}
 
         Provide a detailed evaluation, including scores for each question and a total score for the paper.
       `;
 
+      // Combine all image URLs for processing
+      // We'll process them in batches inside processImagesWithVision
+      const allImages = [...questionPaperImages, ...answerKeyImages, ...studentAnswerImages];
+      
       // Invoke Bedrock API to evaluate the paper
       const evaluationResult = await bedrockService.processImagesWithVision({
         prompt: userPrompt,
-        imageUrls: [questionPaper.url, answerKey.url, studentAnswer.url],
+        imageUrls: allImages,
         max_tokens: 4000,
         temperature: 0.5,
         system: systemPrompt
       });
 
-      console.log(`Evaluation result: ${evaluationResult}`);
+      console.log(`Evaluation result: ${evaluationResult.substring(0, 200)}...`);
 
       // Return the evaluation result
       return new Response(
         JSON.stringify({
           text: evaluationResult,
-          questionPaperUrl: questionPaper.url,
-          answerKeyUrl: answerKey.url,
-          studentAnswerUrl: studentAnswer.url
+          questionPaperImages,
+          answerKeyImages,
+          studentAnswerImages
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

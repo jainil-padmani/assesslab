@@ -19,7 +19,7 @@ export function stripQueryParams(url: string): string {
 
 /**
  * Process a student answer document to extract text
- * Now with improved PDF handling - converts to images first
+ * Always converts PDFs to images first for better OCR processing
  */
 export async function processStudentAnswer(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -42,21 +42,22 @@ export async function processStudentAnswer(
   
   try {
     let extractedText = "";
+    let imageUrlsForProcessing: string[] = [];
     
-    // First, check if we need to convert PDF to images
+    // Check if we need to convert PDF to images - always do this for PDFs
     if (studentAnswer.url && (
       studentAnswer.url.toLowerCase().endsWith('.pdf') || 
       (studentAnswer.content_type && studentAnswer.content_type.includes('pdf'))
     )) {
       console.log("PDF document detected, converting to images first");
-      const imageUrls = await getDocumentPagesAsImages(studentAnswer.url);
+      imageUrlsForProcessing = await getDocumentPagesAsImages(studentAnswer.url);
       
-      if (imageUrls && imageUrls.length > 0) {
-        console.log(`Converted PDF to ${imageUrls.length} images`);
+      if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+        console.log(`Converted PDF to ${imageUrlsForProcessing.length} images`);
         
         // Process images in batches of 4 (Claude's limit)
         extractedText = await extractTextFromImageFile(
-          JSON.stringify(imageUrls),
+          JSON.stringify(imageUrlsForProcessing),
           credentials,
           `You are an OCR expert optimized for extracting handwritten answers from student exam sheets. Carefully identify all text, preserve formatting and structure. Focus on identifying sections of text that answer specific questions.`,
           `Extract all text from these converted PDF images for ${studentInfo?.name || 'a student'}.`
@@ -78,8 +79,15 @@ export async function processStudentAnswer(
       console.log("Processing student answer from images URL:", studentAnswer.clean_zip_url || studentAnswer.zip_url);
       
       try {
+        // Get image URLs from the zip URL (already optimized images)
+        imageUrlsForProcessing = Array.isArray(studentAnswer.clean_zip_url || studentAnswer.zip_url) 
+          ? studentAnswer.clean_zip_url || studentAnswer.zip_url
+          : [studentAnswer.clean_zip_url || studentAnswer.zip_url];
+          
+        console.log(`Processing ${imageUrlsForProcessing.length} images from zip URL`);
+        
         extractedText = await extractTextFromImageFile(
-          studentAnswer.clean_zip_url || studentAnswer.zip_url,
+          JSON.stringify(imageUrlsForProcessing),
           credentials, 
           `You are an OCR expert optimized for extracting handwritten answers from student exam sheets. Carefully identify all text, preserve formatting and structure. Focus on identifying sections of text that answer specific questions.`
         );
@@ -98,24 +106,29 @@ export async function processStudentAnswer(
       }
     }
     
-    // Fall back to using the direct URL (which will handle PDF conversion internally)
+    // Fall back to using the direct URL (but convert PDFs first)
     if (studentAnswer.url) {
       console.log("Falling back to processing student answer from direct URL");
       
-      extractedText = await extractTextFromFile(
-        studentAnswer.url,
-        credentials,
-        `You are an OCR expert optimized for extracting handwritten answers from student exam sheets. Carefully identify all text, preserve formatting and structure. Focus on identifying sections of text that answer specific questions.`,
-        `Extract all text from this student's answer sheet for ${studentInfo?.name || 'a student'}.`
-      );
-      
-      if (extractedText) {
-        console.log("Successfully extracted student answer text from URL");
-        return { 
-          text: extractedText,
-          url: studentAnswer.url,
-          processed: true
-        };
+      // For non-PDFs, we can use the direct URL
+      if (!studentAnswer.url.toLowerCase().endsWith('.pdf') && 
+          !(studentAnswer.content_type && studentAnswer.content_type.includes('pdf'))) {
+        
+        extractedText = await extractTextFromFile(
+          studentAnswer.url,
+          credentials,
+          `You are an OCR expert optimized for extracting handwritten answers from student exam sheets. Carefully identify all text, preserve formatting and structure. Focus on identifying sections of text that answer specific questions.`,
+          `Extract all text from this student's answer sheet for ${studentInfo?.name || 'a student'}.`
+        );
+        
+        if (extractedText) {
+          console.log("Successfully extracted student answer text from URL");
+          return { 
+            text: extractedText,
+            url: studentAnswer.url,
+            processed: true
+          };
+        }
       }
     }
     
@@ -129,7 +142,7 @@ export async function processStudentAnswer(
 
 /**
  * Process a question paper document to extract text and questions
- * Now with improved PDF handling - converts to images first
+ * Always converts PDFs to images first for better OCR processing
  */
 export async function processQuestionPaper(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -150,32 +163,31 @@ export async function processQuestionPaper(
   
   try {
     let extractedText = existingText || "";
+    let imageUrlsForProcessing: string[] = [];
     
     // Extract text from the question paper URL if text is not already provided
     if (!extractedText && questionPaper.url) {
       console.log("Extracting text from question paper URL");
       
-      // First, check if we need to convert PDF to images
+      // Always convert PDFs to images first for better OCR
       if (questionPaper.url.toLowerCase().endsWith('.pdf') || 
          (questionPaper.content_type && questionPaper.content_type.includes('pdf'))) {
         console.log("PDF question paper detected, converting to images first");
-        const imageUrls = await getDocumentPagesAsImages(questionPaper.url);
+        imageUrlsForProcessing = await getDocumentPagesAsImages(questionPaper.url);
         
-        if (imageUrls && imageUrls.length > 0) {
-          console.log(`Converted PDF to ${imageUrls.length} images for OCR processing`);
+        if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+          console.log(`Converted PDF to ${imageUrlsForProcessing.length} images for OCR processing`);
           
           // Process images in batches of 4 (Claude's limit)
           extractedText = await extractTextFromImageFile(
-            JSON.stringify(imageUrls),
+            JSON.stringify(imageUrlsForProcessing),
             credentials,
             `You are an OCR expert specialized in extracting text from exam question papers. Identify question numbers, section headers, and all text content accurately. Preserve the formatting and structure of the original document.`,
             `Extract all text from these question paper images with special focus on identifying question numbers and their corresponding text.`
           );
         }
-      }
-      
-      // If conversion failed or wasn't needed, fall back to direct processing
-      if (!extractedText) {
+      } else {
+        // For non-PDFs, we can process the image directly
         extractedText = await extractTextFromFile(
           questionPaper.url,
           credentials,
@@ -190,7 +202,7 @@ export async function processQuestionPaper(
     // Extract structured questions from the text
     console.log("Extracting structured questions from question paper");
     const { questions } = await extractQuestionsFromPaper(
-      questionPaper.url || "",
+      imageUrlsForProcessing.length > 0 ? JSON.stringify(imageUrlsForProcessing) : questionPaper.url,
       credentials,
       extractedText
     );
@@ -210,7 +222,7 @@ export async function processQuestionPaper(
 
 /**
  * Process an answer key document to extract text
- * Now with improved PDF handling - converts to images first
+ * Always converts PDFs to images first for better OCR processing
  */
 export async function processAnswerKey(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
@@ -230,32 +242,31 @@ export async function processAnswerKey(
   
   try {
     let extractedText = existingText || "";
+    let imageUrlsForProcessing: string[] = [];
     
     // Extract text from the answer key URL if text is not already provided
     if (!extractedText && answerKey.url) {
       console.log("Extracting text from answer key URL");
       
-      // First, check if we need to convert PDF to images
+      // Always convert PDFs to images first for better OCR
       if (answerKey.url.toLowerCase().endsWith('.pdf') || 
          (answerKey.content_type && answerKey.content_type.includes('pdf'))) {
         console.log("PDF answer key detected, converting to images first");
-        const imageUrls = await getDocumentPagesAsImages(answerKey.url);
+        imageUrlsForProcessing = await getDocumentPagesAsImages(answerKey.url);
         
-        if (imageUrls && imageUrls.length > 0) {
-          console.log(`Converted PDF to ${imageUrls.length} images for OCR processing`);
+        if (imageUrlsForProcessing && imageUrlsForProcessing.length > 0) {
+          console.log(`Converted PDF to ${imageUrlsForProcessing.length} images for OCR processing`);
           
           // Process images in batches of 4 (Claude's limit)
           extractedText = await extractTextFromImageFile(
-            JSON.stringify(imageUrls),
+            JSON.stringify(imageUrlsForProcessing),
             credentials,
             `You are an OCR expert specialized in extracting text from answer keys. Identify all answer content accurately, including question numbers and their corresponding answers. Preserve the formatting and structure.`,
             `Extract all text from these answer key images with special focus on correct answers for each question.`
           );
         }
-      }
-      
-      // If conversion failed or wasn't needed, fall back to direct processing
-      if (!extractedText) {
+      } else {
+        // For non-PDFs, we can process the image directly
         extractedText = await extractTextFromFile(
           answerKey.url,
           credentials,
