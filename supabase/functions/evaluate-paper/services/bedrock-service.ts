@@ -71,7 +71,9 @@ export class BedrockService {
         this.secretAccessKey
       );
       
-      console.log(`Sending request to Bedrock API: ${this.service}.${this.region}.amazonaws.com${path}`);
+      // Using the specific bedrock-runtime endpoint for the region
+      const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
+      console.log(`Sending request to Bedrock API: ${endpoint}${path}`);
       console.log(`Request payload structure: ${JSON.stringify(Object.keys(requestBody))}`);
       
       // Add timeout to avoid hanging requests
@@ -79,7 +81,7 @@ export class BedrockService {
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       
       try {
-        const response = await fetch(`https://${this.service}.${this.region}.amazonaws.com${path}`, {
+        const response = await fetch(`${endpoint}${path}`, {
           method: 'POST',
           headers,
           body: payload,

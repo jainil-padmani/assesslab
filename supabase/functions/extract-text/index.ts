@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
@@ -170,7 +171,10 @@ class BedrockService {
     const payload = JSON.stringify(requestBody);
     const headers = await this.createSignatureHeaders('POST', path, payload);
     
-    const response = await fetch(`https://${this.service}.${this.region}.amazonaws.com${path}`, {
+    // Using the specific bedrock-runtime endpoint for the region
+    const endpoint = `https://${this.service}.${this.region}.amazonaws.com`;
+    
+    const response = await fetch(`${endpoint}${path}`, {
       method: 'POST',
       headers,
       body: payload
