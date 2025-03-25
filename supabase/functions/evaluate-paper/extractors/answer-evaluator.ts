@@ -1,17 +1,19 @@
 
-import { createBedrockService } from "./services/bedrock-service.ts";
+import { createBedrockService } from "../services/bedrock-service.ts";
 
-// Function to evaluate student answers against question paper and answer key
-export async function evaluateAnswers(
+/**
+ * Evaluates student answers using extracted questions from the question paper
+ * This function leverages structured question extraction for better evaluation
+ */
+export async function evaluateWithExtractedQuestions(
   credentials: { accessKeyId: string, secretAccessKey: string, region: string },
-  testId: string,
-  questionPaper: any,
-  answerKey: any,
-  studentAnswer: any,
+  extractedQuestions: any[],
+  answerKeyText: string,
+  studentAnswerText: string,
   studentInfo: any
-) {
+): Promise<any> {
   try {
-    console.log("Starting evaluation process for test:", testId);
+    console.log("Starting evaluation with extracted questions using Claude 3.5 Sonnet");
     
     const bedrockService = createBedrockService(
       credentials.accessKeyId,
@@ -20,29 +22,33 @@ export async function evaluateAnswers(
     );
     
     // Build the prompt for the evaluation
-    const systemPrompt = `You are an AI assistant specialized in evaluating student exam answers. You will be given a question paper, an answer key, and a student's answer sheet. Your task is to evaluate the student's answers, assign marks, and provide detailed feedback.`;
+    const systemPrompt = `You are an AI assistant specialized in evaluating student exam answers. You will be given extracted questions from a question paper, an answer key, and a student's answer sheet. Your task is to evaluate the student's answers, assign marks, and provide detailed feedback.`;
+    
+    // Format the extracted questions into a readable format
+    const formattedQuestions = extractedQuestions.map((q, i) => 
+      `Question ${i+1}: ${typeof q === 'string' ? q : (q.questionText || q.question_text || q)}`
+    ).join('\n\n');
     
     const userPrompt = `
-Evaluate this student's answer sheet against the provided question paper and answer key.
+Evaluate this student's answer sheet using the provided extracted questions and answer key.
 
 STUDENT INFORMATION:
 ${JSON.stringify(studentInfo, null, 2)}
 
-QUESTION PAPER:
-${questionPaper?.text || "No question paper provided"}
+EXTRACTED QUESTIONS:
+${formattedQuestions}
 
 ANSWER KEY:
-${answerKey?.text || "No answer key provided (use your judgment to evaluate)"}
+${answerKeyText || "No answer key provided (use your judgment to evaluate)"}
 
 STUDENT'S ANSWER SHEET:
-${studentAnswer?.text || "No student answer provided"}
+${studentAnswerText || "No student answer provided"}
 
 Analyze the student's answer sheet carefully. For each question:
-1. Identify the question number and text from the question paper
-2. Extract the student's answer for that question
-3. Compare it with the answer key
-4. Assign appropriate marks based on correctness
-5. Provide specific feedback
+1. Match the student's answer to the corresponding question
+2. Compare it with the expected answer from the answer key
+3. Assign appropriate marks based on correctness
+4. Provide specific feedback
 
 Format your evaluation as a JSON object with this structure:
 {
@@ -59,7 +65,7 @@ Format your evaluation as a JSON object with this structure:
       "score": [5, 10],  // [assigned score, maximum score]
       "remarks": "Detailed feedback on the answer",
       "confidence": 0.9,  // your confidence in the evaluation
-      "match_method": "direct_numbering" or "semantic_matching"
+      "match_method": "extracted_question"
     },
     // Repeat for all questions
   ],
@@ -121,32 +127,7 @@ Output only the JSON with no additional text.`;
       }
     }
   } catch (error) {
-    console.error("Error in evaluateAnswers:", error);
+    console.error("Error in evaluateWithExtractedQuestions:", error);
     throw error;
   }
-}
-
-// Process the evaluation data and prepare it for storage
-export function processEvaluation(
-  evaluation: any,
-  testId: string,
-  studentAnswer: any,
-  extractedStudentText: string,
-  questionPaperText: string | null,
-  answerKeyText: string | null
-) {
-  // Add metadata to the evaluation
-  return {
-    ...evaluation,
-    metadata: {
-      test_id: testId,
-      evaluation_timestamp: new Date().toISOString(),
-      answer_sheet_url: studentAnswer?.url,
-      ocr_processed: true
-    },
-    question_paper_text: questionPaperText,
-    answer_key_text: answerKeyText,
-    text: extractedStudentText,
-    isOcrProcessed: true
-  };
 }

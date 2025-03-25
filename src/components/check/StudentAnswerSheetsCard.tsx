@@ -1,7 +1,6 @@
-
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { FileCheck, AlertCircle, Search, ListFilter, DownloadCloud } from "lucide-react";
@@ -42,7 +41,6 @@ export function StudentAnswerSheetsCard({
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<Student[]>(classStudents);
   
-  // Listen for answer sheet upload events
   useEffect(() => {
     const handleAnswerSheetUploaded = () => {
       console.log('Answer sheet uploaded event received in StudentAnswerSheetsCard');
@@ -55,7 +53,6 @@ export function StudentAnswerSheetsCard({
     };
   }, []);
 
-  // Filter students when search query or class students change
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredStudents(classStudents);
@@ -71,31 +68,26 @@ export function StudentAnswerSheetsCard({
     setFilteredStudents(filtered);
   }, [searchQuery, classStudents]);
 
-  // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
     const questionPapers = testFiles.filter(file => file.question_paper_url);
     const answerKeys = testFiles.filter(file => file.answer_key_url);
     return { questionPapers, answerKeys };
   }, [testFiles]);
 
-  // Find evaluation data for a specific student
   const getEvaluationData = (studentId: string) => {
     const evaluation = evaluations.find(e => e.student_id === studentId && e.status === 'completed');
     return evaluation?.evaluation_data;
   };
 
-  // Check if a student is being evaluated
   const isStudentEvaluating = (studentId: string) => {
     return evaluatingStudents.includes(studentId);
   };
 
-  // Get the status of a student's evaluation
   const getStudentStatus = (studentId: string) => {
     const evaluation = evaluations.find(e => e.student_id === studentId);
     return evaluation?.status || 'pending';
   };
 
-  // Check if test files are available for evaluation
   const areTestFilesReady = questionPapers.length > 0 && answerKeys.length > 0;
 
   return (

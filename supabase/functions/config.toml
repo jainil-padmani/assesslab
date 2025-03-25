@@ -1,0 +1,21 @@
+
+project_id = "aigunjkwusokdunyyfdt"
+
+[evaluate-paper]
+verify_jwt = false
+timeout_ms = 120000
+
+[extract-text]
+verify_jwt = false
+
+[generate-paper]
+verify_jwt = false
+
+[generate-questions]
+verify_jwt = false
+
+[generate-report]
+verify_jwt = false
+
+[process-document]
+verify_jwt = false

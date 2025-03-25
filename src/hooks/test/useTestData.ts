@@ -8,7 +8,7 @@ import type { Test } from "@/types/tests";
  * Hook for fetching test data with optimized query patterns
  */
 export function useTestData(testId: string | undefined) {
-  const { data: test, isLoading: isTestLoading } = useQuery({
+  const { data: test, isLoading: isTestLoading, refetch } = useQuery({
     queryKey: ["test", testId],
     queryFn: async () => {
       if (!testId) return null;
@@ -38,6 +38,7 @@ export function useTestData(testId: string | undefined) {
 
   return {
     test,
-    isTestLoading
+    isTestLoading,
+    refetchTest: refetch
   };
 }

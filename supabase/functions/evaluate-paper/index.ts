@@ -1,9 +1,14 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster } from './document-processor.ts';
+import { processStudentAnswer, processQuestionPaper, processAnswerKey, addCacheBuster, stripQueryParams } from './document-processor.ts';
 import { evaluateAnswers, processEvaluation } from './evaluator.ts';
-import { evaluateWithExtractedQuestions, matchAnswersToQuestions, extractQuestionsFromText } from './ocr.ts';
+import { 
+  evaluateWithExtractedQuestions, 
+  matchAnswersToQuestions, 
+  extractQuestionsFromText,
+  createBedrockService
+} from './ocr.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,18 +19,34 @@ const corsHeaders = {
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Set a longer timeout for the request handling (5 minutes)
+  const MAX_EXECUTION_TIME = 300000; // 5 minutes in milliseconds
+  const requestTimeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("Request timed out after 5 minutes")), MAX_EXECUTION_TIME);
+  });
 
   try {
-    // Get OpenAI API key from environment
-    const apiKey = Deno.env.get('OPENAI_API_KEY') || '';
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
     }
-    console.log("Using API Key: " + apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4));
+
+    // Get AWS Bedrock credentials from environment
+    const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID') || '';
+    const awsSecretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY') || '';
+    const awsRegion = Deno.env.get('AWS_REGION') || 'us-east-1';
+    
+    if (!awsAccessKeyId || !awsSecretAccessKey) {
+      throw new Error('AWS credentials environment variables are not set');
+    }
+    
+    const awsCredentials = {
+      accessKeyId: awsAccessKeyId,
+      secretAccessKey: awsSecretAccessKey,
+      region: awsRegion
+    };
+    
+    console.log("Using AWS credentials with key ID: " + awsAccessKeyId.substring(0, 5) + '...');
     
     // Parse the request body
     let requestBody;
@@ -111,116 +132,130 @@ serve(async (req) => {
       }
     }
     
-    // Add cache-busting parameter to URLs to prevent caching issues
+    // Add cache-busting parameter to URLs for fetching
     if (questionPaper?.url) questionPaper.url = addCacheBuster(questionPaper.url);
     if (answerKey?.url) answerKey.url = addCacheBuster(answerKey.url);
     if (studentAnswer?.url) studentAnswer.url = addCacheBuster(studentAnswer.url);
-    if (studentAnswer?.zip_url) studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
+    if (studentAnswer?.zip_url) {
+      // Add cache buster for fetching, but prepare a clean URL for Claude 3.5
+      studentAnswer.zip_url = addCacheBuster(studentAnswer.zip_url);
+      studentAnswer.clean_zip_url = stripQueryParams(studentAnswer.zip_url);
+      console.log("Clean ZIP URL for Claude 3.5:", studentAnswer.clean_zip_url);
+    }
     
-    // Process documents to extract text with improved error handling
+    // Process documents to extract text with improved error handling and timeout
     try {
-      // Process student answer first
-      const processedStudentAnswer = await processStudentAnswer(apiKey, studentAnswer, testId, studentInfo);
-      
-      // If we have existing question text, try to extract structured questions from it
-      if (existingQuestionText && !extractedQuestions) {
-        console.log("Using existing OCR text to extract questions");
-        extractedQuestions = await extractQuestionsFromText(apiKey, existingQuestionText);
-      }
-      
-      // If we don't have structured questions yet, process the question paper
-      if (!extractedQuestions) {
-        console.log("Processing question paper to extract structured questions");
-        const { 
-          processedDocument: processedQuestionPaper, 
-          extractedText: extractedQuestionText,
-          questions: extractedQuestionsFromProcess
-        } = await processQuestionPaper(
-          apiKey, 
-          questionPaper, 
-          testId, 
-          existingQuestionText
-        );
+      // Create a Promise.race between the actual processing and a timeout
+      const processingPromise = async () => {
+        // Process student answer first
+        const processedStudentAnswer = await processStudentAnswer(awsCredentials, studentAnswer, testId, studentInfo);
         
-        extractedQuestions = extractedQuestionsFromProcess;
-        existingQuestionText = existingQuestionText || extractedQuestionText;
-      }
-      
-      // Process the answer key, using existing OCR text if available
-      const { 
-        processedDocument: processedAnswerKey, 
-        extractedText: extractedAnswerKeyText 
-      } = await processAnswerKey(
-        apiKey, 
-        answerKey, 
-        testId, 
-        existingAnswerText
-      );
-      
-      const finalAnswerKeyText = existingAnswerText || extractedAnswerKeyText;
-      
-      // Perform semantic matching if we have both question paper and student answer
-      let matchResults = null;
-      if (existingQuestionText && processedStudentAnswer.text) {
-        try {
-          console.log("Attempting semantic matching of student answers to questions");
-          
-          matchResults = await matchAnswersToQuestions(
-            apiKey,
-            existingQuestionText,
-            processedStudentAnswer.text
+        // If we have existing question text, try to extract structured questions from it
+        if (existingQuestionText && !extractedQuestions) {
+          console.log("Using existing OCR text to extract questions");
+          extractedQuestions = await extractQuestionsFromText(awsCredentials, existingQuestionText);
+        }
+        
+        // If we don't have structured questions yet, process the question paper
+        if (!extractedQuestions) {
+          console.log("Processing question paper to extract structured questions");
+          const { 
+            processedDocument: processedQuestionPaper, 
+            extractedText: extractedQuestionText,
+            questions: extractedQuestionsFromProcess
+          } = await processQuestionPaper(
+            awsCredentials, 
+            questionPaper, 
+            testId, 
+            existingQuestionText
           );
           
-          console.log(`Found ${matchResults?.matches?.length || 0} potential question-answer matches through semantic matching`);
-        } catch (matchError) {
-          console.error("Error during semantic matching:", matchError);
-          // Continue with evaluation even if matching fails
+          extractedQuestions = extractedQuestionsFromProcess;
+          existingQuestionText = existingQuestionText || extractedQuestionText;
         }
-      }
-      
-      // Perform the evaluation
-      let evaluation;
-      
-      // If we have extracted questions, use the question-based evaluation flow
-      if (extractedQuestions && extractedQuestions.length > 0 && processedStudentAnswer.text) {
-        console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
         
-        // Use our specialized evaluation function that leverages extracted questions
-        evaluation = await evaluateWithExtractedQuestions(
-          apiKey,
-          extractedQuestions,
-          finalAnswerKeyText,
-          processedStudentAnswer.text,
-          studentInfo
+        // Process the answer key, using existing OCR text if available
+        const { 
+          processedDocument: processedAnswerKey, 
+          extractedText: extractedAnswerKeyText 
+        } = await processAnswerKey(
+          awsCredentials, 
+          answerKey, 
+          testId, 
+          existingAnswerText
         );
-      } else {
-        console.log("Using standard evaluation flow without extracted questions");
         
-        // Fall back to the original evaluation method
-        evaluation = await evaluateAnswers(
-          apiKey,
+        const finalAnswerKeyText = existingAnswerText || extractedAnswerKeyText;
+        
+        // Perform semantic matching if we have both question paper and student answer
+        let matchResults = null;
+        if (existingQuestionText && processedStudentAnswer.text) {
+          try {
+            console.log("Attempting semantic matching of student answers to questions");
+            
+            matchResults = await matchAnswersToQuestions(
+              awsCredentials,
+              existingQuestionText,
+              processedStudentAnswer.text
+            );
+            
+            console.log(`Found ${matchResults?.matches?.length || 0} potential question-answer matches through semantic matching`);
+          } catch (matchError) {
+            console.error("Error during semantic matching:", matchError);
+            // Continue with evaluation even if matching fails
+          }
+        }
+        
+        // Perform the evaluation
+        let evaluation;
+        
+        // If we have extracted questions, use the question-based evaluation flow
+        if (extractedQuestions && extractedQuestions.length > 0 && processedStudentAnswer.text) {
+          console.log(`Using question-based evaluation with ${extractedQuestions.length} extracted questions`);
+          
+          // Use our specialized evaluation function that leverages extracted questions
+          evaluation = await evaluateWithExtractedQuestions(
+            awsCredentials,
+            extractedQuestions,
+            finalAnswerKeyText,
+            processedStudentAnswer.text,
+            studentInfo
+          );
+        } else {
+          console.log("Using standard evaluation flow without extracted questions");
+          
+          // Fall back to the original evaluation method
+          evaluation = await evaluateAnswers(
+            awsCredentials,
+            testId,
+            {text: existingQuestionText},
+            {text: finalAnswerKeyText},
+            processedStudentAnswer,
+            studentInfo
+          );
+        }
+        
+        // Add semantic matching results to the evaluation
+        if (matchResults && matchResults.matches && matchResults.matches.length > 0) {
+          evaluation.semantic_matches = matchResults.matches;
+        }
+        
+        // Process the evaluation results
+        return processEvaluation(
+          evaluation,
           testId,
-          {text: existingQuestionText},
-          {text: finalAnswerKeyText},
-          processedStudentAnswer,
-          studentInfo
+          studentAnswer,
+          processedStudentAnswer.text,
+          existingQuestionText,
+          finalAnswerKeyText
         );
-      }
-      
-      // Add semantic matching results to the evaluation
-      if (matchResults && matchResults.matches && matchResults.matches.length > 0) {
-        evaluation.semantic_matches = matchResults.matches;
-      }
-      
-      // Process the evaluation results
-      const processedEvaluation = processEvaluation(
-        evaluation,
-        testId,
-        studentAnswer,
-        processedStudentAnswer.text,
-        existingQuestionText,
-        finalAnswerKeyText
-      );
+      };
+
+      // Race between the processing and the timeout
+      const processedEvaluation = await Promise.race([
+        processingPromise(),
+        requestTimeoutPromise
+      ]);
       
       // Return the processed evaluation
       return new Response(

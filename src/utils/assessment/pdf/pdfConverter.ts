@@ -1,6 +1,6 @@
 
-import JSZip from "jszip";
 import { v4 as uuidv4 } from "uuid";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Helper function to convert a data URL to a Blob object
@@ -21,18 +21,21 @@ export function dataURLToBlob(dataURL: string): Blob {
 }
 
 /**
- * Convert any image to PNG format using canvas
+ * Convert image to optimized JPEG format using canvas with grayscale and compression
+ * for smaller file size and better OCR performance
  */
-export async function convertImageToPng(imageUrl: string): Promise<string> {
+export async function convertImageToOptimized(imageUrl: string, useGrayscale: boolean = true): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     
-    img.onload = () => {
-      // Create canvas and draw image
+    img.onload = async () => {
+      // Create canvas with lower resolution (75 DPI equivalent)
+      // This is approximately 30% of original dimensions
+      const scaleFactor = 0.3;
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = img.width * scaleFactor;
+      canvas.height = img.height * scaleFactor;
       
       const ctx = canvas.getContext('2d');
       if (!ctx) {
@@ -40,15 +43,63 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
         return;
       }
       
-      // Draw image with white background to handle transparency
+      // Draw white background to handle transparency
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
       
-      // Convert to PNG
+      // Apply grayscale filter for better OCR performance and smaller file size
+      if (useGrayscale) {
+        ctx.filter = 'grayscale(100%)';
+      }
+      
+      // Draw image with optimized settings
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // Use JPEG with lower quality for best size reduction (65% quality)
       try {
-        const pngDataUrl = canvas.toDataURL('image/png');
-        resolve(pngDataUrl);
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
+        const originalSizeEstimate = img.width * img.height * 4 / 1024; // KB estimate
+        const newSizeEstimate = optimizedDataUrl.length * 0.75 / 1024; // KB estimate
+        console.log(`Optimized image: ${Math.round(originalSizeEstimate)}KB → ${Math.round(newSizeEstimate)}KB (${Math.round(newSizeEstimate/originalSizeEstimate*100)}%)`);
+        
+        // Upload the optimized image to storage and return the URL
+        try {
+          const imageBlob = dataURLToBlob(optimizedDataUrl);
+          const fileName = `optimized_${uuidv4()}.jpg`;
+          const filePath = `optimized_images/${fileName}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('files')
+            .upload(filePath, imageBlob, {
+              contentType: 'image/jpeg',
+              cacheControl: 'max-age=3600'
+            });
+            
+          if (uploadError) {
+            console.error("Error uploading optimized image:", uploadError);
+            // Fall back to data URL if upload fails
+            resolve(optimizedDataUrl);
+            return;
+          }
+          
+          const { data: urlData } = await supabase.storage
+            .from('files')
+            .getPublicUrl(filePath);
+            
+          if (!urlData || !urlData.publicUrl) {
+            console.error("Failed to get public URL for optimized image");
+            // Fall back to data URL if getting URL fails
+            resolve(optimizedDataUrl);
+            return;
+          }
+          
+          console.log(`Uploaded optimized image: ${urlData.publicUrl}`);
+          resolve(urlData.publicUrl);
+        } catch (uploadErr) {
+          console.error("Error in image upload process:", uploadErr);
+          // Fall back to data URL if process fails
+          resolve(optimizedDataUrl);
+        }
       } catch (err) {
         reject(err);
       }
@@ -58,23 +109,45 @@ export async function convertImageToPng(imageUrl: string): Promise<string> {
       reject(new Error(`Failed to load image: ${imageUrl}`));
     };
     
-    img.src = imageUrl;
+    // Add cache-busting parameter to avoid caching issues
+    const cacheBuster = imageUrl.includes('?') ? `&cache=${Date.now()}` : `?cache=${Date.now()}`;
+    img.src = imageUrl + cacheBuster;
   });
 }
 
 /**
- * Converts PDF pages to PNG images and adds them to a ZIP file
+ * Convert an image file to optimized format
+ * Returns the URL of the optimized image
  */
-export async function convertPdfPagesToZip(pdfFile: File): Promise<{ 
-  zipBlob: Blob, 
-  pdfPages: number
-}> {
+export async function convertImageFileToOptimized(imageFile: File | Blob): Promise<string> {
+  try {
+    // Create a URL for the image file
+    const imageUrl = URL.createObjectURL(imageFile);
+    
+    // Convert to optimized image using canvas
+    const useGrayscale = true; // Use grayscale for better OCR
+    const optimizedImageUrl = await convertImageToOptimized(imageUrl, useGrayscale);
+    
+    // Clean up the URL
+    URL.revokeObjectURL(imageUrl);
+    
+    console.log(`Successfully created optimized image from file`);
+    
+    return optimizedImageUrl;
+  } catch (error) {
+    console.error("Error converting image to optimized format:", error);
+    throw error;
+  }
+}
+
+/**
+ * Converts PDF pages to optimized JPEG images
+ * Returns URLs for direct OpenAI processing (batch of 4 max)
+ */
+export async function convertPdfPagesToImages(pdfFile: File | Blob): Promise<string[]> {
   try {
     // Create a URL for the PDF file
     const pdfUrl = URL.createObjectURL(pdfFile);
-    
-    // Create a new ZIP file
-    const zip = new JSZip();
     
     // Load the PDF.js library dynamically
     const pdfjsLib = await import('pdfjs-dist');
@@ -84,26 +157,35 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
     const pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
     const numPages = pdfDoc.numPages;
     
-    console.log(`Processing PDF with ${numPages} pages`);
+    // Limit to processing only first 4 pages for performance
+    const pagesToProcess = Math.min(numPages, 4);
+    console.log(`Processing PDF with ${numPages} pages (using first ${pagesToProcess} pages for OCR)`);
     
-    // Process each page
-    for (let i = 1; i <= numPages; i++) {
+    // Always use grayscale for better OCR performance and smaller size
+    const useGrayscale = true;
+    
+    // Store the image URLs
+    const imageUrls: string[] = [];
+    
+    // Process each page (maximum 4)
+    for (let i = 1; i <= pagesToProcess; i++) {
       // Get the page
       const page = await pdfDoc.getPage(i);
       
-      // Set scale for better image quality (higher scale = better quality but larger file size)
-      const scale = 2.0;
+      // Set scale for lower resolution (75 DPI instead of 300 DPI)
+      // This is approximately 0.75 scale factor
+      const scale = 0.75;
       const viewport = page.getViewport({ scale });
       
       // Create a canvas element
       const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       
       if (!context) {
         throw new Error('Canvas context not available');
       }
       
-      // Set canvas dimensions to match the page
+      // Set canvas dimensions to match the scaled page
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       
@@ -113,67 +195,73 @@ export async function convertPdfPagesToZip(pdfFile: File): Promise<{
         viewport
       }).promise;
       
-      // Convert canvas to PNG image (always use PNG format)
-      const pngDataUrl = canvas.toDataURL('image/png');
+      // Apply grayscale filter for better OCR
+      if (useGrayscale) {
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let j = 0; j < data.length; j += 4) {
+          const avg = (data[j] + data[j + 1] + data[j + 2]) / 3;
+          data[j] = data[j + 1] = data[j + 2] = avg;
+        }
+        
+        context.putImageData(imageData, 0, 0);
+      }
       
-      // Convert data URL to blob
-      const pngBlob = dataURLToBlob(pngDataUrl);
+      // Convert canvas to optimized JPEG image with higher compression
+      // Using a lower quality (0.65) for better file size reduction
+      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.65);
       
-      // Add the PNG to the ZIP with a sequential name
-      const paddedPageNum = String(i).padStart(3, '0');
-      zip.file(`page_${paddedPageNum}.png`, pngBlob);
+      // Upload the optimized image to storage
+      try {
+        const imageBlob = dataURLToBlob(imageDataUrl);
+        const fileName = `pdf_page_${i}_${uuidv4()}.jpg`;
+        const filePath = `optimized_pdf_pages/${fileName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('files')
+          .upload(filePath, imageBlob, {
+            contentType: 'image/jpeg',
+            cacheControl: 'max-age=3600'
+          });
+          
+        if (uploadError) {
+          console.error(`Error uploading page ${i}:`, uploadError);
+          // Fall back to data URL if upload fails
+          imageUrls.push(imageDataUrl);
+          continue;
+        }
+        
+        const { data: urlData } = await supabase.storage
+          .from('files')
+          .getPublicUrl(filePath);
+          
+        if (!urlData || !urlData.publicUrl) {
+          console.error(`Failed to get public URL for page ${i}`);
+          // Fall back to data URL if getting URL fails
+          imageUrls.push(imageDataUrl);
+          continue;
+        }
+        
+        console.log(`Uploaded PDF page ${i} as optimized JPEG: ${urlData.publicUrl}`);
+        imageUrls.push(urlData.publicUrl);
+      } catch (uploadErr) {
+        console.error(`Error in upload process for page ${i}:`, uploadErr);
+        // Fall back to data URL if process fails
+        imageUrls.push(imageDataUrl);
+      }
       
-      console.log(`Added page ${i} as PNG image to ZIP file`);
+      console.log(`Processed page ${i} of ${pagesToProcess}`);
     }
-    
-    // Generate the ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
     
     // Clean up the PDF URL
     URL.revokeObjectURL(pdfUrl);
     
-    console.log(`Successfully created ZIP with ${numPages} PNG images`);
+    console.log(`Successfully created ${imageUrls.length} optimized images from PDF`);
     
-    return { 
-      zipBlob,
-      pdfPages: numPages
-    };
+    return imageUrls;
   } catch (error) {
-    console.error("Error converting PDF to ZIP:", error);
-    throw error;
-  }
-}
-
-/**
- * Converts any image file to PNG format and adds it to a ZIP file
- * Used for handling single image uploads
- */
-export async function convertImageFileToZip(imageFile: File): Promise<Blob> {
-  try {
-    // Create a URL for the image file
-    const imageUrl = URL.createObjectURL(imageFile);
-    
-    // Convert to PNG using canvas
-    const pngDataUrl = await convertImageToPng(imageUrl);
-    
-    // Convert data URL to blob
-    const pngBlob = dataURLToBlob(pngDataUrl);
-    
-    // Create a ZIP file with the PNG
-    const zip = new JSZip();
-    zip.file("image_001.png", pngBlob);
-    
-    // Generate ZIP file
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    
-    // Clean up the image URL
-    URL.revokeObjectURL(imageUrl);
-    
-    console.log(`Successfully created ZIP with PNG image`);
-    
-    return zipBlob;
-  } catch (error) {
-    console.error("Error converting image to ZIP:", error);
+    console.error("Error converting PDF to images:", error);
     throw error;
   }
 }
