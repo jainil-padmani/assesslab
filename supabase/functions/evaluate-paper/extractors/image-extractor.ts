@@ -6,6 +6,7 @@ import { createImageBatches, cleanImageUrlsForProcessing } from "../utils/image-
 /**
  * Process image files in batches directly with Claude 3.5 Vision
  * Supports batching up to 4 images per request for better efficiency
+ * Always converts PDFs to images first
  */
 export async function extractTextFromImageFile(
   fileUrl: string, 
@@ -46,6 +47,13 @@ export async function extractTextFromImageFile(
       } catch (e) {
         // If parsing fails, continue with the single URL
         console.log("Not a valid JSON array, treating as single image URL");
+      }
+    }
+    
+    // Validate no PDFs in the URLs - they must be converted to images first
+    for (const url of imageUrls) {
+      if (url.toLowerCase().endsWith('.pdf')) {
+        throw new Error(`PDF detected (${url}). PDFs must be converted to images before processing with Bedrock.`);
       }
     }
     

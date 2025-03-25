@@ -1,13 +1,14 @@
 
 import { createBedrockService } from "../services/bedrock-service.ts";
-import { urlToBase64, cleanUrlForApi } from "../utils/image-processing.ts";
+import { urlToBase64, cleanUrlForApi, isPdfUrl } from "../utils/image-processing.ts";
 import { createImageBatches, cleanImageUrlsForProcessing } from "../utils/image-batch-processing.ts";
 import { extractTextFromImageFile } from "./image-extractor.ts";
 import { extractTextFromZip } from "./zip-extractor.ts";
+import { getDocumentPagesAsImages } from "../services/document-converter.ts";
 
 /**
  * Extract text from a file using Claude 3.5 Vision
- * With improved error handling for large files
+ * Always converts PDFs to images before processing
  */
 export async function extractTextFromFile(
   fileUrl: string, 
@@ -32,6 +33,30 @@ export async function extractTextFromFile(
       );
     }
     
+    // Check if this is a PDF file - if so, convert to images first
+    if (isPdfUrl(fileUrl)) {
+      console.log("PDF file detected, converting to images first before OCR");
+      try {
+        // Get the pre-converted images or throw an error if not available
+        const imageUrls = await getDocumentPagesAsImages(fileUrl);
+        
+        if (imageUrls && imageUrls.length > 0) {
+          console.log(`Successfully converted PDF to ${imageUrls.length} images, processing for OCR`);
+          return await extractTextFromImageFile(
+            JSON.stringify(imageUrls),
+            credentials,
+            systemPrompt || "You are an OCR tool optimized for extracting text from documents. Extract all visible text content accurately.",
+            userPrompt
+          );
+        } else {
+          throw new Error("Failed to convert PDF to images");
+        }
+      } catch (pdfError) {
+        console.error("Error converting PDF to images:", pdfError);
+        throw new Error(`PDF conversion error: ${pdfError.message}`);
+      }
+    }
+    
     // Process the image URL
     let imageData = cleanUrlForApi(fileUrl);
     console.log("Using direct image URL for processing:", imageData);
@@ -50,12 +75,16 @@ export async function extractTextFromFile(
         throw new Error(`Document URL not accessible (HTTP ${testResponse.status}). Please check if the file exists and is publicly accessible.`);
       }
       
-      // Check content type to verify it's an image/pdf
+      // Check content type to verify it's an image
       const contentType = testResponse.headers.get('content-type') || '';
       console.log(`URL content type: ${contentType}`);
       
+      // Reject PDFs directly - they must be converted first
+      if (contentType === 'application/pdf' || contentType.includes('pdf')) {
+        throw new Error("PDF files must be converted to images before processing with vision models.");
+      }
+      
       if (!contentType.startsWith('image/') && 
-          contentType !== 'application/pdf' && 
           !contentType.includes('octet-stream')) {
         console.warn(`URL has unexpected content type: ${contentType}. This might cause OCR issues.`);
       }
@@ -93,7 +122,7 @@ export async function extractTextFromFile(
       
       // If API error contains information about failed images, make it more user-friendly
       if (apiError.message && apiError.message.includes("Failed to process any of the provided images")) {
-        throw new Error(`OCR extraction failed: The document couldn't be processed. Please verify the document is accessible and is in a supported format (PDF or image).`);
+        throw new Error(`OCR extraction failed: The document couldn't be processed. Please verify the document is accessible and is in a supported format (image).`);
       }
       
       throw new Error(`OCR extraction failed: ${apiError.message || "Unknown API error"}`);

@@ -20,7 +20,10 @@ export async function urlToBase64(url: string): Promise<string> {
     // For document files, don't try to convert to base64 at all - pass URL directly
     if (url.toLowerCase().endsWith('.zip') || 
         url.toLowerCase().endsWith('.pdf')) {
-      console.log("Document file detected, returning cleaned URL directly");
+      console.log("Document file detected, but PDF files must be converted to images before processing");
+      if (url.toLowerCase().endsWith('.pdf')) {
+        throw new Error("PDF files must be converted to images before processing with vision models");
+      }
       return cleanUrlForApi(url);
     }
     

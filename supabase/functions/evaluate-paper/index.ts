@@ -5,6 +5,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createBedrockService } from "./services/bedrock-service.ts";
 import { getDocumentPagesAsImages } from "./services/document-converter.ts";
 import { detectFileType } from "./services/document-converter.ts";
+import { isPdfUrl } from "./utils/image-processing.ts";
 
 // CORS headers to allow requests from any origin
 const corsHeaders = {
@@ -105,24 +106,26 @@ serve(async (req) => {
       console.log(`Answer key: ${answerKey.url} (Topic: ${answerKey.topic})`);
       console.log(`Student answer sheet: ${studentAnswer.url}`);
 
-      // Process image URLs - convert PDFs to images first
+      // Process image URLs - ALWAYS convert PDFs to images first
       let questionPaperImages: string[] = [];
       let answerKeyImages: string[] = [];
       let studentAnswerImages: string[] = [];
       
       try {
-        // Process question paper
-        if (detectFileType(questionPaper.url) === 'pdf') {
+        // Process question paper - ALWAYS convert PDFs
+        if (isPdfUrl(questionPaper.url)) {
           console.log("Converting question paper PDF to images");
           questionPaperImages = await getDocumentPagesAsImages(questionPaper.url);
+          console.log(`Converted question paper to ${questionPaperImages.length} images`);
         } else {
           questionPaperImages = [questionPaper.url];
         }
         
-        // Process answer key
-        if (detectFileType(answerKey.url) === 'pdf') {
+        // Process answer key - ALWAYS convert PDFs
+        if (isPdfUrl(answerKey.url)) {
           console.log("Converting answer key PDF to images");
           answerKeyImages = await getDocumentPagesAsImages(answerKey.url);
+          console.log(`Converted answer key to ${answerKeyImages.length} images`);
         } else {
           answerKeyImages = [answerKey.url];
         }
@@ -132,11 +135,20 @@ serve(async (req) => {
           console.log("Using pre-processed images for student answer");
           studentAnswerImages = Array.isArray(studentAnswer.zip_url) ? 
             studentAnswer.zip_url : [studentAnswer.zip_url];
-        } else if (detectFileType(studentAnswer.url) === 'pdf') {
+        } else if (isPdfUrl(studentAnswer.url)) {
           console.log("Converting student answer PDF to images");
           studentAnswerImages = await getDocumentPagesAsImages(studentAnswer.url);
+          console.log(`Converted student answer to ${studentAnswerImages.length} images`);
         } else {
           studentAnswerImages = [studentAnswer.url];
+        }
+        
+        // Ensure no PDFs are in the images list - this would cause errors
+        const allImages = [...questionPaperImages, ...answerKeyImages, ...studentAnswerImages];
+        for (const imageUrl of allImages) {
+          if (isPdfUrl(imageUrl)) {
+            throw new Error(`PDF file detected in processed images: ${imageUrl}. All PDFs must be converted to images first.`);
+          }
         }
       } catch (imageProcessingError) {
         console.error("Error converting documents to images:", imageProcessingError);
@@ -188,24 +200,52 @@ serve(async (req) => {
       `;
 
       // Combine all image URLs for processing
-      // We'll process them in batches inside processImagesWithVision
+      // Process images in batches of 4 (Claude's limit)
       const allImages = [...questionPaperImages, ...answerKeyImages, ...studentAnswerImages];
       
-      // Invoke Bedrock API to evaluate the paper
-      const evaluationResult = await bedrockService.processImagesWithVision({
-        prompt: userPrompt,
-        imageUrls: allImages,
-        max_tokens: 4000,
-        temperature: 0.5,
-        system: systemPrompt
-      });
+      // Batch process the images (max 4 per request)
+      const batchSize = 4;
+      let combinedResult = '';
+      
+      for (let i = 0; i < allImages.length; i += batchSize) {
+        const batch = allImages.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allImages.length/batchSize)} with ${batch.length} images`);
+        
+        const batchPrompt = `${userPrompt}\n\n[This is batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allImages.length/batchSize)}]`;
+        
+        try {
+          // Invoke Bedrock API to evaluate this batch
+          const batchResult = await bedrockService.processImagesWithVision({
+            prompt: batchPrompt,
+            imageUrls: batch,
+            max_tokens: 4000,
+            temperature: 0.5,
+            system: systemPrompt
+          });
+          
+          // Add batch results to combined results
+          if (combinedResult) {
+            combinedResult += '\n\n--- NEXT BATCH ---\n\n';
+          }
+          combinedResult += batchResult;
+          
+          console.log(`Batch ${Math.floor(i/batchSize) + 1} processed successfully`);
+        } catch (batchError) {
+          console.error(`Error processing batch ${Math.floor(i/batchSize) + 1}:`, batchError);
+          // Continue with other batches
+          if (combinedResult) {
+            combinedResult += '\n\n--- BATCH ERROR ---\n\n';
+          }
+          combinedResult += `Error processing batch ${Math.floor(i/batchSize) + 1}: ${batchError.message || 'Unknown error'}`;
+        }
+      }
 
-      console.log(`Evaluation result: ${evaluationResult.substring(0, 200)}...`);
+      console.log(`Evaluation complete: ${combinedResult.substring(0, 200)}...`);
 
       // Return the evaluation result
       return new Response(
         JSON.stringify({
-          text: evaluationResult,
+          text: combinedResult,
           questionPaperImages,
           answerKeyImages,
           studentAnswerImages
