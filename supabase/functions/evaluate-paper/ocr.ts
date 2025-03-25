@@ -91,6 +91,11 @@ async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean>
   try {
     console.log(`Validating ZIP file: ${zipUrl}`);
     
+    // If the URL doesn't end with .zip, add validation
+    if (!zipUrl.toLowerCase().endsWith('.zip') && !zipUrl.toLowerCase().includes('.zip?')) {
+      console.warn("URL does not appear to be a ZIP file:", zipUrl);
+    }
+    
     // Send a quick check request to OpenAI
     const validationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -129,7 +134,7 @@ async function validateZipFile(zipUrl: string, apiKey: string): Promise<boolean>
       console.error("ZIP validation failed:", JSON.stringify(errorData));
       
       if (errorData.error?.code === 'invalid_image_format') {
-        console.error("ZIP contains unsupported image formats");
+        console.error("ZIP contains unsupported image formats. Error:", errorData.error?.message);
         return false;
       }
       
