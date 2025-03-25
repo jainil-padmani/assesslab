@@ -174,58 +174,88 @@ export class BedrockService {
     temperature?: number;
     system?: string;
   }): Promise<string> {
-    const messages = [];
-    const imageContents = [];
-    
-    // Add images to content array (up to 4 images max)
-    for (let i = 0; i < Math.min(params.imageUrls.length, 4); i++) {
+    try {
+      // Validate input
+      if (!params.imageUrls || !Array.isArray(params.imageUrls) || params.imageUrls.length === 0) {
+        throw new Error("No image URLs provided");
+      }
+      
+      console.log(`Processing ${params.imageUrls.length} images with Claude Vision`);
+      
+      const messages = [];
+      const imageContents = [];
+      
+      // Add images to content array (up to 4 images max)
+      for (let i = 0; i < Math.min(params.imageUrls.length, 4); i++) {
+        try {
+          // For each image URL, fetch it and convert to base64
+          const response = await fetch(params.imageUrls[i]);
+          if (!response.ok) {
+            console.error(`Failed to fetch image ${i+1}: ${response.status} ${response.statusText}`);
+            continue;
+          }
+          
+          const imageData = await response.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
+          const mimeType = response.headers.get('content-type') || 'image/jpeg';
+          
+          // Add image to content array
+          imageContents.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mimeType,
+              data: base64
+            }
+          });
+        } catch (error) {
+          console.error(`Error processing image ${i+1}:`, error);
+          // Continue with other images if one fails
+        }
+      }
+      
+      // Check if we have any valid images
+      if (imageContents.length === 0) {
+        throw new Error("Failed to process any of the provided images");
+      }
+      
+      // Create the message with text and images
+      const userMessage = {
+        role: "user",
+        content: [
+          { type: "text", text: params.prompt },
+          ...imageContents
+        ]
+      };
+      
+      messages.push(userMessage);
+      
       try {
-        // For each image URL, fetch it and convert to base64
-        const response = await fetch(params.imageUrls[i]);
-        if (!response.ok) {
-          console.error(`Failed to fetch image ${i+1}: ${response.status} ${response.statusText}`);
-          continue;
+        const response = await this.invokeModel({
+          messages: messages,
+          max_tokens: params.max_tokens || 4000,
+          temperature: params.temperature || 0.2,
+          system: params.system
+        });
+        
+        // Verify response structure before accessing properties
+        if (!response || !response.content || !Array.isArray(response.content) || response.content.length === 0) {
+          console.error("Invalid response format from Bedrock:", JSON.stringify(response));
+          throw new Error("Invalid response format from Bedrock API");
         }
         
-        const imageData = await response.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
-        const mimeType = response.headers.get('content-type') || 'image/jpeg';
+        // Safely access the text content
+        const textContent = response.content[0]?.text;
+        if (typeof textContent !== 'string') {
+          console.error("Response does not contain expected text content:", JSON.stringify(response));
+          throw new Error("No text content in Bedrock API response");
+        }
         
-        // Add image to content array
-        imageContents.push({
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: mimeType,
-            data: base64
-          }
-        });
+        return textContent;
       } catch (error) {
-        console.error(`Error processing image ${i+1}:`, error);
-        // Continue with other images if one fails
+        console.error("Error in Bedrock API call:", error);
+        throw error;
       }
-    }
-    
-    // Create the message with text and images
-    const userMessage = {
-      role: "user",
-      content: [
-        { type: "text", text: params.prompt },
-        ...imageContents
-      ]
-    };
-    
-    messages.push(userMessage);
-    
-    try {
-      const response = await this.invokeModel({
-        messages: messages,
-        max_tokens: params.max_tokens || 4000,
-        temperature: params.temperature || 0.2,
-        system: params.system
-      });
-      
-      return response.content[0].text;
     } catch (error) {
       console.error("Error in processImagesWithVision:", error);
       throw error;
