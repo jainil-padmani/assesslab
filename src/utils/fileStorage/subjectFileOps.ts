@@ -1,145 +1,105 @@
 
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { SubjectFile } from "@/types/dashboard";
+import { v4 as uuidv4 } from "uuid";
 import { uploadService } from "@/services/uploadService";
+import type { SubjectFile } from "@/types/dashboard";
 
-// Fetch subject files from database
-export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[]> => {
+/**
+ * Uploads a subject file to UploadThing and saves metadata to the database
+ */
+export const uploadSubjectFile = async (
+  subjectId: string,
+  topic: string,
+  questionPaper: File | null,
+  answerKey: File | null
+): Promise<boolean> => {
   try {
-    console.log('Fetching subject files for subject ID:', subjectId);
+    let questionPaperUrl = "";
+    let answerKeyUrl = "";
     
-    // Get the current user ID to filter by ownership
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-    
-    // Fetch subject files from the database
-    const { data: subjectDocuments, error } = await supabase
-      .from('subject_documents')
-      .select('*')
-      .eq('subject_id', subjectId)
-      .eq('user_id', user.id);
-      
-    if (error) throw error;
-    
-    // Group files by topic to create SubjectFile objects
-    const filesByTopic: Record<string, SubjectFile> = {};
-    
-    for (const doc of subjectDocuments || []) {
-      // Extract topic from file_name if present, or use the document_type
-      const nameParts = doc.file_name?.split('_') || [];
-      const topic = nameParts.length > 1 ? nameParts[1] : doc.document_type;
-      const topicKey = `${subjectId}_${topic}`;
-      
-      if (!filesByTopic[topicKey]) {
-        filesByTopic[topicKey] = {
-          id: topicKey,
-          subject_id: subjectId,
-          topic: topic.replace(/_/g, ' '),
-          question_paper_url: '',
-          answer_key_url: '',
-          handwritten_paper_url: null,
-          created_at: doc.created_at,
-          user_id: doc.user_id
-        };
-      }
-      
-      // Set URL based on document_type
-      if (doc.document_type === 'questionPaper') {
-        filesByTopic[topicKey].question_paper_url = doc.document_url;
-      } else if (doc.document_type === 'answerKey') {
-        filesByTopic[topicKey].answer_key_url = doc.document_url;
-      } else if (doc.document_type === 'handwrittenPaper') {
-        filesByTopic[topicKey].handwritten_paper_url = doc.document_url;
-      }
+    // Upload question paper if provided
+    if (questionPaper) {
+      questionPaperUrl = await uploadService.uploadFile(questionPaper, 'questionPaper');
     }
     
-    // Filter to include files with at least a question paper
-    const files = Object.values(filesByTopic).filter(
-      file => file.question_paper_url
-    );
+    // Upload answer key if provided
+    if (answerKey) {
+      answerKeyUrl = await uploadService.uploadFile(answerKey, 'answerKey');
+    }
     
-    console.log('Found subject files:', files.length);
-    return files;
-  } catch (error: any) {
-    console.error('Error fetching subject files:', error);
-    toast.error('Failed to fetch subject files');
-    return [];
-  }
-};
-
-// Function to delete files by group
-export const deleteFileGroup = async (filePrefix: string, topic: string): Promise<boolean> => {
-  try {
-    console.log(`Attempting to delete file group with prefix: ${filePrefix}, topic: ${topic}`);
+    // Save file metadata to the database
+    const fileId = uuidv4();
+    const { error } = await supabase.from('subject_files').insert({
+      id: fileId,
+      subject_id: subjectId,
+      topic,
+      question_paper_url: questionPaperUrl,
+      answer_key_url: answerKeyUrl,
+      created_at: new Date().toISOString()
+    });
     
-    // Get current user to verify ownership
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-    
-    // For UploadThing, we only need to delete the database records
-    // The URLs will remain but that's fine as they're managed by UploadThing
-    
-    // Delete database records
-    const { error } = await supabase
-      .from('subject_documents')
-      .delete()
-      .filter('file_name', 'ilike', `${filePrefix}_${topic}_%`);
-      
     if (error) throw error;
     
-    toast.success("Files deleted successfully");
     return true;
   } catch (error) {
-    console.error("Error deleting files:", error);
-    toast.error("Failed to delete files");
+    console.error("Error uploading subject file:", error);
     return false;
   }
 };
 
-// Function to upload a new file for a subject
-export const uploadSubjectFile = async (
-  subjectId: string,
-  topic: string,
-  file: File,
-  fileType: 'questionPaper' | 'answerKey' | 'handwrittenPaper'
-): Promise<string> => {
+/**
+ * Fetches subject files from the database
+ */
+export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[]> => {
   try {
-    // Verify ownership of the subject
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
+    const { data, error } = await supabase
+      .from('subject_files')
+      .select('*')
+      .eq('subject_id', subjectId)
+      .order('created_at', { ascending: false });
     
-    const { data: subject } = await supabase
-      .from('subjects')
-      .select('user_id')
-      .eq('id', subjectId)
-      .single();
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching subject files:", error);
+    return [];
+  }
+};
+
+/**
+ * Deletes a group of files from the database
+ */
+export const deleteFileGroup = async (prefix: string, topic: string): Promise<boolean> => {
+  try {
+    // With UploadThing, we're just removing the database records
+    // The actual files would need to be managed via UploadThing dashboard
+    
+    // For test files
+    if (prefix.startsWith('test_')) {
+      const testId = prefix.replace('test_', '');
+      const { error } = await supabase
+        .from('test_files')
+        .delete()
+        .eq('test_id', testId)
+        .eq('topic', topic);
       
-    if (!subject || subject.user_id !== user.id) {
-      throw new Error("You don't have permission to upload files to this subject");
+      if (error) throw error;
+    } 
+    // For subject files
+    else {
+      const { error } = await supabase
+        .from('subject_files')
+        .delete()
+        .eq('subject_id', prefix)
+        .eq('topic', topic);
+      
+      if (error) throw error;
     }
     
-    // Upload to UploadThing
-    const fileUrl = await uploadService.uploadFile(file, fileType);
-    
-    // Create a unique filename for database record
-    const sanitizedTopic = topic.replace(/\s+/g, '_');
-    const fileName = `${subjectId}_${sanitizedTopic}_${fileType}_${Date.now()}`;
-    
-    // Insert record into subject_documents
-    await supabase.from('subject_documents').insert({
-      subject_id: subjectId,
-      user_id: user.id,
-      file_name: fileName,
-      document_type: fileType,
-      document_url: fileUrl,
-      file_type: file.name.split('.').pop() || '',
-      file_size: file.size
-    });
-    
-    return fileUrl;
+    return true;
   } catch (error) {
-    console.error(`Error uploading ${fileType}:`, error);
-    throw error;
+    console.error("Error deleting file group:", error);
+    return false;
   }
 };
