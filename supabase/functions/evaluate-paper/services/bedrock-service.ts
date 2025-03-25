@@ -8,7 +8,7 @@ export class BedrockService {
   private accessKeyId: string;
   private secretAccessKey: string;
   private region: string;
-  private service = 'bedrock';
+  private service = 'bedrock-runtime'; // Updated to bedrock-runtime
   private model = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
   constructor(accessKeyId: string, secretAccessKey: string, region: string) {
@@ -128,6 +128,7 @@ export class BedrockService {
 
   /**
    * Invoke Claude 3.5 Sonnet model for text generation
+   * Updated to match the required Bedrock request format
    */
   async invokeModel(params: {
     messages: any[];
@@ -138,17 +139,32 @@ export class BedrockService {
   }): Promise<any> {
     const path = `/model/${this.model}/invoke`;
     
-    // Prepare the request body for Claude
+    // Create messages array with system message if provided
+    const messages = [...params.messages];
+    
+    // Add system message if provided
+    if (params.system) {
+      messages.unshift({
+        role: "system",
+        content: params.system
+      });
+    }
+    
+    // Prepare the request body according to Bedrock requirements
     const requestBody = {
-      anthropic_version: params.anthropic_version || "bedrock-2023-05-31",
+      modelId: this.model,
+      input: {
+        messages: messages
+      },
       max_tokens: params.max_tokens || 4000,
-      temperature: params.temperature || 0.5,
-      messages: params.messages,
-      system: params.system
+      temperature: params.temperature || 0.5
     };
     
     const payload = JSON.stringify(requestBody);
     const headers = await this.createSignatureHeaders('POST', path, payload);
+    
+    console.log(`Sending request to Bedrock API: ${this.service}.${this.region}.amazonaws.com${path}`);
+    console.log(`Request payload structure: ${JSON.stringify(Object.keys(requestBody))}`);
     
     const response = await fetch(`https://${this.service}.${this.region}.amazonaws.com${path}`, {
       method: 'POST',
@@ -158,15 +174,20 @@ export class BedrockService {
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`Bedrock API error (${response.status}): ${errorText}`);
       throw new Error(`Bedrock API error (${response.status}): ${errorText}`);
     }
     
-    return await response.json();
+    const responseData = await response.json();
+    console.log("Response structure:", Object.keys(responseData));
+    
+    // Handle the updated response format from Bedrock
+    return responseData;
   }
 
   /**
    * Process images with Claude Vision
-   * Enhanced with better error handling and fallback mechanisms
+   * Updated for the new Bedrock request format
    */
   async processImagesWithVision(params: {
     prompt: string;
@@ -183,7 +204,6 @@ export class BedrockService {
       
       console.log(`Processing ${params.imageUrls.length} images with Claude Vision`);
       
-      const messages = [];
       const imageContents = [];
       const failedImages = [];
       
@@ -242,7 +262,7 @@ export class BedrockService {
           
           console.log(`Successfully processed image ${i+1}: ${base64.substring(0, 50)}... (${imageData.byteLength} bytes)`);
           
-          // Add image to content array
+          // Add image to content array in the correct format for Bedrock
           imageContents.push({
             type: "image",
             source: {
@@ -290,27 +310,39 @@ export class BedrockService {
         ]
       };
       
-      messages.push(userMessage);
-      
       try {
         console.log(`Invoking Bedrock with ${imageContents.length} images`);
         const response = await this.invokeModel({
-          messages: messages,
+          messages: [userMessage],
           max_tokens: params.max_tokens || 4000,
           temperature: params.temperature || 0.2,
           system: params.system
         });
         
-        // Verify response structure before accessing properties
-        if (!response || !response.content || !Array.isArray(response.content) || response.content.length === 0) {
+        // Access the response based on the new Bedrock format
+        if (!response || !response.output || !response.output.content) {
           console.error("Invalid response format from Bedrock:", JSON.stringify(response));
           throw new Error("Invalid response format from Bedrock API");
         }
         
-        // Safely access the text content
-        const textContent = response.content[0]?.text;
-        if (typeof textContent !== 'string') {
-          console.error("Response does not contain expected text content:", JSON.stringify(response));
+        // Extract text from the response
+        const contents = response.output.content;
+        if (!Array.isArray(contents) || contents.length === 0) {
+          console.error("Invalid content format in response:", JSON.stringify(response.output));
+          throw new Error("Invalid content format in Bedrock API response");
+        }
+        
+        // Find the text content in the array
+        let textContent = "";
+        for (const item of contents) {
+          if (item.type === "text") {
+            textContent = item.text;
+            break;
+          }
+        }
+        
+        if (!textContent) {
+          console.error("No text content found in response:", JSON.stringify(contents));
           throw new Error("No text content in Bedrock API response");
         }
         
