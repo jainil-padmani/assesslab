@@ -1,11 +1,16 @@
 
 import { createOpenAIService } from "../services/openai-service.ts";
+import { createDirectImageUrl } from "../utils/image-processing.ts";
 
 /**
  * Extract text from a file using OpenAI Vision API
  */
 export async function extractTextFromFile(fileUrl: string, apiKey: string, systemPrompt: string = ''): Promise<string> {
   try {
+    if (!fileUrl) {
+      throw new Error("No file URL provided");
+    }
+    
     console.log(`Extracting text from file: ${fileUrl}`);
     const openAIService = createOpenAIService(apiKey);
 
@@ -14,7 +19,7 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       messages: [
         {
           role: "system",
-          content: systemPrompt,
+          content: systemPrompt || "Extract text from the image accurately.",
         },
         {
           role: "user",
@@ -32,12 +37,16 @@ export async function extractTextFromFile(fileUrl: string, apiKey: string, syste
       max_tokens: 2000,
     });
 
-    const extractedText = response.data.choices[0].message?.content || '';
+    if (!response?.data?.choices?.[0]?.message?.content) {
+      throw new Error("OpenAI API returned an empty response");
+    }
+
+    const extractedText = response.data.choices[0].message.content;
     console.log(`Extracted text: ${extractedText.length} characters`);
     return extractedText;
   } catch (error: any) {
     console.error("Error extracting text from file:", error);
-    throw new Error(`OCR extraction failed: ${error.message}`);
+    throw new Error(`OCR extraction failed: ${error.message || "Unknown error"}`);
   }
 }
 
@@ -51,6 +60,10 @@ export async function extractTextFromImageFile(
   userPrompt?: string
 ): Promise<string> {
   try {
+    if (!fileUrl) {
+      throw new Error("No file URL provided");
+    }
+    
     console.log("Processing file for OCR extraction:", fileUrl);
     
     const controller = new AbortController();
@@ -68,7 +81,7 @@ export async function extractTextFromImageFile(
       body: JSON.stringify({
         model: 'gpt-4o',
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: systemPrompt || "Extract text accurately, preserving formatting." },
           { 
             role: 'user', 
             content: [
@@ -97,13 +110,17 @@ export async function extractTextFromImageFile(
     }
     
     const ocrResult = await ocrResponse.json();
-    const extractedOcrText = ocrResult.choices[0]?.message?.content;
+    const extractedOcrText = ocrResult?.choices?.[0]?.message?.content;
     
-    console.log("OCR extraction successful, extracted text length:", extractedOcrText?.length || 0);
-    console.log("Sample extracted text:", extractedOcrText?.substring(0, 100) + "...");
+    if (!extractedOcrText) {
+      throw new Error("OpenAI API returned an empty response");
+    }
+    
+    console.log("OCR extraction successful, extracted text length:", extractedOcrText.length);
+    console.log("Sample extracted text:", extractedOcrText.substring(0, 100) + "...");
     
     return extractedOcrText;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error during OCR processing:", error);
     throw error;
   }
