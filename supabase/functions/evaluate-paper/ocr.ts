@@ -20,8 +20,40 @@ async function extractTextFromFile(
     const isPdf = fileExtension === 'pdf';
     const isValidImageFormat = supportedImageFormats.includes(fileExtension || '');
     
-    if (!isPdf && !isValidImageFormat) {
-      throw new Error(`Unsupported file format: ${fileExtension}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+    // Check if this is a PDF URL and if it has a corresponding ZIP URL
+    if (isPdf) {
+      // If this is a PDF, check if we have a corresponding ZIP URL
+      // PDF files should be converted to PNG images in a ZIP file by the frontend
+      console.error(`PDF file detected: ${fileUrl} - PDF files must be converted to PNG images before OCR`);
+      throw new Error(`PDF files need to be converted to PNG images for OCR processing. Please ensure the PDF is converted using the document conversion process.`);
+    }
+    
+    if (!isValidImageFormat) {
+      throw new Error(`Unsupported file format: ${fileExtension}. Only supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+    }
+    
+    // Validate the URL is accessible before sending to OpenAI
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(fileUrl, { 
+        method: 'HEAD',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to access file: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.startsWith('image/')) {
+        console.warn(`URL has non-image content type: ${contentType}`);
+      }
+    } catch (error) {
+      console.warn(`URL validation failed: ${error.message}, continuing with OpenAI request`);
     }
     
     // Call the OpenAI API for vision OCR

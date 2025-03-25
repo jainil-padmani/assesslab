@@ -84,21 +84,37 @@ export function UploadAnswerSheet({
       // Processing step depends on file type
       if (file.type === 'application/pdf') {
         setProcessingStep("Converting PDF to PNG images...");
+        toast.info('Converting PDF to images for better OCR processing...');
       } else if (file.type.startsWith('image/')) {
-        setProcessingStep("Converting image to PNG format...");
+        setProcessingStep("Processing image...");
       }
       
       // Upload the file to storage
       const { publicUrl, zipUrl } = await uploadAnswerSheetFile(file, studentId);
       
+      if (file.type === 'application/pdf' && !zipUrl) {
+        toast.warning('PDF conversion may have failed. OCR results might be affected.');
+      }
+      
       setProcessingStep("Saving to database...");
-      // Save to test_answers table
+      // Save to test_answers table with appropriate notes
+      let notes = '';
+      if (file.type === 'application/pdf') {
+        notes = zipUrl 
+          ? 'PDF converted to PNG images for OCR' 
+          : 'PDF file - OCR may require conversion';
+      } else if (file.type.startsWith('image/')) {
+        notes = zipUrl 
+          ? 'Image converted to PNG for OCR' 
+          : 'Image file';
+      }
+      
       await saveTestAnswer(
         studentId,
         selectedSubject,
         testId || '',
         publicUrl,
-        file.type === 'application/pdf' ? 'PDF converted to PNG images for OCR' : 'Image converted to PNG for OCR',
+        notes,
         zipUrl
       );
       
@@ -107,7 +123,7 @@ export function UploadAnswerSheet({
         fileInputRef.current.value = '';
       }
       
-      toast.success('Answer sheet uploaded and converted to PNG format successfully');
+      toast.success('Answer sheet uploaded successfully');
       
       // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {

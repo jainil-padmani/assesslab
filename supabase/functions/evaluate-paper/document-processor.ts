@@ -52,6 +52,14 @@ export async function processStudentAnswer(
     
     // If no ZIP or ZIP failed, check for direct URL
     if (studentAnswer.url) {
+      // Check if this is a PDF file
+      const isPdf = studentAnswer.url.split('?')[0].toLowerCase().endsWith('.pdf');
+      
+      if (isPdf) {
+        console.error("PDF file detected without ZIP URL for conversion");
+        throw new Error("PDF files must be converted to PNG images before OCR processing. Please upload the file again.");
+      }
+      
       console.log("Processing student answer from direct URL:", studentAnswer.url);
       
       const extractedText = await extractTextFromFile(
