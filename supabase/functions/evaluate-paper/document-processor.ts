@@ -1,3 +1,4 @@
+
 import { extractTextFromFile, extractTextFromZip, extractQuestionsFromPaper } from './ocr.ts';
 
 /**
@@ -8,6 +9,27 @@ export function addCacheBuster(url: string): string {
   
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}cache=${Date.now()}`;
+}
+
+/**
+ * Safely extracts the file extension from a URL without query parameters
+ */
+function getFileExtension(url: string): string {
+  if (!url) return '';
+  
+  // Remove any query parameters
+  const urlWithoutParams = url.split('?')[0];
+  // Get the last part after the last dot
+  return urlWithoutParams.split('.').pop()?.toLowerCase() || '';
+}
+
+/**
+ * Validates if a file URL points to a supported format
+ */
+function isValidFileFormat(url: string): boolean {
+  const ext = getFileExtension(url);
+  const supportedFormats = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+  return supportedFormats.includes(ext);
 }
 
 /**
@@ -45,6 +67,11 @@ export async function processStudentAnswer(apiKey: string, studentAnswer: any, t
           console.log("Falling back to direct URL for student answer");
           result.source = "url_fallback";
           
+          // Validate file format before proceeding
+          if (!isValidFileFormat(studentAnswer.url)) {
+            throw new Error(`Unsupported file format: ${getFileExtension(studentAnswer.url)}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+          }
+          
           try {
             result.text = await extractTextFromFile(
               studentAnswer.url,
@@ -64,6 +91,11 @@ export async function processStudentAnswer(apiKey: string, studentAnswer: any, t
     else if (studentAnswer?.url) {
       console.log(`Processing student answer from direct URL: ${studentAnswer.url}`);
       result.source = "url";
+      
+      // Validate file format before proceeding
+      if (!isValidFileFormat(studentAnswer.url)) {
+        throw new Error(`Unsupported file format: ${getFileExtension(studentAnswer.url)}. Only PDF and supported image formats (PNG, JPG, JPEG, GIF, WEBP) are allowed.`);
+      }
       
       try {
         result.text = await extractTextFromFile(

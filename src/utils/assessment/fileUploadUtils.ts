@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { uploadPdfFile } from "./pdf/pdfFileUtils";
-import { validatePdfFile, validateFileFormat } from "./fileValidation";
+import { validatePdfFile, validateFileFormat, isValidFileFormat } from "./fileValidation";
 import { deletePreviousFiles } from "./fileCleanup";
 import { 
   saveTestAnswer, 

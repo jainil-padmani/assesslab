@@ -40,6 +40,9 @@ export function UploadAnswerSheet({
     // Valid file types: PDF, PNG, JPG
     if (!validateFileFormat(selectedFile)) {
       toast.error('Please upload PDF, PNG, or JPG files only');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
     
@@ -93,6 +96,10 @@ export function UploadAnswerSheet({
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
       console.error('Error uploading answer sheet:', error);
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } finally {
       setIsUploading(false);
       setProcessingStep("");

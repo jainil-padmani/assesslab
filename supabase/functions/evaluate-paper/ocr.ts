@@ -12,8 +12,10 @@ async function extractTextFromFile(
   try {
     console.log(`Extracting text from file: ${fileUrl}`);
     
-    // Check file extension for supported formats
-    const fileExtension = fileUrl.split('.').pop()?.toLowerCase();
+    // Extract file extension without query parameters
+    const urlWithoutParams = fileUrl.split('?')[0];
+    const fileExtension = urlWithoutParams.split('.').pop()?.toLowerCase();
+    
     const supportedImageFormats = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
     const isPdf = fileExtension === 'pdf';
     const isValidImageFormat = supportedImageFormats.includes(fileExtension || '');
