@@ -53,32 +53,38 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
           </div>
         </CardHeader>
         <CardContent className="p-4">
+          {/* Main content with side-by-side layout */}
           <div className="space-y-3">
-            {/* Question Paper Section */}
-            <DocumentSection 
-              url={file.question_paper_url}
-              type="question"
-              hasOcrText={!!ocr.questionOcrText}
-              isLoadingOcr={ocr.loadingOcrQuestion}
-              onShowOcr={() => ocr.setShowOcrQuestionDialog(true)}
-              onStartEdit={ocr.startEditingQuestionText}
-              onProcessOcr={() => ocr.processOcr(file.question_paper_url, 'question')}
-            />
+            {/* Question Paper and Answer Key Side-by-Side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Question Paper Section */}
+              {file.question_paper_url && (
+                <DocumentSection 
+                  url={file.question_paper_url}
+                  type="question"
+                  hasOcrText={!!ocr.questionOcrText}
+                  isLoadingOcr={ocr.loadingOcrQuestion}
+                  onShowOcr={() => ocr.setShowOcrQuestionDialog(true)}
+                  onStartEdit={ocr.startEditingQuestionText}
+                  onProcessOcr={() => ocr.processOcr(file.question_paper_url, 'question')}
+                />
+              )}
+              
+              {/* Answer Key Section */}
+              {file.answer_key_url && (
+                <DocumentSection 
+                  url={file.answer_key_url}
+                  type="answer"
+                  hasOcrText={!!ocr.answerOcrText}
+                  isLoadingOcr={ocr.loadingOcrAnswer}
+                  onShowOcr={() => ocr.setShowOcrAnswerDialog(true)}
+                  onStartEdit={ocr.startEditingAnswerText}
+                  onProcessOcr={() => ocr.processOcr(file.answer_key_url, 'answer')}
+                />
+              )}
+            </div>
             
-            {/* Answer Key Section */}
-            {file.answer_key_url && (
-              <DocumentSection 
-                url={file.answer_key_url}
-                type="answer"
-                hasOcrText={!!ocr.answerOcrText}
-                isLoadingOcr={ocr.loadingOcrAnswer}
-                onShowOcr={() => ocr.setShowOcrAnswerDialog(true)}
-                onStartEdit={ocr.startEditingAnswerText}
-                onProcessOcr={() => ocr.processOcr(file.answer_key_url, 'answer')}
-              />
-            )}
-            
-            {/* Handwritten Paper Section */}
+            {/* Handwritten Paper Section (Full Width) */}
             {file.handwritten_paper_url && (
               <DocumentSection 
                 url={file.handwritten_paper_url} 
