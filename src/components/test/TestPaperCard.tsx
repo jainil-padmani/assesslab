@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Card,
@@ -100,8 +101,20 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
         }
       });
 
+      // Check if the edge function returned an error
       if (response.error) {
         throw new Error(response.error.message || 'Failed to process OCR');
+      }
+
+      // Check if the response indicates a PDF file that can't be directly processed
+      if (response.data?.is_pdf) {
+        toast.info('PDF files cannot be directly extracted. Please use "Enter Text" instead.');
+        if (fileType === 'question') {
+          setEditingQuestionText(true);
+        } else {
+          setEditingAnswerText(true);
+        }
+        return;
       }
 
       const extractedText = response.data?.text;
@@ -132,6 +145,13 @@ export function TestPaperCard({ file, onDelete }: TestPaperCardProps) {
     } catch (error) {
       console.error(`Error processing ${fileType} OCR:`, error);
       toast.error(`Failed to process ${fileType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Suggest manual text entry when OCR fails
+      if (fileType === 'question') {
+        toast.info('Try entering the text manually instead');
+      } else if (fileType === 'answer') {
+        toast.info('Try entering the text manually instead');
+      }
     } finally {
       // Reset loading state
       if (fileType === 'question') {
