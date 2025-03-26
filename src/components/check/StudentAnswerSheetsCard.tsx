@@ -86,6 +86,11 @@ export function StudentAnswerSheetsCard({
     setSearchQuery("");
   };
 
+  const handleTestFilesUploaded = () => {
+    // Trigger a refresh of the component
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   return (
     <Card className="shadow-sm border-slate-200 dark:border-slate-800 overflow-hidden">
       <AnswerSheetHeader 
@@ -99,6 +104,8 @@ export function StudentAnswerSheetsCard({
           areTestFilesReady={areTestFilesReady}
           evaluatingStudents={evaluatingStudents}
           evaluationProgress={evaluationProgress}
+          testId={selectedTest}
+          onTestFilesUploaded={handleTestFilesUploaded}
         />
         
         <AnswerSheetSearch onSearchChange={handleSearchChange} />

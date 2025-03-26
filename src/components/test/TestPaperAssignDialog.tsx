@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { FilePlus, AlertTriangle, FileCheck } from "lucide-react";
+import { FilePlus, AlertTriangle, FileCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { SubjectFile } from "@/types/dashboard";
 
@@ -55,7 +55,9 @@ export function TestPaperAssignDialog({
   useEffect(() => {
     if (subjectFiles) {
       console.log("Filtering subject files for valid papers:", subjectFiles);
-      const validFiles = subjectFiles.filter(file => file.question_paper_url && file.answer_key_url);
+      const validFiles = subjectFiles.filter(file => 
+        file.question_paper_url && file.answer_key_url
+      );
       setValidSubjectFiles(validFiles);
       console.log("Valid subject files:", validFiles);
       
@@ -83,7 +85,9 @@ export function TestPaperAssignDialog({
     
     try {
       console.log("Assigning paper with ID:", selectedExistingFile);
+      toast.info("Assigning paper, please wait...");
       await onAssignPaper(selectedExistingFile);
+      
       // Reset selection after successful assignment
       setSelectedExistingFile(null);
       setAssignAttempted(false);
@@ -98,7 +102,7 @@ export function TestPaperAssignDialog({
       <DialogTrigger asChild>
         <Button>
           <FilePlus className="mr-2 h-4 w-4" />
-          Add Papers
+          Assign Existing Papers
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
@@ -113,7 +117,7 @@ export function TestPaperAssignDialog({
           <div className="flex items-center space-x-2 rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div className="text-sm">
-              Note: Only papers with both question papers and answer keys are shown. Answer keys are now required.
+              Note: Only papers with both question papers and answer keys are shown. Answer keys are required.
             </div>
           </div>
 
@@ -161,12 +165,22 @@ export function TestPaperAssignDialog({
         </div>
         
         <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>
+            Cancel
+          </Button>
           <Button
             type="submit"
             onClick={handleAssignPaper}
             disabled={isUploading || !selectedExistingFile}
           >
-            {isUploading ? 'Assigning...' : 'Assign Papers'}
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Assigning...
+              </>
+            ) : (
+              'Assign Papers'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

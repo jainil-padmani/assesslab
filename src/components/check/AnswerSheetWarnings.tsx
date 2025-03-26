@@ -1,30 +1,49 @@
 
 import { AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { TestPaperUploadDialog } from "@/components/test/TestPaperUploadDialog";
 
 interface AnswerSheetWarningsProps {
   areTestFilesReady: boolean;
   evaluatingStudents: string[];
   evaluationProgress: number;
+  testId?: string;
+  onTestFilesUploaded?: () => void;
 }
 
 export function AnswerSheetWarnings({ 
   areTestFilesReady, 
   evaluatingStudents, 
-  evaluationProgress 
+  evaluationProgress,
+  testId,
+  onTestFilesUploaded
 }: AnswerSheetWarningsProps) {
+  const [openUploadDialog, setOpenUploadDialog] = useState(false);
+
   return (
     <>
-      {!areTestFilesReady && (
-        <div className="mx-6 my-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg shadow-sm flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
-              Missing test files
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
-              Both question paper and answer key are required to evaluate student answers.
-            </p>
+      {!areTestFilesReady && testId && (
+        <div className="mx-6 my-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                Missing test files
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-500 mt-1 mb-3">
+                Both question paper and answer key are required to evaluate student answers.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-amber-200 bg-amber-100 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-400"
+                onClick={() => setOpenUploadDialog(true)}
+              >
+                Upload Test Files
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -42,6 +61,16 @@ export function AnswerSheetWarnings({
           </div>
           <Progress value={evaluationProgress} className="h-2" />
         </div>
+      )}
+
+      {/* Upload Dialog */}
+      {testId && (
+        <TestPaperUploadDialog
+          testId={testId}
+          isOpen={openUploadDialog}
+          onOpenChange={setOpenUploadDialog}
+          onSuccess={onTestFilesUploaded}
+        />
       )}
     </>
   );

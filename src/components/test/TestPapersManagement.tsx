@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -7,11 +8,12 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FilePlus, RefreshCw } from "lucide-react";
+import { FilePlus, RefreshCw, Upload } from "lucide-react";
 import type { Test } from "@/types/tests";
 import { useTestPapers } from "@/hooks/useTestPapers";
 import { TestPaperCard } from "./TestPaperCard";
 import { TestPaperAssignDialog } from "./TestPaperAssignDialog";
+import { TestPaperUploadDialog } from "./TestPaperUploadDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -22,6 +24,7 @@ interface TestPapersProps {
 export function TestPapersManagement({ test }: TestPapersProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openUploadPaperDialog, setOpenUploadPaperDialog] = useState(false);
   
   const {
     testFiles,
@@ -35,14 +38,32 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     forceCompleteRefresh
   } = useTestPapers(test, refreshTrigger);
 
-  useEffect(() => {
-    const refreshData = async () => {
-      console.log("Initial test papers refresh for test ID:", test.id);
+  // Initial load to fetch the test papers data
+  const refreshData = useCallback(async () => {
+    try {
+      console.log("Refreshing test papers for test ID:", test.id);
       await forceCompleteRefresh();
-    };
-    
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    }
+  }, [test.id, forceCompleteRefresh]);
+
+  useEffect(() => {
     refreshData();
-  }, [test.id, forceCompleteRefresh, refreshTrigger]);
+    
+    // Set up a periodic refresh every 10 seconds for a minute to ensure files are loaded
+    const intervalId = setInterval(() => {
+      console.log("Periodic refresh of test papers");
+      refreshData();
+    }, 10000);
+    
+    // Clear the interval after 1 minute
+    setTimeout(() => {
+      clearInterval(intervalId);
+    }, 60000);
+    
+    return () => clearInterval(intervalId);
+  }, [test.id, refreshData]);
 
   const handleManualRefresh = async () => {
     try {
@@ -76,16 +97,20 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       }
       
       console.log("Assigning paper:", selectedFile);
+      toast.info("Assigning paper, please wait...");
+      
       const success = await assignExistingPaper(fileId);
       
       if (success) {
         setOpenUploadDialog(false);
         toast.success("Paper successfully assigned to test");
-        console.log("Paper assigned successfully. Current test files:", testFiles);
+        
+        // Force a complete refresh after assignment
         await forceCompleteRefresh();
+        
+        // Trigger another refresh after a delay to ensure the files are loaded
         setTimeout(async () => {
           setRefreshTrigger(prev => prev + 1);
-          console.log("Executing delayed refresh after paper assignment");
           await forceCompleteRefresh();
         }, 3000);
       } else {
@@ -99,18 +124,19 @@ export function TestPapersManagement({ test }: TestPapersProps) {
 
   const handleDeleteTestPaper = async (file: any) => {
     try {
+      toast.info("Removing test paper...");
       const success = await handleDeleteFile(file);
       if (success) {
+        toast.success("Test paper removed successfully");
         await forceCompleteRefresh();
+      } else {
+        toast.error("Failed to remove test paper");
       }
     } catch (error) {
       console.error("Error deleting test paper:", error);
+      toast.error("Failed to remove test paper");
     }
   };
-
-  useEffect(() => {
-    console.log("Current test files:", testFiles);
-  }, [testFiles]);
 
   return (
     <Card className="mb-8">
@@ -128,6 +154,15 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => setOpenUploadPaperDialog(true)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Papers
+          </Button>
+          
           <TestPaperAssignDialog
             testId={test.id}
             isOpen={openUploadDialog}
@@ -135,6 +170,16 @@ export function TestPapersManagement({ test }: TestPapersProps) {
             subjectFiles={subjectFiles}
             isUploading={isUploading}
             onAssignPaper={handleAssignPaper}
+          />
+          
+          <TestPaperUploadDialog
+            testId={test.id}
+            isOpen={openUploadPaperDialog}
+            onOpenChange={setOpenUploadPaperDialog}
+            onSuccess={() => {
+              refreshData();
+              setTimeout(() => refreshData(), 3000);
+            }}
           />
         </div>
       </CardHeader>
@@ -148,11 +193,17 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           </div>
         ) : !testFiles || testFiles.length === 0 ? (
           <div className="text-center py-6">
-            <p className="text-muted-foreground">No papers uploaded yet for this test.</p>
-            <Button variant="outline" className="mt-4" onClick={() => setOpenUploadDialog(true)}>
-              <FilePlus className="mr-2 h-4 w-4" />
-              Add Papers
-            </Button>
+            <p className="text-muted-foreground mb-4">No papers uploaded yet for this test.</p>
+            <div className="flex justify-center gap-3">
+              <Button onClick={() => setOpenUploadPaperDialog(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Papers
+              </Button>
+              <Button variant="outline" onClick={() => setOpenUploadDialog(true)}>
+                <FilePlus className="mr-2 h-4 w-4" />
+                Assign Existing Papers
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
