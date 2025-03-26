@@ -40,16 +40,27 @@ export function StudentAnswerSheetsCard({
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<Student[]>(classStudents);
   
-  // Listen for answer sheet upload events
+  // Listen for any kind of refresh events
   useEffect(() => {
-    const handleAnswerSheetUploaded = () => {
-      console.log('Answer sheet uploaded event received in StudentAnswerSheetsCard');
+    const handleRefreshEvent = () => {
+      console.log('Refresh event received in StudentAnswerSheetsCard');
       setRefreshTrigger(prev => prev + 1);
     };
     
-    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+    const events = [
+      'answerSheetUploaded',
+      'testFileUploaded',
+      'testFileAssigned'
+    ];
+    
+    events.forEach(event => {
+      document.addEventListener(event, handleRefreshEvent);
+    });
+    
     return () => {
-      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
+      events.forEach(event => {
+        document.removeEventListener(event, handleRefreshEvent);
+      });
     };
   }, []);
 
@@ -88,7 +99,12 @@ export function StudentAnswerSheetsCard({
 
   const handleTestFilesUploaded = () => {
     // Trigger a refresh of the component
+    console.log("Test files uploaded, triggering refresh in StudentAnswerSheetsCard");
     setRefreshTrigger(prev => prev + 1);
+    
+    // Dispatch an event that other components can listen for
+    const event = new CustomEvent('testFileUploaded');
+    document.dispatchEvent(event);
   };
 
   return (

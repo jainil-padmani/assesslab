@@ -2,7 +2,7 @@
 import { AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TestPaperUploadDialog } from "@/components/test/TestPaperUploadDialog";
 
 interface AnswerSheetWarningsProps {
@@ -21,6 +21,36 @@ export function AnswerSheetWarnings({
   onTestFilesUploaded
 }: AnswerSheetWarningsProps) {
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Force refresh every 5 seconds when upload dialog is open
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    
+    if (openUploadDialog) {
+      interval = setInterval(() => {
+        if (onTestFilesUploaded) {
+          onTestFilesUploaded();
+        }
+      }, 5000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [openUploadDialog, onTestFilesUploaded]);
+
+  const handleUploadSuccess = () => {
+    if (onTestFilesUploaded) {
+      // Call immediately after upload
+      onTestFilesUploaded();
+      
+      // Then set a timer to call again after a short delay to ensure storage is refreshed
+      setTimeout(() => {
+        onTestFilesUploaded();
+      }, 2000);
+    }
+  };
 
   return (
     <>
@@ -69,7 +99,7 @@ export function AnswerSheetWarnings({
           testId={testId}
           isOpen={openUploadDialog}
           onOpenChange={setOpenUploadDialog}
-          onSuccess={onTestFilesUploaded}
+          onSuccess={handleUploadSuccess}
         />
       )}
     </>

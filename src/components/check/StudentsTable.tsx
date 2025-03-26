@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { StudentEvaluationRow } from "./StudentEvaluationRow";
-import type { Student, Subject } from "@/types/dashboard";
+import type { Student } from "@/types/dashboard";
 import type { TestFile } from "@/hooks/useTestSelection";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
 
@@ -31,10 +31,14 @@ export function StudentsTable({
   refreshTrigger,
   onClearSearch
 }: StudentsTableProps) {
+  // Memoized check for question papers and answer keys
   const areTestFilesReady = useMemo(() => {
+    console.log("Checking test files availability:", testFiles);
     const questionPapers = testFiles.filter(file => file.question_paper_url);
     const answerKeys = testFiles.filter(file => file.answer_key_url);
-    return questionPapers.length > 0 && answerKeys.length > 0;
+    const result = questionPapers.length > 0 && answerKeys.length > 0;
+    console.log(`Test files ready: ${result} (${questionPapers.length} question papers, ${answerKeys.length} answer keys)`);
+    return result;
   }, [testFiles]);
 
   const getEvaluationData = (studentId: string) => {

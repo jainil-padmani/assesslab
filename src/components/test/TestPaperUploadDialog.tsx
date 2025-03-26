@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from "uuid";
 import { FileUp, Loader2 } from "lucide-react";
 import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 
@@ -70,7 +69,7 @@ export function TestPaperUploadDialog({
       // Upload question paper
       setUploadProgress(30);
       const questionPaperPath = `test_${testId}_${sanitizedTopic}_questionPaper_${timestamp}`;
-      const { error: questionPaperError } = await supabase.storage
+      const { error: questionPaperError, data: qpData } = await supabase.storage
         .from('files')
         .upload(questionPaperPath, questionPaperFile, {
           cacheControl: '3600',
@@ -84,7 +83,7 @@ export function TestPaperUploadDialog({
       // Upload answer key
       setUploadProgress(60);
       const answerKeyPath = `test_${testId}_${sanitizedTopic}_answerKey_${timestamp}`;
-      const { error: answerKeyError } = await supabase.storage
+      const { error: answerKeyError, data: akData } = await supabase.storage
         .from('files')
         .upload(answerKeyPath, answerKeyFile, {
           cacheControl: '3600',
@@ -102,6 +101,17 @@ export function TestPaperUploadDialog({
       
       setUploadProgress(100);
       toast.success("Test papers uploaded successfully");
+      
+      // Dispatch a global event for test file upload
+      const event = new CustomEvent('testFileUploaded', {
+        detail: {
+          testId,
+          topic: topicName,
+          questionPaperPath,
+          answerKeyPath
+        }
+      });
+      document.dispatchEvent(event);
       
       // Reset form and close dialog
       handleReset();
