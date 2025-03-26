@@ -144,77 +144,12 @@ export const uploadTestFile = async (file: File, fileType: string): Promise<stri
   }
 };
 
-/**
- * Saves answer sheet information to the database
- */
-export const saveTestAnswer = async ({
-  studentId,
-  testId,
-  subjectId,
-  answerSheetUrl,
-  zipUrl,
-  textContent
-}: {
-  studentId: string;
-  testId: string;
-  subjectId: string;
-  answerSheetUrl: string;
-  zipUrl?: string;
-  textContent?: string;
-}): Promise<boolean> => {
-  try {
-    // First check if an entry already exists
-    const { data: existingData, error: checkError } = await supabase
-      .from('test_answers')
-      .select('id')
-      .eq('student_id', studentId)
-      .eq('test_id', testId)
-      .eq('subject_id', subjectId);
-      
-    if (checkError) throw checkError;
-    
-    if (existingData && existingData.length > 0) {
-      // Update existing entry
-      const { error: updateError } = await supabase
-        .from('test_answers')
-        .update({
-          answer_sheet_url: answerSheetUrl,
-          zip_url: zipUrl,
-          text_content: textContent
-        })
-        .eq('student_id', studentId)
-        .eq('test_id', testId)
-        .eq('subject_id', subjectId);
-        
-      if (updateError) throw updateError;
-    } else {
-      // Insert new entry
-      const { error: insertError } = await supabase
-        .from('test_answers')
-        .insert({
-          student_id: studentId,
-          test_id: testId,
-          subject_id: subjectId,
-          answer_sheet_url: answerSheetUrl,
-          zip_url: zipUrl,
-          text_content: textContent
-        });
-        
-      if (insertError) throw insertError;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error saving test answer:', error);
-    return false;
-  }
-};
-
-// Re-export the other utility functions
+// Export all the utility functions
 export {
   validatePdfFile,
   validateFileFormat,
   deletePreviousFiles,
+  saveTestAnswer,
   getAnswerSheetUrl,
   getAnswerSheetZipUrl
 };

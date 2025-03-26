@@ -1,73 +1,128 @@
 
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { 
+  uploadAnswerSheetFile, 
+  saveTestAnswer,
+  getAnswerSheetUrl
+} from "@/utils/assessment/fileUploadUtils";
 
-export function useUploadAssessment(
-  studentId: string | undefined,
-  subjectId: string | undefined,
-  testId: string | undefined,
-  refreshKey: number = 0
-) {
-  const [hasAnswerSheet, setHasAnswerSheet] = useState(false);
+export function useUploadAssessment(studentId: string, subjectId: string, testId: string, refreshKey?: number) {
+  const [isUploading, setIsUploading] = useState(false);
   const [answerSheetUrl, setAnswerSheetUrl] = useState<string | null>(null);
-  const [answerSheetZipUrl, setAnswerSheetZipUrl] = useState<string | null>(null);
+  const [hasAnswerSheet, setHasAnswerSheet] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Use react-query to fetch the answer sheet data
-  const { data, error, isLoading, refetch } = useQuery({
-    queryKey: ['answer-sheet', studentId, subjectId, testId, refreshKey],
-    queryFn: async () => {
-      if (!studentId || !subjectId || !testId) return null;
-      
-      try {
-        console.log('Fetching answer sheet for:', { studentId, subjectId, testId });
-        
-        // Query test_answers table
-        const { data, error } = await supabase
-          .from('test_answers')
-          .select('answer_sheet_url, zip_url')
-          .eq('student_id', studentId)
-          .eq('subject_id', subjectId)
-          .eq('test_id', testId)
-          .single();
-
-        if (error) {
-          if (error.code === 'PGRST116') {  // No rows returned
-            console.log('No answer sheet found for this student');
-            return null;
-          }
-          throw error;
-        }
-
-        return data;
-      } catch (error: any) {
-        console.error('Error fetching answer sheet:', error);
-        return null;
-      }
-    },
-    enabled: !!studentId && !!subjectId && !!testId,
-  });
-
-  // Update state based on query result
+  // Check for existing answer sheet on mount or when dependencies change
   useEffect(() => {
-    if (data) {
-      setHasAnswerSheet(!!data.answer_sheet_url);
-      setAnswerSheetUrl(data.answer_sheet_url);
-      setAnswerSheetZipUrl(data.zip_url || null);
-    } else {
-      setHasAnswerSheet(false);
-      setAnswerSheetUrl(null);
-      setAnswerSheetZipUrl(null);
+    if (studentId && subjectId && testId) {
+      checkExistingAnswerSheet();
     }
-  }, [data]);
+  }, [studentId, subjectId, testId, refreshKey]);
+
+  // Set up listener for answerSheetUploaded event specifically for this student
+  useEffect(() => {
+    const handleAnswerSheetUploaded = (event: CustomEvent) => {
+      const detail = event.detail;
+      if (detail.studentId === studentId && detail.subjectId === subjectId && detail.testId === testId) {
+        console.log(`Upload event detected for student ${studentId}, refreshing answer sheet data`);
+        checkExistingAnswerSheet();
+      }
+    };
+
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    
+    return () => {
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    };
+  }, [studentId, subjectId, testId]);
+
+  const checkExistingAnswerSheet = async () => {
+    try {
+      // Use test_answers table
+      const url = await getAnswerSheetUrl(studentId, subjectId, testId);
+      
+      if (url) {
+        setAnswerSheetUrl(url);
+        setHasAnswerSheet(true);
+      } else {
+        setAnswerSheetUrl(null);
+        setHasAnswerSheet(false);
+      }
+    } catch (error) {
+      console.error("Error checking existing answer sheet:", error);
+    }
+  };
+
+  const openFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    } else {
+      // Dispatch a custom event to open the file dialog
+      const event = new CustomEvent('openFileUpload', { 
+        detail: { studentId, subjectId, testId } 
+      });
+      document.dispatchEvent(event);
+    }
+  };
+
+  const handleFileSelected = async (file: File) => {
+    if (!testId) {
+      toast.error("No test selected");
+      return null;
+    }
+    
+    try {
+      setIsUploading(true);
+      
+      // Upload the file
+      const { publicUrl } = await uploadAnswerSheetFile(file);
+      
+      // Save to test_answers
+      await saveTestAnswer(
+        studentId, 
+        subjectId, 
+        testId, 
+        publicUrl,
+        "Uploaded document"
+      );
+      
+      // Update UI state
+      setAnswerSheetUrl(publicUrl);
+      setHasAnswerSheet(true);
+      
+      toast.success("Answer sheet uploaded successfully");
+      
+      // Dispatch event for other components to listen
+      const event = new CustomEvent('answerSheetUploaded', { 
+        detail: { studentId, subjectId, testId, url: publicUrl } 
+      });
+      document.dispatchEvent(event);
+      
+      return publicUrl;
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload file");
+      console.error("Error uploading file:", error);
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Function to manually trigger a refresh of the data
+  const refetch = () => {
+    checkExistingAnswerSheet();
+  };
 
   return {
+    isUploading,
     hasAnswerSheet,
     answerSheetUrl,
-    answerSheetZipUrl,
-    isLoading,
-    error,
+    fileInputRef,
+    openFileUpload,
+    handleFileSelected,
+    checkExistingAnswerSheet,
     refetch
   };
 }

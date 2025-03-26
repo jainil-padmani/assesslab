@@ -1,418 +1,434 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  HelpCircle,
-  Upload,
-  FileText,
-  BookOpen,
-  PlusCircle,
-  Settings,
-  Download
-} from 'lucide-react';
-import { toast } from 'sonner';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { History } from "lucide-react";
+import { useSubjects } from "@/hooks/useSubjects";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { GeneratedPaper, Question, Json } from "@/types/papers";
+import { SubjectSelect } from "@/components/paper-generation/SubjectSelect";
+import { ContentUpload } from "@/components/paper-generation/ContentUpload";
+import { QuestionTypes } from "@/components/paper-generation/QuestionTypes";
+import { QuestionParameters } from "@/components/paper-generation/QuestionParameters";
+import { GeneratedQuestions } from "@/components/paper-generation/GeneratedQuestions";
 import { QuestionHistory } from "@/components/paper-generation/QuestionHistory";
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useUser } from '@/hooks/useUser';
-import { GeneratedPaper } from '@/types/papers';
+
+interface CourseOutcome {
+  id: string;
+  co_number: number;
+  description: string;
+  questionCount: number;
+  selected: boolean;
+  open: boolean; // Track if this course outcome's collapsible is open
+  questionDistribution: {
+    "1 mark": number;
+    "2 marks": number;
+    "4 marks": number;
+    "8 marks": number;
+  }
+}
+
+type QuestionMode = "multiple-choice" | "theory";
+
+interface TheoryQuestionConfig {
+  "1 mark": number;
+  "2 marks": number;
+  "4 marks": number;
+  "8 marks": number;
+}
 
 export default function PaperGeneration() {
-  const { user } = useUser();
-  const [activeTab, setActiveTab] = useState("text");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState<string[]>([]);
-  const [textInput, setTextInput] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [questionCount, setQuestionCount] = useState("10");
-  const [questionType, setQuestionType] = useState("mixed");
-  const [difficultyLevel, setDifficultyLevel] = useState("medium");
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [topicName, setTopicName] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [papers, setPapers] = useState<GeneratedPaper[]>([]);
+  const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const { subjects, isLoading: isSubjectsLoading } = useSubjects();
+  const navigate = useNavigate();
   
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .order('name');
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
+  const [contentUrl, setContentUrl] = useState<string>("");
+  const [extractedContent, setExtractedContent] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
+  const [difficulty, setDifficulty] = useState<number>(50);
+  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<any>({
+    remember: 20,
+    understand: 20,
+    apply: 15,
+    analyze: 15,
+    evaluate: 15,
+    create: 15
   });
+  
+  const [questionMode, setQuestionMode] = useState<QuestionMode>("multiple-choice");
+  const [multipleChoiceCount, setMultipleChoiceCount] = useState<number>(10);
+  const [theoryQuestionConfig, setTheoryQuestionConfig] = useState<TheoryQuestionConfig>({
+    "1 mark": 5,
+    "2 marks": 3,
+    "4 marks": 2,
+    "8 marks": 1
+  });
+  
+  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
+  const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
 
-  const { data: papers = [], refetch: refetchPapers } = useQuery({
-    queryKey: ['generated-papers'],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('generated_papers')
-        .select(`
-          id,
-          topic,
-          created_at,
-          subject_id,
-          questions,
-          subjects:subject_id (name)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as unknown as GeneratedPaper[];
-    },
-    enabled: !!user?.id
-  });
+  useEffect(() => {
+    if (selectedSubject && papers.length > 0) {
+      setFilteredPapers(papers.filter(paper => paper.subject_id === selectedSubject));
+    } else {
+      setFilteredPapers(papers);
+    }
+  }, [selectedSubject, papers]);
+
+  useEffect(() => {
+    fetchPapers();
+  }, []);
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type !== 'application/pdf') {
-        toast.error("Please upload a PDF file");
-        return;
+  useEffect(() => {
+    if (selectedSubject) {
+      fetchCourseOutcomes(selectedSubject);
+    } else {
+      setCourseOutcomes([]);
+    }
+  }, [selectedSubject]);
+
+  const fetchPapers = async () => {
+    try {
+      setIsHistoryLoading(true);
+      console.log("Fetching papers...");
+      const { data, error } = await supabase
+        .from("generated_papers")
+        .select("*, subjects(name)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      
+      if (error) {
+        console.error("Error fetching papers:", error);
+        throw error;
       }
-      setSelectedFile(file);
+      
+      console.log("Papers data:", data);
+      
+      if (data) {
+        const mappedData = data.map((paper: any) => ({
+          ...paper,
+          subject_name: paper.subjects?.name || "Unknown Subject",
+          questions: paper.questions as Question[] | any
+        }));
+        
+        setPapers(mappedData as GeneratedPaper[]);
+        setFilteredPapers(mappedData as GeneratedPaper[]);
+      } else {
+        setPapers([]);
+        setFilteredPapers([]);
+      }
+    } catch (error: any) {
+      console.error("Error fetching papers:", error);
+      toast.error("Failed to load paper history");
+      setPapers([]);
+      setFilteredPapers([]);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
   
-  const handleGenerate = async () => {
+  const fetchCourseOutcomes = async (subjectId: string) => {
+    try {
+      setIsLoadingCourseOutcomes(true);
+      
+      const { data, error } = await supabase
+        .from('course_outcomes')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('co_number', { ascending: true });
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const mappedOutcomes = data.map(co => ({
+          id: co.id,
+          co_number: co.co_number,
+          description: co.description,
+          questionCount: 2,
+          selected: true,
+          open: false, // Initially collapsed
+          questionDistribution: {
+            "1 mark": 1,
+            "2 marks": 1,
+            "4 marks": 0,
+            "8 marks": 0
+          }
+        }));
+        
+        setCourseOutcomes(mappedOutcomes);
+      } else {
+        setCourseOutcomes([]);
+      }
+    } catch (error) {
+      console.error("Error fetching course outcomes:", error);
+      toast.error("Failed to load course outcomes");
+      setCourseOutcomes([]);
+    } finally {
+      setIsLoadingCourseOutcomes(false);
+    }
+  };
+
+  const handleBloomsTaxonomyChange = (level: string, value: number[]) => {
+    setBloomsTaxonomy(prev => ({
+      ...prev,
+      [level]: value[0]
+    }));
+  };
+
+  const calculateTotalMarks = () => {
+    if (questionMode === "multiple-choice") {
+      return multipleChoiceCount;
+    } else {
+      if (courseOutcomes.length > 0) {
+        const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+        let totalMarks = 0;
+        
+        selectedCourseOutcomes.forEach(co => {
+          totalMarks += co.questionDistribution["1 mark"] * 1;
+          totalMarks += co.questionDistribution["2 marks"] * 2;
+          totalMarks += co.questionDistribution["4 marks"] * 4;
+          totalMarks += co.questionDistribution["8 marks"] * 8;
+        });
+        
+        return totalMarks;
+      } else {
+        return (
+          theoryQuestionConfig["1 mark"] * 1 +
+          theoryQuestionConfig["2 marks"] * 2 +
+          theoryQuestionConfig["4 marks"] * 4 +
+          theoryQuestionConfig["8 marks"] * 8
+        );
+      }
+    }
+  };
+
+  const generateQuestions = async () => {
+    if (!extractedContent && !contentUrl) {
+      toast.error("Please upload content material first");
+      return;
+    }
+    
     if (!selectedSubject) {
       toast.error("Please select a subject");
       return;
     }
     
-    if (activeTab === "text" && !textInput.trim()) {
-      toast.error("Please enter some text to generate questions from");
+    if (!topicName) {
+      toast.error("Please enter a topic name");
       return;
     }
     
-    if (activeTab === "file" && !selectedFile) {
-      toast.error("Please upload a file to generate questions from");
-      return;
+    if (questionMode === "theory" && courseOutcomes.length > 0) {
+      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+      if (selectedCourseOutcomes.length === 0) {
+        toast.error("Please select at least one course outcome for theory questions");
+        return;
+      }
     }
     
     setIsGenerating(true);
+    toast.info("Generating questions, this may take a moment...");
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      let questionTypesConfig = {};
       
-      const mockQuestions = [
-        "What is the capital of France?",
-        "Explain the process of photosynthesis.",
-        "Solve for x: 2x + 5 = 15",
-        "What are the main causes of World War II?",
-        "Describe the structure of a cell membrane.",
-        "What is the difference between a simile and a metaphor?",
-        "Calculate the area of a circle with radius 5cm.",
-        "Explain Newton's third law of motion.",
-        "What is the significance of the Declaration of Independence?",
-        "Describe the water cycle."
-      ];
+      if (questionMode === "multiple-choice") {
+        questionTypesConfig = {
+          "Multiple Choice (1 mark)": multipleChoiceCount
+        };
+      } else {
+        if (courseOutcomes.length > 0) {
+          const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
+          const aggregatedDistribution = {
+            "Short Answer (1 mark)": 0,
+            "Short Answer (2 marks)": 0,
+            "Medium Answer (4 marks)": 0,
+            "Long Answer (8 marks)": 0
+          };
+          
+          selectedCourseOutcomes.forEach(co => {
+            aggregatedDistribution["Short Answer (1 mark)"] += co.questionDistribution["1 mark"];
+            aggregatedDistribution["Short Answer (2 marks)"] += co.questionDistribution["2 marks"];
+            aggregatedDistribution["Medium Answer (4 marks)"] += co.questionDistribution["4 marks"];
+            aggregatedDistribution["Long Answer (8 marks)"] += co.questionDistribution["8 marks"];
+          });
+          
+          questionTypesConfig = aggregatedDistribution;
+        } else {
+          questionTypesConfig = {
+            "Short Answer (1 mark)": theoryQuestionConfig["1 mark"],
+            "Short Answer (2 marks)": theoryQuestionConfig["2 marks"],
+            "Medium Answer (4 marks)": theoryQuestionConfig["4 marks"],
+            "Long Answer (8 marks)": theoryQuestionConfig["8 marks"]
+          };
+        }
+      }
       
-      setGeneratedQuestions(mockQuestions.slice(0, parseInt(questionCount)));
-      toast.success("Questions generated successfully!");
+      const response = await supabase.functions.invoke('generate-questions', {
+        body: {
+          topic: topicName,
+          content: extractedContent || "No content provided",
+          bloomsTaxonomy,
+          difficulty,
+          courseOutcomes: courseOutcomes.length > 0 && questionMode === "theory" 
+            ? courseOutcomes.filter(co => co.selected) 
+            : undefined,
+          questionTypes: questionTypesConfig,
+          questionMode: questionMode
+        }
+      });
+      
+      if (response.error) {
+        console.error("Error generating questions:", response.error);
+        toast.error(`Error generating questions: ${response.error}`);
+        setIsGenerating(false);
+        return;
+      }
+      
+      setGeneratedQuestions(response.data.questions);
+      
+      if (response.data.warning) {
+        toast.warning(response.data.warning);
+      }
+      
+      try {
+        const { error: saveQuestionsError } = await supabase.from('generated_questions').insert({
+          subject_id: selectedSubject,
+          topic: topicName,
+          questions: response.data.questions as Json,
+          user_id: (await supabase.auth.getUser()).data.user?.id || '',
+          question_mode: questionMode
+        });
+        
+        if (saveQuestionsError) throw saveQuestionsError;
+        
+        const questionsJson = response.data.questions as Json;
+        
+        const { error: savePaperError } = await supabase.from('generated_papers').insert({
+          subject_id: selectedSubject,
+          topic: topicName,
+          paper_url: "",
+          questions: questionsJson,
+          content_url: contentUrl || null,
+          user_id: (await supabase.auth.getUser()).data.user?.id || '',
+          question_mode: questionMode
+        });
+        
+        if (savePaperError) throw savePaperError;
+        
+        toast.success("Questions generated and saved successfully");
+        fetchPapers();
+      } catch (saveError) {
+        console.error("Error saving questions:", saveError);
+        toast.error("Questions generated but failed to save to history");
+      }
     } catch (error) {
       console.error("Error generating questions:", error);
-      toast.error("Failed to generate questions. Please try again.");
+      toast.error("Failed to generate questions");
     } finally {
       setIsGenerating(false);
     }
   };
-  
-  const handleSaveQuestions = () => {
-    if (generatedQuestions.length === 0) {
-      toast.error("No questions to save");
-      return;
-    }
-    
-    toast.success("Questions saved successfully!");
+
+  const viewQuestionsHistory = () => {
+    navigate("/dashboard/paper-generation/questions-history");
   };
-  
-  const handleDownloadQuestions = () => {
-    if (generatedQuestions.length === 0) {
-      toast.error("No questions to download");
-      return;
-    }
-    
-    const questionsText = generatedQuestions.map((q, i) => `${i+1}. ${q}`).join('\n\n');
-    const blob = new Blob([questionsText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `generated_questions_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+  const isGenerateDisabled = () => {
+    return (
+      isGenerating || 
+      (!extractedContent && !contentUrl) || 
+      !selectedSubject || 
+      !topicName || 
+      (questionMode === "theory" && courseOutcomes.length > 0 && courseOutcomes.filter(co => co.selected).length === 0)
+    );
   };
-  
+
+  const clearQuestions = () => {
+    setGeneratedQuestions([]);
+  };
+
+  const updateQuestions = (updatedQuestions: Question[]) => {
+    setGeneratedQuestions(updatedQuestions);
+  };
+
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex flex-col space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Question Paper Generation</h1>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <HelpCircle className="mr-2 h-4 w-4" />
-                How it works
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>How Question Generation Works</DialogTitle>
-                <DialogDescription>
-                  Our AI-powered question generation system creates high-quality questions based on your input.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <p>You can generate questions in two ways:</p>
-                <ol className="list-decimal list-inside space-y-2">
-                  <li>Enter text directly in the text area</li>
-                  <li>Upload a PDF file containing study material</li>
-                </ol>
-                <p>The AI will analyze the content and generate questions based on your selected parameters:</p>
-                <ul className="list-disc list-inside space-y-2">
-                  <li>Number of questions</li>
-                  <li>Question type (multiple choice, short answer, etc.)</li>
-                  <li>Difficulty level</li>
-                </ul>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Generate Questions</CardTitle>
-                <CardDescription>
-                  Enter text or upload a file to generate questions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="text" value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="text">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Text Input
-                    </TabsTrigger>
-                    <TabsTrigger value="file">
-                      <Upload className="mr-2 h-4 w-4" />
-                      File Upload
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="text" className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="text-input">Enter text to generate questions from</Label>
-                      <Textarea
-                        id="text-input"
-                        placeholder="Paste your text here..."
-                        className="min-h-[200px]"
-                        value={textInput}
-                        onChange={(e) => setTextInput(e.target.value)}
-                      />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="file" className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="file-upload">Upload a PDF file</Label>
-                      <div className="border-2 border-dashed rounded-md p-6 flex flex-col items-center justify-center">
-                        <Input
-                          id="file-upload"
-                          type="file"
-                          className="hidden"
-                          accept=".pdf"
-                          onChange={handleFileChange}
-                        />
-                        <Label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
-                          <Upload className="h-10 w-10 text-muted-foreground mb-2" />
-                          <span className="text-sm font-medium">
-                            {selectedFile ? selectedFile.name : "Click to upload or drag and drop"}
-                          </span>
-                          <span className="text-xs text-muted-foreground mt-1">
-                            PDF (max 10MB)
-                          </span>
-                        </Label>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Generation Settings</CardTitle>
-                <CardDescription>
-                  Configure question generation parameters
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="subject">Subject</Label>
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="question-count">Number of Questions</Label>
-                  <Select value={questionCount} onValueChange={setQuestionCount}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select count" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 questions</SelectItem>
-                      <SelectItem value="10">10 questions</SelectItem>
-                      <SelectItem value="15">15 questions</SelectItem>
-                      <SelectItem value="20">20 questions</SelectItem>
-                      <SelectItem value="25">25 questions</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="question-type">Question Type</Label>
-                  <Select value={questionType} onValueChange={setQuestionType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-                      <SelectItem value="short_answer">Short Answer</SelectItem>
-                      <SelectItem value="long_answer">Long Answer</SelectItem>
-                      <SelectItem value="true_false">True/False</SelectItem>
-                      <SelectItem value="mixed">Mixed Types</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty Level</Label>
-                  <Select value={difficultyLevel} onValueChange={setDifficultyLevel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                      <SelectItem value="mixed">Mixed Difficulty</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  className="w-full" 
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? "Generating..." : "Generate Questions"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </div>
-        </div>
-        
-        {generatedQuestions.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Generated Questions</CardTitle>
-              <CardDescription>
-                {generatedQuestions.length} questions generated for {subjects.find(s => s.id === selectedSubject)?.name || "selected subject"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {generatedQuestions.map((question, index) => (
-                  <div key={index} className="p-4 border rounded-md">
-                    <p className="font-medium">Question {index + 1}</p>
-                    <p>{question}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={handleSaveQuestions}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Save to Question Bank
-              </Button>
-              <Button onClick={handleDownloadQuestions}>
-                <Download className="mr-2 h-4 w-4" />
-                Download Questions
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Question Papers</CardTitle>
-            <CardDescription>
-              Your recently generated question papers
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <QuestionHistory
-              papers={papers}
-              fetchPapers={async () => {
-                await refetchPapers();
-              }}
-              viewMode="grid"
-              enableFiltering={true}
-              showViewAll={true}
-              onViewAllClick={() => {/* handle view all click */}}
-            />
-          </CardContent>
-        </Card>
+    <div className="container max-w-4xl mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Questions Generation</h1>
+        <Button
+          variant="outline"
+          onClick={viewQuestionsHistory}
+          className="flex items-center gap-2"
+        >
+          <History className="h-4 w-4" />
+          View Questions History
+        </Button>
       </div>
+      
+      {generatedQuestions.length === 0 ? (
+        <div className="space-y-6">
+          <SubjectSelect
+            selectedSubject={selectedSubject}
+            setSelectedSubject={setSelectedSubject}
+            topicName={topicName}
+            setTopicName={setTopicName}
+            subjects={subjects}
+            isSubjectsLoading={isSubjectsLoading}
+          />
+          
+          <ContentUpload
+            selectedSubject={selectedSubject}
+            contentUrl={contentUrl}
+            setContentUrl={setContentUrl}
+            extractedContent={extractedContent}
+            setExtractedContent={setExtractedContent}
+          />
+          
+          <QuestionTypes
+            questionMode={questionMode}
+            setQuestionMode={setQuestionMode}
+            multipleChoiceCount={multipleChoiceCount}
+            setMultipleChoiceCount={setMultipleChoiceCount}
+            theoryQuestionConfig={theoryQuestionConfig}
+            setTheoryQuestionConfig={setTheoryQuestionConfig}
+            courseOutcomes={courseOutcomes}
+            setCourseOutcomes={setCourseOutcomes}
+            isLoadingCourseOutcomes={isLoadingCourseOutcomes}
+            calculateTotalMarks={calculateTotalMarks}
+          />
+          
+          <QuestionParameters
+            difficulty={difficulty}
+            setDifficulty={setDifficulty}
+            bloomsTaxonomy={bloomsTaxonomy}
+            handleBloomsTaxonomyChange={handleBloomsTaxonomyChange}
+            generateQuestions={generateQuestions}
+            isGenerating={isGenerating}
+            isDisabled={isGenerateDisabled()}
+          />
+        </div>
+      ) : (
+        <GeneratedQuestions
+          questions={generatedQuestions}
+          topicName={topicName}
+          clearQuestions={clearQuestions}
+          updateQuestions={updateQuestions}
+        />
+      )}
+      
+      {filteredPapers.length > 0 && generatedQuestions.length === 0 && (
+        <QuestionHistory
+          papers={filteredPapers}
+          fetchPapers={fetchPapers}
+        />
+      )}
     </div>
   );
 }

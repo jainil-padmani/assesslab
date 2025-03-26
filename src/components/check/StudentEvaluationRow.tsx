@@ -102,17 +102,6 @@ export function StudentEvaluationRow({
     }
   };
 
-  // Debug log to diagnose the issue
-  useEffect(() => {
-    console.log(`StudentEvaluationRow for ${student.name} - Values:`, {
-      hasAnswerSheet,
-      answerSheetUrl,
-      selectedSubject,
-      selectedTest,
-      refreshKey
-    });
-  }, [student.name, hasAnswerSheet, answerSheetUrl, selectedSubject, selectedTest, refreshKey]);
-
   return (
     <TableRow className="hover:bg-muted/40 transition-colors">
       <TableCell className="font-medium">

@@ -1,350 +1,278 @@
-import React, { useState } from 'react';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Brain, Upload, History } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from 'sonner';
-import { FileText, Upload, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
-import { validateFileFormat } from '@/utils/assessment/fileValidation';
-import { deletePreviousFiles } from '@/utils/assessment/fileCleanup';
+import type { Subject } from "@/types/dashboard";
 
 export default function Analysis() {
-  const [files, setFiles] = useState<{ question: File | null; answer: File | null }>({
-    question: null,
-    answer: null,
-  });
-  const [uploadedFiles, setUploadedFiles] = useState<{ question: string | null; answer: string | null }>({
-    question: null,
-    answer: null,
-  });
-  const [analysisResults, setAnalysisResults] = useState<any>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const { uploadFile, isUploading, progress } = useFileUpload();
+  const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
+  const [topicName, setTopicName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const navigate = useNavigate();
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'question' | 'answer') => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
+  useEffect(() => {
+    fetchSubjects();
+  }, []);
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      if (data) setSubjects(data);
+    } catch (error) {
+      toast.error('Failed to fetch subjects');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const fileType = selectedFile.type;
+      const validTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
       
-      if (!validateFileFormat(file)) {
-        toast.error('Invalid file format. Please upload PDF, PNG, or JPG files only.');
+      if (!validTypes.includes(fileType)) {
+        toast.error('Please upload PDF or DOCX files only');
         return;
       }
-      
-      setFiles((prev) => ({
-        ...prev,
-        [type]: file,
-      }));
-      
-      // Reset the uploaded URL when a new file is selected
-      if (uploadedFiles[type]) {
-        setUploadedFiles(prev => ({
-          ...prev,
-          [type]: null
-        }));
-      }
+      setFile(selectedFile);
     }
   };
 
-  const handleUpload = async () => {
-    const filesToUpload = [];
-    const previousUrls = [];
-    
-    if (files.question) {
-      filesToUpload.push({
-        file: files.question,
-        type: 'question' as const,
-        folder: 'questions',
-      });
-      
-      if (uploadedFiles.question) {
-        previousUrls.push(uploadedFiles.question);
-      }
-    }
-
-    if (files.answer) {
-      filesToUpload.push({
-        file: files.answer,
-        type: 'answer' as const,
-        folder: 'answers',
-      });
-      
-      if (uploadedFiles.answer) {
-        previousUrls.push(uploadedFiles.answer);
-      }
-    }
-    
-    if (filesToUpload.length === 0) {
-      toast.error('Please select at least one file to upload');
-      return;
-    }
-    
-    // Delete previous files if they exist
-    if (previousUrls.length > 0) {
-      await deletePreviousFiles(previousUrls);
-    }
-    
-    // Upload new files
-    for (const { file, type, folder } of filesToUpload) {
-      try {
-        const fileTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
-        const result = await uploadFile(file, {
-          folder,
-          fileTypes,
-          maxSizeMB: 10,
-        });
-        
-        if (result.error) {
-          toast.error(`Error uploading ${type} file: ${result.error}`);
-        } else {
-          toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} file uploaded successfully`);
-          setUploadedFiles(prev => ({
-            ...prev,
-            [type]: result.url
-          }));
-        }
-      } catch (error: any) {
-        toast.error(`Error uploading ${type} file: ${error.message}`);
-      }
-    }
-  };
-  
   const handleAnalyze = async () => {
-    if (!uploadedFiles.question && !uploadedFiles.answer) {
-      toast.error('Please upload at least one file to analyze');
+    if (!selectedSubject) {
+      toast.error('Please select a subject first');
       return;
     }
-    
-    setIsAnalyzing(true);
-    
+
+    if (!topicName.trim()) {
+      toast.error('Please enter a topic name');
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      // Mock analysis for now - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setAnalysisResults({
-        difficulty: 'Medium',
-        bloomsLevel: {
-          remember: 30,
-          understand: 25,
-          apply: 20,
-          analyze: 15,
-          evaluate: 5,
-          create: 5
-        },
-        questionTypes: {
-          mcq: 60,
-          shortAnswer: 25,
-          longAnswer: 15
-        },
-        topicsCovered: ['Algebra', 'Calculus', 'Geometry'],
-        suggestedImprovements: [
-          'Add more higher-order thinking questions',
-          'Balance the distribution of topics better',
-          'Consider adding more application-based questions'
-        ]
+      let content;
+
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(fileName);
+
+        console.log('File uploaded, URL:', publicUrl);
+        content = { fileUrl: publicUrl };
+      } else if (text.trim()) {
+        content = { text: text.trim() };
+      } else {
+        throw new Error('Please upload a file or enter text to analyze');
+      }
+
+      // Fetch the subject's Bloom's Taxonomy data
+      const { data: subjectData, error: bloomsError } = await supabase
+        .from('answer_keys')
+        .select('blooms_taxonomy')
+        .eq('subject_id', selectedSubject)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (bloomsError && bloomsError.code !== 'PGRST116') {
+        console.error('Error fetching Bloom\'s taxonomy:', bloomsError);
+      }
+
+      const { data, error } = await supabase.functions.invoke('process-document', {
+        body: {
+          action: 'analyze_paper',
+          content,
+          subjectId: selectedSubject,
+          topicName: topicName,
+          expectedBloomsTaxonomy: subjectData?.blooms_taxonomy || null
+        }
       });
-      
-      toast.success('Analysis completed successfully');
+
+      if (error) throw error;
+      if (!data) throw new Error('No analysis data received');
+
+      // Save the analysis to history
+      const { error: saveError } = await supabase
+        .from('analysis_history')
+        .insert({
+          title: topicName,
+          analysis: data,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+
+      if (saveError) {
+        console.error('Error saving to history:', saveError);
+        toast.error('Analysis completed but failed to save to history');
+      }
+
+      navigate('/dashboard/analysis-result', { 
+        state: { 
+          analysis: data,
+          expectedBloomsTaxonomy: subjectData?.blooms_taxonomy || null
+        } 
+      });
     } catch (error: any) {
-      toast.error(`Analysis failed: ${error.message}`);
+      console.error('Analysis error:', error);
+      toast.error(error.message || 'Failed to analyze paper');
     } finally {
-      setIsAnalyzing(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-6">
-      <Card>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Question Paper Analysis</h1>
+        <Button 
+          variant="outline"
+          onClick={() => navigate("/dashboard/analysis-history")}
+        >
+          <History className="mr-2 h-4 w-4" />
+          View History
+        </Button>
+      </div>
+
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Question Paper Analysis</CardTitle>
-          <CardDescription>
-            Upload question papers and answer keys to analyze their quality and structure
-          </CardDescription>
+          <CardTitle>Analysis Details</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="upload">
-            <TabsList className="mb-4">
-              <TabsTrigger value="upload">Upload Files</TabsTrigger>
-              <TabsTrigger value="results" disabled={!analysisResults}>Analysis Results</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="upload">
-              <div className="grid gap-6">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Important</AlertTitle>
-                  <AlertDescription>
-                    For best results, upload both the question paper and answer key in PDF format.
-                  </AlertDescription>
-                </Alert>
-                
-                <div className="grid gap-4">
-                  <div>
-                    <Label htmlFor="questionFile">Question Paper</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input
-                        id="questionFile"
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileChange(e, 'question')}
-                        className="flex-1"
-                      />
-                      {files.question && (
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm">{files.question.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="answerFile">Answer Key (Optional)</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input
-                        id="answerFile"
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileChange(e, 'answer')}
-                        className="flex-1"
-                      />
-                      {files.answer && (
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm">{files.answer.name}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {isUploading && (
-                    <div className="mt-2">
-                      <Progress value={progress} className="h-2" />
-                      <p className="text-sm text-center mt-1">Uploading... {progress}%</p>
-                    </div>
-                  )}
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button 
-                      onClick={handleUpload} 
-                      disabled={isUploading || (!files.question && !files.answer)}
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Files
-                    </Button>
-                    
-                    <Button 
-                      onClick={handleAnalyze} 
-                      disabled={isAnalyzing || (!uploadedFiles.question && !uploadedFiles.answer)}
-                      variant="secondary"
-                    >
-                      {isAnalyzing ? 'Analyzing...' : 'Analyze Paper'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="results">
-              {analysisResults && (
-                <div className="grid gap-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Difficulty Level</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold">{analysisResults.difficulty}</p>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Question Types</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ul className="space-y-1">
-                          <li className="flex justify-between">
-                            <span>Multiple Choice</span>
-                            <span>{analysisResults.questionTypes.mcq}%</span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span>Short Answer</span>
-                            <span>{analysisResults.questionTypes.shortAnswer}%</span>
-                          </li>
-                          <li className="flex justify-between">
-                            <span>Long Answer</span>
-                            <span>{analysisResults.questionTypes.longAnswer}%</span>
-                          </li>
-                        </ul>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">Topics Covered</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ul className="list-disc list-inside">
-                          {analysisResults.topicsCovered.map((topic: string, index: number) => (
-                            <li key={index}>{topic}</li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">Bloom's Taxonomy Distribution</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {Object.entries(analysisResults.bloomsLevel).map(([level, percentage]: [string, any]) => (
-                          <div key={level} className="space-y-1">
-                            <div className="flex justify-between text-sm">
-                              <span className="capitalize">{level}</span>
-                              <span>{percentage}%</span>
-                            </div>
-                            <div className="w-full bg-secondary rounded-full h-2">
-                              <div 
-                                className="bg-primary h-2 rounded-full" 
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">Suggested Improvements</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="list-disc list-inside space-y-1">
-                        {analysisResults.suggestedImprovements.map((suggestion: string, index: number) => (
-                          <li key={index}>{suggestion}</li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="topic">Topic Name</Label>
+            <Input
+              id="topic"
+              placeholder="Enter topic name"
+              value={topicName}
+              onChange={(e) => setTopicName(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Select
+              value={selectedSubject}
+              onValueChange={(value) => setSelectedSubject(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
+
+      <Tabs defaultValue="file" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="file">Upload File</TabsTrigger>
+          <TabsTrigger value="text">Enter Text</TabsTrigger>
+        </TabsList>
+        <TabsContent value="file">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5 text-accent" />
+                Upload Question Paper
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="file">Upload File (PDF or DOCX)</Label>
+                <Input 
+                  id="file" 
+                  type="file" 
+                  accept=".pdf,.docx"
+                  onChange={handleFileChange}
+                />
+              </div>
+              <Button
+                className="w-full bg-accent hover:bg-accent/90"
+                onClick={handleAnalyze}
+                disabled={isLoading || !selectedSubject || !topicName.trim()}
+              >
+                {isLoading ? (
+                  "Analyzing..."
+                ) : (
+                  <>
+                    <Brain className="mr-2 h-4 w-4" />
+                    Analyze Paper
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="text">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-accent" />
+                Enter Question Paper Text
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="text">Question Paper Text</Label>
+                <Textarea
+                  id="text"
+                  placeholder="Paste your question paper text here..."
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  className="min-h-[200px]"
+                />
+              </div>
+              <Button
+                className="w-full bg-accent hover:bg-accent/90"
+                onClick={handleAnalyze}
+                disabled={isLoading || !selectedSubject || !topicName.trim()}
+              >
+                {isLoading ? (
+                  "Analyzing..."
+                ) : (
+                  <>
+                    <Brain className="mr-2 h-4 w-4" />
+                    Analyze Text
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

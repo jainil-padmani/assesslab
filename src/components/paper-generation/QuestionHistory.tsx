@@ -12,23 +12,12 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export interface QuestionHistoryProps {
-  papers?: GeneratedPaper[];
-  fetchPapers?: () => Promise<void>;
-  viewMode?: 'grid' | 'list';
-  enableFiltering?: boolean;
-  showViewAll?: boolean;
-  onViewAllClick?: () => void;
+interface QuestionHistoryProps {
+  papers: GeneratedPaper[];
+  fetchPapers: () => Promise<void>;
 }
 
-export function QuestionHistory({ 
-  papers = [], 
-  fetchPapers = async () => {}, 
-  viewMode = 'list',
-  enableFiltering = false,
-  showViewAll = false,
-  onViewAllClick = () => {}
-}: QuestionHistoryProps) {
+export function QuestionHistory({ papers, fetchPapers }: QuestionHistoryProps) {
   const [selectedPaper, setSelectedPaper] = useState<GeneratedPaper | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [paperToDelete, setPaperToDelete] = useState<GeneratedPaper | null>(null);

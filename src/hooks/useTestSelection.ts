@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useClasses } from "./test-selection/useClasses";
 import { useSubjects } from "./test-selection/useSubjects";
 import { useTests } from "./test-selection/useTests";
@@ -27,22 +27,6 @@ export function useTestSelection() {
   const { tests } = useTests(selectedClass, selectedSubject);
   const { testFiles } = useTestFiles(selectedTest);
   const { classStudents } = useClassStudents(selectedClass);
-
-  // Clear dependent selections when parent selection changes
-  useEffect(() => {
-    if (selectedClass) {
-      // If class changes, reset subject and test
-      setSelectedSubject("");
-      setSelectedTest("");
-    }
-  }, [selectedClass]);
-
-  useEffect(() => {
-    if (selectedSubject) {
-      // If subject changes, reset test
-      setSelectedTest("");
-    }
-  }, [selectedSubject]);
 
   return { 
     selectedClass, setSelectedClass,
