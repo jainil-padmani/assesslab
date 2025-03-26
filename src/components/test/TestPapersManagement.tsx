@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -33,12 +32,9 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     setOpenUploadDialog,
     assignExistingPaper,
     handleDeleteFile,
-    refetchTestFiles,
-    refreshStorage,
     forceCompleteRefresh
   } = useTestPapers(test, refreshTrigger);
 
-  // Force refresh when component mounts and also on refreshTrigger change
   useEffect(() => {
     const refreshData = async () => {
       console.log("Initial test papers refresh for test ID:", test.id);
@@ -53,10 +49,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       setIsRefreshing(true);
       console.log("Manual refresh triggered");
       
-      // Increment refresh trigger to force component update
       setRefreshTrigger(prev => prev + 1);
       
-      // Explicitly force a complete refresh
       await forceCompleteRefresh();
       
       toast.success("Files refreshed successfully");
@@ -85,19 +79,10 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       const success = await assignExistingPaper(fileId);
       
       if (success) {
-        // Close the dialog
         setOpenUploadDialog(false);
-        
-        // Show success message
         toast.success("Paper successfully assigned to test");
-        
-        // Log current state
         console.log("Paper assigned successfully. Current test files:", testFiles);
-        
-        // Force immediate refresh
         await forceCompleteRefresh();
-        
-        // Set additional delayed refresh to ensure storage is updated
         setTimeout(async () => {
           setRefreshTrigger(prev => prev + 1);
           console.log("Executing delayed refresh after paper assignment");
@@ -116,7 +101,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     try {
       const success = await handleDeleteFile(file);
       if (success) {
-        // Force refresh after deletion
         await forceCompleteRefresh();
       }
     } catch (error) {
@@ -124,7 +108,6 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     }
   };
 
-  // Debug log to check if files are being displayed
   useEffect(() => {
     console.log("Current test files:", testFiles);
   }, [testFiles]);
