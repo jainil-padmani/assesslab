@@ -1,64 +1,72 @@
 
 import { toast } from "sonner";
-import { forceRefreshStorage } from "../storageHelpers";
-import { verifyTestAndSubjectFile } from "./fileVerification";
-import { sanitizeTopic } from "./fileExtractors";
-import { copyFilesAndRecordInDb } from "./copyAndRecord";
 import type { SubjectFile } from "@/types/dashboard";
+import { copyAndRecord } from "./copyAndRecord";
+import { verifySourceFiles } from "./fileVerification";
+import { sanitizeTopic } from "./fileExtractors";
 
 /**
- * Assigns existing subject files to a test
+ * Assigns subject files to a test
  * 
- * @param testId The test ID to assign files to
+ * @param testId The ID of the test to assign files to
  * @param subjectFile The subject file to assign
- * @returns Boolean indicating success
+ * @returns True if successful, false otherwise
  */
 export const assignSubjectFilesToTest = async (
   testId: string,
   subjectFile: SubjectFile
 ): Promise<boolean> => {
   try {
-    console.log('Assigning subject file to test:', { testId, subjectFile });
+    console.log(`Assigning subject file "${subjectFile.topic}" to test ${testId}`);
     
-    // Verify test ownership and subject file validity
-    const verification = await verifyTestAndSubjectFile(testId, subjectFile);
-    
-    if (!verification.isValid) {
-      toast.error(`Failed to assign files: ${verification.error}`);
-      return false;
+    // Verify that source files exist
+    const { success: filesVerified } = await verifySourceFiles(subjectFile);
+    if (!filesVerified) {
+      throw new Error("Source files not available or incomplete");
     }
     
-    const { test, user } = verification;
-
-    // Force a refresh before copying
-    await forceRefreshStorage();
-
-    // Sanitize topic for use in filenames
-    const originalTopic = subjectFile.topic;
-    const sanitizedTopic = sanitizeTopic(originalTopic);
+    // Process topic for file naming
+    const sanitizedTopic = sanitizeTopic(subjectFile.topic);
     
-    // Create test prefix for filenames
-    const testPrefix = `test_${testId}`;
+    // Define destination file key (test_{testId}_{topic})
+    const destKeyPrefix = `test_${testId}_${sanitizedTopic}`;
     
-    // Copy files and record in database
-    const success = await copyFilesAndRecordInDb(
-      testId,
-      testPrefix,
-      sanitizedTopic,
-      subjectFile,
-      user,
-      test
-    );
+    // Create timestamp for file versioning
+    const timestamp = Date.now();
     
-    if (success) {
-      toast.success("Files assigned to test successfully");
-      return true;
-    } else {
-      toast.error("Failed to assign files to test");
-      return false;
+    // Copy the question paper
+    if (subjectFile.question_paper_url) {
+      await copyAndRecord(
+        subjectFile.question_paper_url,
+        `${destKeyPrefix}_questionPaper_${timestamp}`,
+        testId
+      );
     }
+    
+    // Copy the answer key
+    if (subjectFile.answer_key_url) {
+      await copyAndRecord(
+        subjectFile.answer_key_url,
+        `${destKeyPrefix}_answerKey_${timestamp}`,
+        testId
+      );
+    }
+    
+    // Copy the handwritten paper if it exists
+    if (subjectFile.handwritten_paper_url) {
+      await copyAndRecord(
+        subjectFile.handwritten_paper_url,
+        `${destKeyPrefix}_handwrittenPaper_${timestamp}`,
+        testId
+      );
+    }
+    
+    console.log(`Successfully assigned subject file "${subjectFile.topic}" to test ${testId}`);
+    toast.success(`Successfully assigned "${subjectFile.topic}" to test`);
+    return true;
+    
   } catch (error: any) {
-    console.error('Error assigning files to test:', error);
+    console.error('Error assigning subject files to test:', error);
     toast.error(`Failed to assign files: ${error.message}`);
     return false;
   }

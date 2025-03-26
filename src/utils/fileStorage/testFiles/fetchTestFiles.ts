@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { forceRefreshStorage } from "../storageHelpers";
-import { mapTestFiles } from "../fileMappers";
+import { mapTestFiles } from "../mappers";
 
 /**
  * Fetches test files for a specific test ID
