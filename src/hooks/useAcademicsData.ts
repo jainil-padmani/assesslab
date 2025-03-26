@@ -3,7 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Student, Subject } from '@/types/dashboard';
-import type { Class } from '@/hooks/useClassData';
+
+// Define Class type here since it's not exported from dashboard types
+interface Class {
+  id: string;
+  name: string;
+  department: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Custom hook to load and manage all academics-related data in one place

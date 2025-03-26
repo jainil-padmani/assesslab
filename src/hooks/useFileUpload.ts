@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef, ChangeEvent } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,6 +9,8 @@ export interface FileUploadOptions {
   folderPath?: string;
   fileTypes?: string[];
   maxSize?: number; // in MB
+  onUploadSuccess?: (fileUrl: string) => void;
+  onUploadError?: (error: Error) => void;
 }
 
 export function useFileUpload(options: FileUploadOptions = {}) {
@@ -17,10 +19,14 @@ export function useFileUpload(options: FileUploadOptions = {}) {
     folderPath = '',
     fileTypes = ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     maxSize = 10, // Default max size is 10MB
+    onUploadSuccess,
+    onUploadError
   } = options;
   
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): boolean => {
     // Check file type
@@ -69,19 +75,46 @@ export function useFileUpload(options: FileUploadOptions = {}) {
         .from(bucketName)
         .getPublicUrl(data.path);
       
+      if (onUploadSuccess) {
+        onUploadSuccess(publicUrl);
+      }
+      
       return publicUrl;
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast.error(`Upload failed: ${error.message}`);
+      
+      if (onUploadError) {
+        onUploadError(error);
+      }
+      
       return null;
     } finally {
       setIsUploading(false);
     }
   };
 
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setFileName(file.name);
+    uploadFile(file);
+  };
+
+  const openFileDialog = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Return everything needed in the component
   return {
     uploadFile,
     isUploading,
     progress,
+    fileInputRef,
+    handleFileChange,
+    fileName,
+    openFileDialog,
+    accept: fileTypes.join(',')
   };
 }

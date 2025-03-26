@@ -16,6 +16,14 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+interface QuestionHistoryProps {
+  data: any[];
+  viewMode: 'grid' | 'list';
+  enableFiltering: boolean;
+  showViewAll: boolean;
+  onViewAllClick: () => void;
+}
+
 export default function PaperGeneration() {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
