@@ -142,14 +142,21 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         // Trigger a local refresh to update the UI
         setLocalRefreshTrigger(prev => prev + 1);
         
-        // Invalidate queries with wide scope to ensure cache is cleared
+        // Invalidate ALL queries to ensure cache is cleared completely
         queryClient.invalidateQueries();
         
-        // Specifically refetch the test files with a delay to ensure storage is updated
-        setTimeout(async () => {
-          console.log("Performing delayed refetch of test files");
-          await refetchTestFiles();
-        }, 1500);
+        // Set a chain of delayed refreshes to ensure storage is updated
+        const refreshAtIntervals = async () => {
+          for (let i = 1; i <= 3; i++) {
+            setTimeout(async () => {
+              console.log(`Performing delayed refetch #${i} of test files`);
+              await refreshStorage();
+              await refetchTestFiles();
+            }, i * 1500);
+          }
+        };
+        
+        refreshAtIntervals();
         
         return true;
       }

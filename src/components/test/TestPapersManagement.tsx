@@ -46,7 +46,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     };
     
     refreshData();
-  }, [test.id, forceCompleteRefresh]);
+  }, [test.id, forceCompleteRefresh, refreshTrigger]);
 
   const handleManualRefresh = async () => {
     try {
@@ -94,10 +94,15 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         // Log current state
         console.log("Paper assigned successfully. Current test files:", testFiles);
         
-        // Force a refresh after a slight delay to ensure storage is updated
+        // Force immediate refresh
+        await forceCompleteRefresh();
+        
+        // Set additional delayed refresh to ensure storage is updated
         setTimeout(async () => {
+          setRefreshTrigger(prev => prev + 1);
+          console.log("Executing delayed refresh after paper assignment");
           await forceCompleteRefresh();
-        }, 2000);
+        }, 3000);
       } else {
         toast.error("Failed to assign paper to test");
       }
