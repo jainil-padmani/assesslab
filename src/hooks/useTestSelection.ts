@@ -25,7 +25,7 @@ export function useTestSelection() {
   const { classes } = useClasses();
   const { subjects } = useSubjects(selectedClass);
   const { tests } = useTests(selectedClass, selectedSubject);
-  const { testFiles } = useTestFiles(selectedTest);
+  const { testFiles, fetchTestPapers } = useTestFiles(selectedTest);
   const { classStudents } = useClassStudents(selectedClass);
 
   return { 
@@ -33,6 +33,7 @@ export function useTestSelection() {
     selectedSubject, setSelectedSubject,
     selectedTest, setSelectedTest,
     classes, subjects, tests, testFiles, classStudents,
-    isLoading, setIsLoading
+    isLoading, setIsLoading,
+    refetchTestFiles: fetchTestPapers
   };
 }

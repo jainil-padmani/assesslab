@@ -56,16 +56,34 @@ export function TestPaperAssignDialog({
   }, [subjectFiles, selectedExistingFile]);
 
   const handleAssignPaper = async () => {
-    if (selectedExistingFile) {
-      const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
-      
-      if (!selectedFile?.answer_key_url) {
-        toast.error("Selected file does not have an answer key, which is required");
-        return;
-      }
-      
+    if (!selectedExistingFile) {
+      toast.error("Please select a paper to assign");
+      return;
+    }
+    
+    const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
+    
+    if (!selectedFile) {
+      toast.error("Selected file not found");
+      return;
+    }
+    
+    if (!selectedFile.answer_key_url) {
+      toast.error("Selected file does not have an answer key, which is required");
+      return;
+    }
+    
+    try {
+      toast.info("Assigning paper to test...");
       await onAssignPaper(selectedExistingFile);
+      toast.success("Paper assigned successfully");
+      
+      // Close dialog and clear selection after successful assignment
       setSelectedExistingFile(null);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error assigning paper:", error);
+      toast.error("Failed to assign paper. Please try again.");
     }
   };
 
@@ -89,7 +107,7 @@ export function TestPaperAssignDialog({
           <div className="flex items-center space-x-2 rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div className="text-sm">
-              Note: Only papers with both question papers and answer keys are shown. Answer keys are now required.
+              Note: Only papers with both question papers and answer keys are shown. Answer keys are required.
             </div>
           </div>
 

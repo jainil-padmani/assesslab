@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, RefreshCw } from "lucide-react";
 import { 
   Select,
   SelectContent,
@@ -26,6 +26,7 @@ interface TestSelectionCardProps {
   setSelectedClass: (value: string) => void;
   setSelectedSubject: (value: string) => void;
   setSelectedTest: (value: string) => void;
+  onRefreshTestFiles?: () => void;
 }
 
 export function TestSelectionCard({
@@ -38,7 +39,8 @@ export function TestSelectionCard({
   selectedTest,
   setSelectedClass,
   setSelectedSubject,
-  setSelectedTest
+  setSelectedTest,
+  onRefreshTestFiles
 }: TestSelectionCardProps) {
   return (
     <Card>
@@ -91,22 +93,35 @@ export function TestSelectionCard({
 
           <div className="space-y-2">
             <Label htmlFor="test">Test</Label>
-            <Select 
-              value={selectedTest} 
-              onValueChange={setSelectedTest}
-              disabled={!selectedSubject || tests.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={!selectedSubject ? "Select subject first" : tests.length === 0 ? "No tests available" : "Select Test"} />
-              </SelectTrigger>
-              <SelectContent>
-                {tests.map((test) => (
-                  <SelectItem key={test.id} value={test.id}>
-                    {test.name} ({new Date(test.test_date).toLocaleDateString()})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select 
+                value={selectedTest} 
+                onValueChange={setSelectedTest}
+                disabled={!selectedSubject || tests.length === 0}
+                className="flex-1"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={!selectedSubject ? "Select subject first" : tests.length === 0 ? "No tests available" : "Select Test"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {tests.map((test) => (
+                    <SelectItem key={test.id} value={test.id}>
+                      {test.name} ({new Date(test.test_date).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTest && onRefreshTestFiles && (
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={onRefreshTestFiles}
+                  title="Refresh test files"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 

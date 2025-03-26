@@ -20,8 +20,12 @@ export default function Check() {
     selectedClass, setSelectedClass,
     selectedSubject, setSelectedSubject,
     selectedTest, setSelectedTest,
-    classes, subjects, tests, testFiles, classStudents
+    classes, subjects, tests, testFiles, classStudents,
+    refetchTestFiles
   } = useTestSelection();
+
+  // Track if we've done an initial test file fetch
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
 
   // Use our optimized useEvaluations hook
   const {
@@ -36,6 +40,14 @@ export default function Check() {
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
+
+  // Fetch test files when the test is selected (once)
+  useEffect(() => {
+    if (selectedTest && !initialFetchDone) {
+      refetchTestFiles();
+      setInitialFetchDone(true);
+    }
+  }, [selectedTest, initialFetchDone, refetchTestFiles]);
 
   // Set up event listener for answer sheet uploads
   useEffect(() => {
@@ -53,8 +65,8 @@ export default function Check() {
 
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
-    const questionPapers = testFiles.filter(file => file.question_paper_url);
-    const answerKeys = testFiles.filter(file => file.answer_key_url);
+    const questionPapers = testFiles?.filter(file => file.question_paper_url) || [];
+    const answerKeys = testFiles?.filter(file => file.answer_key_url) || [];
     return { questionPapers, answerKeys };
   }, [testFiles]);
 
@@ -221,6 +233,14 @@ export default function Check() {
     }
   };
 
+  // Function to manually refresh test files
+  const handleRefreshTestFiles = () => {
+    if (selectedTest) {
+      refetchTestFiles();
+      toast.info("Refreshing test files...");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -250,20 +270,21 @@ export default function Check() {
             classes={classes}
             subjects={subjects}
             tests={tests}
-            testFiles={testFiles}
+            testFiles={testFiles || []}
             selectedClass={selectedClass}
             selectedSubject={selectedSubject}
             selectedTest={selectedTest}
             setSelectedClass={setSelectedClass}
             setSelectedSubject={setSelectedSubject}
             setSelectedTest={setSelectedTest}
+            onRefreshTestFiles={handleRefreshTestFiles}
           />
 
           {selectedTest && classStudents.length > 0 && (
             <StudentAnswerSheetsCard
               selectedTest={selectedTest}
               selectedSubject={selectedSubject}
-              testFiles={testFiles}
+              testFiles={testFiles || []}
               classStudents={classStudents}
               subjects={subjects}
               evaluations={evaluations}

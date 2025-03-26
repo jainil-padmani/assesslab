@@ -29,13 +29,15 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   // Fetch existing test files
   const { data: testFiles, refetch: refetchTestFiles } = useQuery({
     queryKey: ["testFiles", test.id],
-    queryFn: () => fetchTestFiles(test.id)
+    queryFn: () => fetchTestFiles(test.id),
+    staleTime: 30000 // Data is considered fresh for 30 seconds
   });
 
   // Fetch subject files that could be assigned to this test
   const { data: subjectFiles, refetch: refetchSubjectFiles } = useQuery({
     queryKey: ["subjectFiles", test.subject_id],
-    queryFn: () => fetchSubjectFiles(test.subject_id)
+    queryFn: () => fetchSubjectFiles(test.subject_id),
+    staleTime: 30000 // Data is considered fresh for 30 seconds
   });
 
   const assignExistingPaper = async (fileId: string) => {
@@ -47,28 +49,37 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     setIsUploading(true);
     
     try {
+      console.log("Assigning file to test:", fileId);
       const fileToAssign = subjectFiles?.find(file => file.id === fileId);
       
       if (!fileToAssign) {
         throw new Error("Selected file not found");
       }
       
+      // Validate file has question paper and answer key
+      if (!fileToAssign.question_paper_url || !fileToAssign.answer_key_url) {
+        throw new Error("Selected file must have both question paper and answer key");
+      }
+      
       const success = await assignSubjectFilesToTest(test.id, fileToAssign);
       
       if (success) {
-        toast.success("Files assigned successfully!");
-        setOpenUploadDialog(false);
-        
         // Force refresh storage before refetching
         await forceRefreshStorage();
         
         // Refetch both test files and subject files to ensure we have the latest data
         await refetchTestFiles();
         await refetchSubjectFiles();
+        
+        setOpenUploadDialog(false);
+        return true;
+      } else {
+        throw new Error("Failed to assign file to test");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error assigning files:", error);
-      toast.error("Failed to assign files. Please try again.");
+      toast.error(`Failed to assign files: ${error.message}`);
+      throw error;
     } finally {
       setIsUploading(false);
     }
@@ -76,21 +87,27 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
 
   const handleDeleteFile = async (file: TestFile) => {
     try {
+      toast.info("Deleting file...");
       const testPrefix = `test_${file.test_id}`;
       const success = await deleteFileGroup(testPrefix, file.topic);
+      
       if (success) {
-        toast.success("Files deleted successfully");
-        
         // Force refresh storage before refetching
         await forceRefreshStorage();
         
         // Refetch both test files and subject files
         await refetchTestFiles();
         await refetchSubjectFiles();
+        
+        toast.success("Files deleted successfully");
+        return true;
+      } else {
+        throw new Error("Failed to delete files");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting files:", error);
-      toast.error("Failed to delete files");
+      toast.error(`Failed to delete files: ${error.message}`);
+      return false;
     }
   };
 

@@ -10,6 +10,11 @@ import {
 } from "./storageHelpers";
 import { mapTestFiles } from "./fileMappers";
 
+// Cache for storageData to avoid constant fetches
+let storageDataCache = null;
+let lastFetchTime = 0;
+const CACHE_EXPIRY = 30000; // 30 seconds
+
 // Function to fetch test files
 export const fetchTestFiles = async (testId: string): Promise<any[]> => {
   try {
@@ -135,6 +140,9 @@ export const assignSubjectFilesToTest = async (
     const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
     const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
     
+    console.log("Copying question paper to:", newQuestionPaperName);
+    console.log("Copying answer key to:", newAnswerKeyName);
+    
     // Copy question paper (required)
     await copyStorageFile(questionPaperFileName, newQuestionPaperName);
     
@@ -174,7 +182,9 @@ export const assignSubjectFilesToTest = async (
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();
 
-    toast.success("Files assigned to test successfully");
+    // Clear storage cache to force refetch
+    storageDataCache = null;
+    
     return true;
   } catch (error: any) {
     console.error('Error assigning files to test:', error);

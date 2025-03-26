@@ -27,7 +27,8 @@ export default function TestDetail() {
     editMarks,
     setEditMarks,
     handleSaveMarks,
-    handleUpdateAnswerScore
+    handleUpdateAnswerScore,
+    refetchTest
   } = useTestDetail(testId);
 
   // Determine which tab should be active based on URL parameters
@@ -59,6 +60,14 @@ export default function TestDetail() {
     }
   };
 
+  // Handler for when papers are changed
+  const handlePapersChanged = () => {
+    // Refetch test data when papers are changed
+    if (refetchTest) {
+      refetchTest();
+    }
+  };
+
   return (
     <div className="container mx-auto">
       {/* Test Header */}
@@ -76,7 +85,7 @@ export default function TestDetail() {
         
         <TabsContent value="papers">
           {/* Test Papers Management */}
-          <TestPapersManagement test={test} />
+          <TestPapersManagement test={test} onPapersChanged={handlePapersChanged} />
         </TabsContent>
         
         <TabsContent value="questions">

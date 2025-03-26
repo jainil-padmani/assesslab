@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -16,9 +16,10 @@ import { TestPaperAssignDialog } from "./TestPaperAssignDialog";
 
 interface TestPapersProps {
   test: Test & { subjects: { name: string, subject_code: string } };
+  onPapersChanged?: () => void;
 }
 
-export function TestPapersManagement({ test }: TestPapersProps) {
+export function TestPapersManagement({ test, onPapersChanged }: TestPapersProps) {
   const {
     testFiles,
     subjectFiles,
@@ -26,8 +27,32 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     openUploadDialog,
     setOpenUploadDialog,
     assignExistingPaper,
-    handleDeleteFile
+    handleDeleteFile,
+    refetchTestFiles
   } = useTestPapers(test);
+
+  // Ensure UI updates when papers are changed
+  useEffect(() => {
+    if (testFiles && onPapersChanged) {
+      onPapersChanged();
+    }
+  }, [testFiles, onPapersChanged]);
+
+  const handleAssignPaper = async (fileId: string) => {
+    await assignExistingPaper(fileId);
+    // Notify parent component after successful paper assignment
+    if (onPapersChanged) {
+      onPapersChanged();
+    }
+  };
+
+  const handleDeleteTestFile = async (file: any) => {
+    await handleDeleteFile(file);
+    // Notify parent component after successful deletion
+    if (onPapersChanged) {
+      onPapersChanged();
+    }
+  };
 
   return (
     <Card className="mb-8">
@@ -42,7 +67,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           onOpenChange={setOpenUploadDialog}
           subjectFiles={subjectFiles}
           isUploading={isUploading}
-          onAssignPaper={assignExistingPaper}
+          onAssignPaper={handleAssignPaper}
         />
       </CardHeader>
       
@@ -61,7 +86,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
               <TestPaperCard 
                 key={file.id} 
                 file={file} 
-                onDelete={handleDeleteFile} 
+                onDelete={handleDeleteTestFile}
               />
             ))}
           </div>
