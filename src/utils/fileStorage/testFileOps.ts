@@ -10,11 +10,6 @@ import {
 } from "./storageHelpers";
 import { mapTestFiles } from "./fileMappers";
 
-// Cache for storageData to avoid constant fetches
-let storageDataCache = null;
-let lastFetchTime = 0;
-const CACHE_EXPIRY = 30000; // 30 seconds
-
 // Function to fetch test files
 export const fetchTestFiles = async (testId: string): Promise<any[]> => {
   try {
@@ -30,20 +25,28 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
       .eq('id', testId)
       .single();
       
-    if (testError) throw testError;
+    if (testError) {
+      console.error('Error fetching test information:', testError);
+      throw testError;
+    }
     
     // Get all files from storage
     const storageData = await listStorageFiles();
+    console.log(`Retrieved ${storageData.length} files from storage`);
 
     // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
+    console.log(`Mapped ${filesMap.size} files for test ID: ${testId}`);
     
     // Filter to include files with at least a question paper and answer key
-    const files = Array.from(filesMap.values()).filter(
-      file => file.question_paper_url && file.answer_key_url
-    );
+    const files = Array.from(filesMap.values());
     
-    console.log("Fetched test files:", files.length);
+    // Log detailed info about the files
+    files.forEach(file => {
+      console.log(`File: ${file.topic}, Question Paper: ${file.question_paper_url ? 'Yes' : 'No'}, Answer Key: ${file.answer_key_url ? 'Yes' : 'No'}`);
+    });
+    
+    console.log(`Returning ${files.length} test files`);
     return files;
   } catch (error) {
     console.error('Error fetching test files:', error);

@@ -2,7 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, RefreshCw } from "lucide-react";
+import { CheckCircle, RefreshCw, AlertCircle } from "lucide-react";
 import { 
   Select,
   SelectContent,
@@ -10,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import type { TestFile } from "@/hooks/useTestSelection";
 import type { Class } from "@/hooks/useClassData";
 import type { Subject } from "@/types/dashboard";
@@ -42,6 +44,17 @@ export function TestSelectionCard({
   setSelectedTest,
   onRefreshTestFiles
 }: TestSelectionCardProps) {
+  const handleRefreshClick = () => {
+    if (onRefreshTestFiles) {
+      toast.info("Refreshing test files...");
+      onRefreshTestFiles();
+    }
+  };
+
+  const hasQuestionPapers = testFiles.some(file => file.question_paper_url);
+  const hasAnswerKeys = testFiles.some(file => file.answer_key_url);
+  const hasCompleteFiles = hasQuestionPapers && hasAnswerKeys;
+
   return (
     <Card>
       <CardHeader>
@@ -110,19 +123,44 @@ export function TestSelectionCard({
                   ))}
                 </SelectContent>
               </Select>
-              {selectedTest && onRefreshTestFiles && (
-                <Button 
-                  variant="outline" 
-                  size="icon"
-                  onClick={onRefreshTestFiles}
-                  title="Refresh test files"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              )}
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      onClick={handleRefreshClick}
+                      disabled={!selectedTest}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Refresh test files</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
+
+        {selectedTest && !hasCompleteFiles && (
+          <div className="mt-2 p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 rounded-md flex items-center gap-2 text-amber-800 dark:text-amber-300">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="text-sm">
+              {testFiles.length === 0 ? (
+                <span>No test files found. Please add question papers and answer keys from the Test Detail page.</span>
+              ) : !hasQuestionPapers ? (
+                <span>Question papers are missing. Both question papers and answer keys are required.</span>
+              ) : !hasAnswerKeys ? (
+                <span>Answer keys are missing. Both question papers and answer keys are required.</span>
+              ) : (
+                <span>Test files incomplete. Please check files in Test Detail page.</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {testFiles.length > 0 && (
           <div className="mt-4 border rounded-md p-4">
@@ -132,16 +170,28 @@ export function TestSelectionCard({
                 <div key={index} className="flex flex-col space-y-2">
                   <p className="text-sm font-medium">{file.topic}</p>
                   <div className="flex space-x-2">
-                    <a href={file.question_paper_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm">
-                        View Question Paper
+                    {file.question_paper_url ? (
+                      <a href={file.question_paper_url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm">
+                          View Question Paper
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
+                        No Question Paper
                       </Button>
-                    </a>
-                    <a href={file.answer_key_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm">
-                        View Answer Key
+                    )}
+                    {file.answer_key_url ? (
+                      <a href={file.answer_key_url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm">
+                          View Answer Key
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
+                        No Answer Key
                       </Button>
-                    </a>
+                    )}
                   </div>
                 </div>
               ))}

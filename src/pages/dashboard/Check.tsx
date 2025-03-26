@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -21,11 +20,9 @@ export default function Check() {
     selectedSubject, setSelectedSubject,
     selectedTest, setSelectedTest,
     classes, subjects, tests, testFiles, classStudents,
+    isLoading,
     refetchTestFiles
   } = useTestSelection();
-
-  // Track if we've done an initial test file fetch
-  const [initialFetchDone, setInitialFetchDone] = useState(false);
 
   // Use our optimized useEvaluations hook
   const {
@@ -40,14 +37,6 @@ export default function Check() {
     evaluatePaperMutation,
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
-
-  // Fetch test files when the test is selected (once)
-  useEffect(() => {
-    if (selectedTest && !initialFetchDone) {
-      refetchTestFiles();
-      setInitialFetchDone(true);
-    }
-  }, [selectedTest, initialFetchDone, refetchTestFiles]);
 
   // Set up event listener for answer sheet uploads
   useEffect(() => {
@@ -67,6 +56,7 @@ export default function Check() {
   const { questionPapers, answerKeys } = useMemo(() => {
     const questionPapers = testFiles?.filter(file => file.question_paper_url) || [];
     const answerKeys = testFiles?.filter(file => file.answer_key_url) || [];
+    console.log(`Test files summary: ${questionPapers.length} question papers, ${answerKeys.length} answer keys`);
     return { questionPapers, answerKeys };
   }, [testFiles]);
 
@@ -233,11 +223,11 @@ export default function Check() {
     }
   };
 
-  // Function to manually refresh test files
+  // Function to handle test file refresh
   const handleRefreshTestFiles = () => {
     if (selectedTest) {
+      console.log("Manually refreshing test files from Check page");
       refetchTestFiles();
-      toast.info("Refreshing test files...");
     }
   };
 
