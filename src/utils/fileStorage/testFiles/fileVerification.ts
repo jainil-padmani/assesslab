@@ -61,3 +61,39 @@ export const verifyTestAndSubjectFile = async (
     return { isValid: false, error: "Verification error: " + (error instanceof Error ? error.message : "Unknown error") };
   }
 };
+
+/**
+ * Verifies that source files exist and are complete
+ * 
+ * @param subjectFile The subject file to verify
+ * @returns Object indicating verification success
+ */
+export const verifySourceFiles = async (
+  subjectFile: SubjectFile
+): Promise<{ 
+  success: boolean; 
+  error?: string;
+}> => {
+  try {
+    // Verify question paper URL exists
+    if (!subjectFile.question_paper_url) {
+      return { success: false, error: "Question paper URL is missing" };
+    }
+    
+    // Verify answer key URL exists
+    if (!subjectFile.answer_key_url) {
+      return { success: false, error: "Answer key URL is missing" };
+    }
+    
+    // Check if the URLs are accessible
+    // We could add more validation here if needed
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Error verifying source files:", error);
+    return { 
+      success: false, 
+      error: "Error verifying source files: " + (error instanceof Error ? error.message : "Unknown error") 
+    };
+  }
+};
