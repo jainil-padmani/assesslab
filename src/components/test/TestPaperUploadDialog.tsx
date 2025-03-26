@@ -68,8 +68,8 @@ export function TestPaperUploadDialog({
       
       // Upload question paper
       setUploadProgress(30);
-      const questionPaperPath = `test_${testId}_${sanitizedTopic}_questionPaper_${timestamp}`;
-      const { error: questionPaperError, data: qpData } = await supabase.storage
+      const questionPaperPath = `test_${testId}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperFile.name.split('.').pop()}`;
+      const { error: questionPaperError } = await supabase.storage
         .from('files')
         .upload(questionPaperPath, questionPaperFile, {
           cacheControl: '3600',
@@ -82,8 +82,8 @@ export function TestPaperUploadDialog({
 
       // Upload answer key
       setUploadProgress(60);
-      const answerKeyPath = `test_${testId}_${sanitizedTopic}_answerKey_${timestamp}`;
-      const { error: answerKeyError, data: akData } = await supabase.storage
+      const answerKeyPath = `test_${testId}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyFile.name.split('.').pop()}`;
+      const { error: answerKeyError } = await supabase.storage
         .from('files')
         .upload(answerKeyPath, answerKeyFile, {
           cacheControl: '3600',
@@ -102,24 +102,41 @@ export function TestPaperUploadDialog({
       setUploadProgress(100);
       toast.success("Test papers uploaded successfully");
       
-      // Dispatch a global event for test file upload
-      const event = new CustomEvent('testFileUploaded', {
+      // Dispatch more comprehensive global events for test file upload
+      const testFileUploadedEvent = new CustomEvent('testFileUploaded', {
         detail: {
           testId,
           topic: topicName,
           questionPaperPath,
-          answerKeyPath
+          answerKeyPath,
+          timestamp: new Date().toISOString()
         }
       });
-      document.dispatchEvent(event);
+      document.dispatchEvent(testFileUploadedEvent);
+
+      // Also dispatch a generic file refresh event
+      const fileRefreshEvent = new CustomEvent('filesRefreshed', {
+        detail: { source: 'testPaperUpload', testId }
+      });
+      document.dispatchEvent(fileRefreshEvent);
+      
+      // Additional event to notify test file assignment
+      const testFileAssignedEvent = new CustomEvent('testFileAssigned', {
+        detail: { testId, timestamp: new Date().toISOString() }
+      });
+      document.dispatchEvent(testFileAssignedEvent);
       
       // Reset form and close dialog
       handleReset();
       onOpenChange(false);
       
-      // Call onSuccess callback if provided
-      if (onSuccess) {
-        onSuccess();
+      // Schedule repeated refresh calls to ensure files are loaded
+      const refreshIntervals = [500, 1500, 3000, 6000];
+      for (const delay of refreshIntervals) {
+        setTimeout(async () => {
+          await forceRefreshStorage();
+          if (onSuccess) onSuccess();
+        }, delay);
       }
     } catch (error: any) {
       console.error("Error uploading test papers:", error);

@@ -1,11 +1,15 @@
 
-// Export all functions from the refactored files
-export { fetchTestFiles } from './fetchTestFiles';
-export { assignSubjectFilesToTest } from './assignSubjectFilesToTest';
-export { copyAndRecord } from './copyAndRecord';
-export { verifySourceFiles, verifyTestAndSubjectFile } from './fileVerification';
+// Main file that exports all testFiles utilities
+import { fetchTestFiles } from './fetchTestFiles';
+import { assignSubjectFilesToTest } from './assignSubjectFilesToTest';
+import { copyAndRecord } from './copyAndRecord';
+import { verifySourceFiles } from './fileVerification';
+import { sanitizeTopic } from './fileExtractors';
+
 export {
-  extractFilenameFromUrl,
-  getFileExtension,
+  fetchTestFiles,
+  assignSubjectFilesToTest,
+  copyAndRecord,
+  verifySourceFiles,
   sanitizeTopic
-} from './fileExtractors';
+};

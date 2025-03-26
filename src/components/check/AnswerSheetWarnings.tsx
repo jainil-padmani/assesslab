@@ -4,6 +4,8 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { TestPaperUploadDialog } from "@/components/test/TestPaperUploadDialog";
+import { toast } from "sonner";
+import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 
 interface AnswerSheetWarningsProps {
   areTestFilesReady: boolean;
@@ -21,35 +23,80 @@ export function AnswerSheetWarnings({
   onTestFilesUploaded
 }: AnswerSheetWarningsProps) {
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Force refresh every 5 seconds when upload dialog is open
+  // Listen for test file upload events
+  useEffect(() => {
+    const handleTestFileUploaded = () => {
+      if (onTestFilesUploaded) {
+        console.log("Test file uploaded event detected in AnswerSheetWarnings");
+        refreshTestFiles();
+      }
+    };
+    
+    // Listen for multiple events that should trigger a refresh
+    const events = [
+      'testFileUploaded',
+      'testFileAssigned',
+      'filesRefreshed'
+    ];
+    
+    events.forEach(event => {
+      document.addEventListener(event, handleTestFileUploaded);
+    });
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, handleTestFileUploaded);
+      });
+    };
+  }, [onTestFilesUploaded]);
+  
+  // Force refresh every 10 seconds when upload dialog is open
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     
     if (openUploadDialog) {
       interval = setInterval(() => {
-        if (onTestFilesUploaded) {
-          onTestFilesUploaded();
-        }
-      }, 5000);
+        refreshTestFiles();
+      }, 10000);
     }
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [openUploadDialog, onTestFilesUploaded]);
+  }, [openUploadDialog]);
 
-  const handleUploadSuccess = () => {
-    if (onTestFilesUploaded) {
-      // Call immediately after upload
+  const refreshTestFiles = async () => {
+    if (!onTestFilesUploaded) return;
+    
+    setIsRefreshing(true);
+    
+    try {
+      // First force a storage refresh
+      await forceRefreshStorage();
+      
+      // Then trigger the callback
       onTestFilesUploaded();
       
-      // Then set a timer to call again after a short delay to ensure storage is refreshed
+      // Schedule additional refreshes to ensure files are loaded
       setTimeout(() => {
         onTestFilesUploaded();
       }, 2000);
+      
+      setTimeout(() => {
+        onTestFilesUploaded();
+      }, 5000);
+    } catch (error) {
+      console.error("Error refreshing test files:", error);
+    } finally {
+      setIsRefreshing(false);
     }
+  };
+
+  const handleUploadSuccess = () => {
+    toast.success("Test papers uploaded successfully");
+    refreshTestFiles();
   };
 
   return (

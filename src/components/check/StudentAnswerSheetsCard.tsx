@@ -5,9 +5,11 @@ import { AnswerSheetHeader } from "./AnswerSheetHeader";
 import { AnswerSheetWarnings } from "./AnswerSheetWarnings";
 import { AnswerSheetSearch } from "./AnswerSheetSearch";
 import { StudentsTable } from "./StudentsTable";
+import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 import type { Student, Subject } from "@/types/dashboard";
 import type { TestFile } from "@/hooks/useTestSelection";
 import type { PaperEvaluation } from "@/hooks/useEvaluations";
+import { toast } from "sonner";
 
 interface StudentAnswerSheetsCardProps {
   selectedTest: string;
@@ -50,7 +52,8 @@ export function StudentAnswerSheetsCard({
     const events = [
       'answerSheetUploaded',
       'testFileUploaded',
-      'testFileAssigned'
+      'testFileAssigned',
+      'filesRefreshed'
     ];
     
     events.forEach(event => {
@@ -63,6 +66,39 @@ export function StudentAnswerSheetsCard({
       });
     };
   }, []);
+
+  // Periodic storage refresh
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        console.log("Periodic storage refresh");
+        await forceRefreshStorage();
+        // Increment refresh trigger after a brief delay
+        setTimeout(() => {
+          setRefreshTrigger(prev => prev + 1);
+        }, 500);
+      } catch (error) {
+        console.error("Error in periodic storage refresh:", error);
+      }
+    }, 30000); // Every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initial refresh when component mounts
+  useEffect(() => {
+    const initialRefresh = async () => {
+      try {
+        console.log("Initial storage refresh");
+        await forceRefreshStorage();
+        setRefreshTrigger(prev => prev + 1);
+      } catch (error) {
+        console.error("Error in initial storage refresh:", error);
+      }
+    };
+    
+    initialRefresh();
+  }, [selectedTest]);
 
   // Filter students based on search query
   useEffect(() => {
@@ -97,14 +133,28 @@ export function StudentAnswerSheetsCard({
     setSearchQuery("");
   };
 
-  const handleTestFilesUploaded = () => {
-    // Trigger a refresh of the component
-    console.log("Test files uploaded, triggering refresh in StudentAnswerSheetsCard");
-    setRefreshTrigger(prev => prev + 1);
-    
-    // Dispatch an event that other components can listen for
-    const event = new CustomEvent('testFileUploaded');
-    document.dispatchEvent(event);
+  const handleTestFilesUploaded = async () => {
+    try {
+      // Trigger a refresh of the component
+      console.log("Test files uploaded, triggering refresh in StudentAnswerSheetsCard");
+      
+      // Force refresh storage
+      await forceRefreshStorage();
+      
+      // Update the refresh trigger
+      setRefreshTrigger(prev => prev + 1);
+      
+      // Dispatch a global event
+      const event = new CustomEvent('filesRefreshed', {
+        detail: { source: 'StudentAnswerSheetsCard', timestamp: new Date().toISOString() }
+      });
+      document.dispatchEvent(event);
+      
+      toast.success("Test files refreshed successfully");
+    } catch (error) {
+      console.error("Error refreshing test files:", error);
+      toast.error("Failed to refresh test files");
+    }
   };
 
   return (

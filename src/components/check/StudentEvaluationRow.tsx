@@ -1,14 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Check, AlertCircle, File, Loader2, Eye } from "lucide-react";
-import { useUploadAssessment } from "@/hooks/useUploadAssessment";
+import { Eye, FileText, Loader2, Upload } from "lucide-react";
 import { UploadAnswerSheet } from "./UploadAnswerSheet";
 import { Badge } from "@/components/ui/badge";
+import { useUploadAssessment } from "@/hooks/useUploadAssessment";
 import type { Student } from "@/types/dashboard";
-import { EvaluationStatus } from "@/types/assessments";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 interface StudentEvaluationRowProps {
   student: Student;
@@ -19,7 +18,7 @@ interface StudentEvaluationRowProps {
   selectedTest: string;
   testFilesAvailable: boolean;
   onEvaluate: (studentId: string) => void;
-  refreshTrigger?: number;
+  refreshTrigger: number;
 }
 
 export function StudentEvaluationRow({
@@ -31,153 +30,176 @@ export function StudentEvaluationRow({
   selectedTest,
   testFilesAvailable,
   onEvaluate,
-  refreshTrigger = 0
+  refreshTrigger
 }: StudentEvaluationRowProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [localRefreshTrigger, setLocalRefreshTrigger] = useState(0);
   
-  // Force refresh when parent triggers it or when a file is uploaded
-  useEffect(() => {
-    setRefreshKey(prev => prev + 1);
-  }, [refreshTrigger]);
-  
-  const { 
-    hasAnswerSheet, 
+  const {
+    hasAnswerSheet,
     answerSheetUrl,
-    refetch
-  } = useUploadAssessment(student.id, selectedSubject, selectedTest, refreshKey);
+    openFileUpload,
+    refetch: refreshAnswerSheet
+  } = useUploadAssessment(student.id, selectedSubject, selectedTest, refreshTrigger + localRefreshTrigger);
 
-  // Set up event listener for answer sheet uploads
+  // Listen for answer sheet upload events
   useEffect(() => {
-    const handleAnswerSheetUploaded = (event: CustomEvent) => {
-      if (event.detail.studentId === student.id) {
-        console.log(`Answer sheet uploaded for student ${student.id}, refreshing data`);
-        refetch();
+    const handleAnswerSheetUploaded = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.studentId === student.id) {
+        console.log(`Answer sheet upload detected for student ${student.id}`);
+        refreshAnswerSheet();
+        setLocalRefreshTrigger(prev => prev + 1);
       }
     };
     
-    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
     
     return () => {
-      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded as EventListener);
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
     };
-  }, [student.id, refetch]);
+  }, [student.id, refreshAnswerSheet]);
 
-  const handleUploadComplete = () => {
-    // Refresh the upload assessment data
-    refetch();
-    // Force UI refresh
-    setRefreshKey(prev => prev + 1);
+  // Refresh the answer sheet data when the component mounts or refresh trigger changes
+  useEffect(() => {
+    refreshAnswerSheet();
+  }, [refreshTrigger, refreshAnswerSheet]);
+
+  // Determine if the evaluation button should be enabled
+  const canEvaluate = hasAnswerSheet && testFilesAvailable && !isEvaluating && status !== 'completed';
+
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded);
   };
 
-  const renderStatus = () => {
-    switch(status) {
-      case EvaluationStatus.COMPLETED:
-        return (
-          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100 font-medium">
-            <Check className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
-      case EvaluationStatus.IN_PROGRESS:
-        return (
-          <Badge variant="warning" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-medium">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            In Progress
-          </Badge>
-        );
-      case EvaluationStatus.FAILED:
-        return (
-          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100 font-medium">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        );
+  const handleEvaluate = () => {
+    if (!testFilesAvailable) {
+      toast.error("Cannot evaluate: Missing question paper or answer key");
+      return;
+    }
+    
+    if (!hasAnswerSheet) {
+      toast.error("Cannot evaluate: Student has not uploaded an answer sheet");
+      return;
+    }
+    
+    onEvaluate(student.id);
+  };
+
+  const getStatusDisplay = () => {
+    if (isEvaluating) {
+      return (
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+          <span className="text-blue-600 dark:text-blue-400">Evaluating...</span>
+        </div>
+      );
+    }
+
+    switch (status) {
+      case 'completed':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Evaluated</Badge>;
       default:
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 hover:bg-gray-100 font-medium">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
+        return <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">Pending</Badge>;
     }
   };
 
   return (
-    <TableRow className="hover:bg-muted/40 transition-colors">
-      <TableCell className="font-medium">
-        <div className="flex items-center space-x-2">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            {student.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-medium">{student.name}</p>
-            <p className="text-xs text-muted-foreground">{student.email || "No email"}</p>
-          </div>
-        </div>
-      </TableCell>
-      <TableCell>
-        <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-sm font-medium">
-          {student.roll_number || '-'}
-        </span>
-      </TableCell>
-      <TableCell>
-        {hasAnswerSheet ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
+    <>
+      <TableRow className={isExpanded ? "border-b-0" : ""}>
+        <TableCell className="font-medium">
+          {student.name}
+        </TableCell>
+        <TableCell>{student.roll_number || "N/A"}</TableCell>
+        <TableCell>
+          {hasAnswerSheet ? (
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-green-600" />
+              <span className="text-sm">Uploaded</span>
+              {answerSheetUrl && (
                 <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="border-slate-200 hover:bg-slate-100"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6"
                   asChild
                 >
-                  <a href={answerSheetUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center">
-                    <File className="h-4 w-4 mr-2 text-blue-600" />
-                    View Sheet
+                  <a href={answerSheetUrl} target="_blank" rel="noopener noreferrer">
+                    <Eye className="h-3 w-3" />
                   </a>
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View student answer sheet</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <div className="max-w-60">
-            <UploadAnswerSheet 
-              studentId={student.id} 
-              selectedSubject={selectedSubject} 
-              testId={selectedTest}
-              isEvaluating={isEvaluating}
-              onUploadComplete={handleUploadComplete}
-            />
-          </div>
-        )}
-      </TableCell>
-      <TableCell>
-        {renderStatus()}
-      </TableCell>
-      <TableCell className="text-right">
-        <Button 
-          variant={hasAnswerSheet ? "default" : "outline"}
-          size="sm"
-          onClick={() => onEvaluate(student.id)}
-          disabled={isEvaluating || !hasAnswerSheet || !testFilesAvailable}
-          className={`${hasAnswerSheet ? "bg-primary hover:bg-primary/90" : "border-slate-200"} rounded-md transition-all duration-200 focus:ring-2 focus:ring-primary/30`}
-        >
-          {isEvaluating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Evaluating...
-            </>
+              )}
+            </div>
           ) : (
-            <>
-              <Eye className="h-4 w-4 mr-2" />
-              Evaluate
-            </>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-blue-600 p-0 h-auto" 
+              onClick={openFileUpload}
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              Upload
+            </Button>
           )}
-        </Button>
-      </TableCell>
-    </TableRow>
+        </TableCell>
+        <TableCell>{getStatusDisplay()}</TableCell>
+        <TableCell className="text-right">
+          <div className="flex justify-end gap-2">
+            {status === 'completed' ? (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={toggleExpand}
+              >
+                {isExpanded ? "Hide Details" : "View Results"}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEvaluate}
+                disabled={!canEvaluate}
+                className={canEvaluate ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" : ""}
+              >
+                {isEvaluating ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  "Evaluate"
+                )}
+              </Button>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+      
+      {isExpanded && status === 'completed' && evaluationData && (
+        <TableRow>
+          <TableCell colSpan={5} className="bg-slate-50 dark:bg-slate-900/30 p-4">
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Evaluation Results</h4>
+              <pre className="text-xs overflow-auto p-4 bg-white dark:bg-slate-800 border rounded-md">
+                {JSON.stringify(evaluationData, null, 2)}
+              </pre>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+      
+      {isExpanded && !hasAnswerSheet && (
+        <TableRow>
+          <TableCell colSpan={5} className="bg-slate-50 dark:bg-slate-900/30 p-4">
+            <UploadAnswerSheet
+              studentId={student.id}
+              selectedSubject={selectedSubject}
+              isEvaluating={isEvaluating}
+              testId={selectedTest}
+              onUploadComplete={refreshAnswerSheet}
+            />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
