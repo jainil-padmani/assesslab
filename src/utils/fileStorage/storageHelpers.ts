@@ -1,5 +1,17 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// Define StorageFile type for use across the application
+export interface StorageFile {
+  name: string;
+  id: string;
+  publicUrl: string;
+  created_at?: string;
+  updated_at?: string;
+  last_accessed_at?: string;
+  metadata?: any;
+}
 
 // Get public URL for a file in storage
 export const getPublicUrl = (fileName: string, bucket = 'files') => {
@@ -10,7 +22,7 @@ export const getPublicUrl = (fileName: string, bucket = 'files') => {
 };
 
 // List all files in a storage bucket
-export const listStorageFiles = async (bucket = 'files') => {
+export const listStorageFiles = async (bucket = 'files'): Promise<StorageFile[]> => {
   try {
     const { data, error } = await supabase
       .storage
@@ -18,8 +30,18 @@ export const listStorageFiles = async (bucket = 'files') => {
       .list();
       
     if (error) throw error;
-    console.log(`Listed ${data?.length || 0} files from storage`);
-    return data || [];
+    
+    // Transform the storage items to include public URLs
+    const filesWithUrls = (data || []).map(file => {
+      const { data: { publicUrl } } = getPublicUrl(file.name, bucket);
+      return {
+        ...file,
+        publicUrl
+      };
+    });
+    
+    console.log(`Listed ${filesWithUrls.length || 0} files from storage`);
+    return filesWithUrls;
   } catch (error: any) {
     console.error('Error listing files:', error);
     toast.error('Failed to list files');

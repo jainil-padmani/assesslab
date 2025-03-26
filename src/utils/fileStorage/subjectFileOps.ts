@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubjectFile } from "@/types/dashboard";
@@ -6,7 +7,8 @@ import {
   getPublicUrl, 
   uploadStorageFile, 
   deleteStorageFile,
-  forceRefreshStorage
+  forceRefreshStorage,
+  StorageFile
 } from "./storageHelpers";
 import { 
   mapSubjectFiles,
@@ -57,13 +59,13 @@ export const fetchSubjectFiles = async (subjectId: string): Promise<SubjectFile[
       filesMap = await mapTestFilesToSubject(storageData, subjectId, subjectTests, filesMap);
     }
     
-    // Filter to include files with at least a question paper
-    const files = Array.from(filesMap.values()).filter(
-      file => file.question_paper_url
+    // Convert map values to array and filter for files with at least a question paper
+    const files = Object.values(filesMap).filter(
+      file => !!file.question_paper_url
     );
     
     console.log('Found subject files:', files.length);
-    return files;
+    return files as SubjectFile[];
   } catch (error: any) {
     console.error('Error fetching subject files:', error);
     toast.error('Failed to fetch subject files');

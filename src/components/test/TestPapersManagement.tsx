@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -14,6 +14,7 @@ import { useTestPapers } from "@/hooks/useTestPapers";
 import { TestPaperCard } from "./TestPaperCard";
 import { TestPaperAssignDialog } from "./TestPaperAssignDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface TestPapersProps {
   test: Test & { subjects: { name: string, subject_code: string } };
@@ -33,10 +34,46 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     handleDeleteFile
   } = useTestPapers(test, refreshTrigger);
 
-  const handleAssignPaper = async (fileId: string) => {
-    await assignExistingPaper(fileId);
-    // Trigger a refresh after assignment
+  // Force refresh when component mounts
+  useEffect(() => {
+    // Trigger a refresh
     setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  const handleAssignPaper = async (fileId: string) => {
+    try {
+      if (!fileId) {
+        toast.error("No file selected");
+        return;
+      }
+      
+      const selectedFile = subjectFiles?.find(file => file.id === fileId);
+      if (!selectedFile) {
+        toast.error("Selected file not found");
+        return;
+      }
+      
+      await assignExistingPaper(fileId);
+      
+      // Close the dialog and trigger a refresh
+      setOpenUploadDialog(false);
+      setRefreshTrigger(prev => prev + 1);
+      
+      toast.success("Paper successfully assigned to test");
+    } catch (error) {
+      console.error("Error assigning paper:", error);
+      toast.error("Failed to assign paper to test");
+    }
+  };
+
+  const handleDeleteTestPaper = async (file: any) => {
+    try {
+      await handleDeleteFile(file);
+      // Trigger a refresh after deletion
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Error deleting test paper:", error);
+    }
   };
 
   return (
@@ -77,10 +114,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
               <TestPaperCard 
                 key={file.id} 
                 file={file} 
-                onDelete={() => {
-                  handleDeleteFile(file);
-                  setRefreshTrigger(prev => prev + 1);
-                }} 
+                onDelete={handleDeleteTestPaper} 
               />
             ))}
           </div>

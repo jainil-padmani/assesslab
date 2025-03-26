@@ -6,7 +6,8 @@ import {
   listStorageFiles, 
   copyStorageFile,
   getPublicUrl,
-  forceRefreshStorage
+  forceRefreshStorage,
+  StorageFile
 } from "./storageHelpers";
 import { mapTestFiles } from "./fileMappers";
 
@@ -30,19 +31,11 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
     // Get all files from storage
     const storageData = await listStorageFiles();
 
-    // Look for files with the pattern test_{testId}
-    const testFiles = storageData.filter(file => 
-      file.name.startsWith(`test_${testId}_`) || // Direct match
-      file.name.includes(`/test_${testId}_`) // For files in subdirectories
-    );
-
-    console.log(`Found ${testFiles.length} files matching test_${testId}`);
-
     // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
     
     // Filter to include files with at least a question paper and answer key
-    const files = Array.from(filesMap.values()).filter(
+    const files = Object.values(filesMap).filter(
       file => file.question_paper_url && file.answer_key_url
     );
     

@@ -35,11 +35,16 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     queryKey: ["testFiles", test.id, refreshTrigger],
     queryFn: async () => {
       console.log('Fetching test files for test ID:', test.id);
+      
+      // Force refresh storage to ensure we have the latest files
+      await forceRefreshStorage();
+      
       const files = await fetchTestFiles(test.id);
       console.log('Fetched test files:', files.length);
       return files;
     },
-    staleTime: 0 // Always refetch to ensure we have the latest data
+    staleTime: 0, // Always refetch to ensure we have the latest data
+    retry: 1,     // Don't retry too many times
   });
 
   // Fetch subject files that could be assigned to this test
@@ -49,13 +54,26 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     isLoading: isSubjectFilesLoading
   } = useQuery({
     queryKey: ["subjectFiles", test.subject_id, refreshTrigger],
-    queryFn: () => fetchSubjectFiles(test.subject_id)
+    queryFn: async () => {
+      console.log('Fetching subject files for subject ID:', test.subject_id);
+      
+      // Force refresh storage to ensure we have the latest files
+      await forceRefreshStorage();
+      
+      const files = await fetchSubjectFiles(test.subject_id);
+      console.log('Fetched subject files:', files.length);
+      return files;
+    },
+    staleTime: 0, // Always refetch to ensure we have the latest data
+    retry: 1,     // Don't retry too many times
   });
 
-  // Force refresh when the component mounts or refreshTrigger changes
+  // Force refresh when the refreshTrigger changes
   useEffect(() => {
     const refreshData = async () => {
       try {
+        console.log("Refreshing data due to trigger change:", refreshTrigger);
+        
         // Force refresh storage before refetching
         await forceRefreshStorage();
         
@@ -67,8 +85,10 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       }
     };
     
-    refreshData();
-  }, [refreshTrigger]);
+    if (refreshTrigger > 0) {
+      refreshData();
+    }
+  }, [refreshTrigger, refetchTestFiles, refetchSubjectFiles]);
 
   const assignExistingPaper = async (fileId: string) => {
     if (!fileId) {
@@ -89,7 +109,6 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       
       if (success) {
         toast.success("Files assigned successfully!");
-        setOpenUploadDialog(false);
         
         // Force refresh storage before refetching
         await forceRefreshStorage();
@@ -98,9 +117,12 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         await refetchTestFiles();
         await refetchSubjectFiles();
       }
-    } catch (error) {
+      
+      return success;
+    } catch (error: any) {
       console.error("Error assigning files:", error);
-      toast.error("Failed to assign files. Please try again.");
+      toast.error("Failed to assign files: " + (error.message || "Unknown error"));
+      return false;
     } finally {
       setIsUploading(false);
     }
@@ -110,6 +132,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     try {
       const testPrefix = `test_${file.test_id}`;
       const success = await deleteFileGroup(testPrefix, file.topic);
+      
       if (success) {
         toast.success("Files deleted successfully");
         
@@ -120,9 +143,12 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         await refetchTestFiles();
         await refetchSubjectFiles();
       }
-    } catch (error) {
+      
+      return success;
+    } catch (error: any) {
       console.error("Error deleting files:", error);
-      toast.error("Failed to delete files");
+      toast.error("Failed to delete files: " + (error.message || "Unknown error"));
+      return false;
     }
   };
 
@@ -135,6 +161,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     setOpenUploadDialog,
     assignExistingPaper,
     handleDeleteFile,
-    refetchTestFiles
+    refetchTestFiles,
+    refetchSubjectFiles
   };
 }
