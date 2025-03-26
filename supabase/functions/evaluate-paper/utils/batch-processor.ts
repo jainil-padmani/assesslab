@@ -105,8 +105,19 @@ export async function processBatch(
           continue;
         }
         
-        // Convert to base64
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
+        // Convert to base64 - FIXED: Using a safer approach to prevent stack overflow
+        // Instead of using String.fromCharCode with spread operator which can cause stack overflow
+        // We'll use a chunked approach to convert the array buffer to base64
+        let binary = '';
+        const bytes = new Uint8Array(imageData);
+        const chunkSize = 1024; // Process in smaller chunks to avoid stack overflow
+        
+        for (let j = 0; j < bytes.byteLength; j += chunkSize) {
+          const chunk = bytes.subarray(j, Math.min(j + chunkSize, bytes.byteLength));
+          binary += String.fromCharCode.apply(null, Array.from(chunk));
+        }
+        
+        const base64 = btoa(binary);
         const mimeType = contentType || 'image/jpeg';
         
         console.log(`Successfully processed image ${i+1}: ${base64.substring(0, 50)}... (${imageData.byteLength} bytes)`);
