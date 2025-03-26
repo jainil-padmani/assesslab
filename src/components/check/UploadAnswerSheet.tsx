@@ -1,10 +1,9 @@
-
 import { useState, useRef } from "react";
 import { FileUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { 
   uploadAnswerSheetFile,
-  saveTestAnswer,
+  updateTestAnswer,
   validateFileFormat 
 } from "@/utils/assessment/fileUploadUtils";
 import { Button } from "@/components/ui/button";
@@ -38,7 +37,6 @@ export function UploadAnswerSheet({
       return;
     }
     
-    // Valid file types: PDF, PNG, JPG
     if (!validateFileFormat(selectedFile)) {
       toast.error('Please upload PDF, PNG, or JPG files only');
       if (fileInputRef.current) {
@@ -47,12 +45,10 @@ export function UploadAnswerSheet({
       return;
     }
     
-    // Check file size - warn if greater than 5MB
     if (selectedFile.size > 5 * 1024 * 1024) {
       toast.warning('File is larger than 5MB. It will be significantly compressed which may affect image quality.');
     }
     
-    // Check file size - error if greater than 20MB
     if (selectedFile.size > 20 * 1024 * 1024) {
       toast.error('File is too large (>20MB). Please reduce the file size or split the document into smaller parts.');
       if (fileInputRef.current) {
@@ -61,7 +57,6 @@ export function UploadAnswerSheet({
       return;
     }
     
-    // Check number of pages in PDF (will be processed on server side)
     if (selectedFile.type === 'application/pdf' && selectedFile.size > 3 * 1024 * 1024) {
       toast.warning('Large PDF detected. For better results, upload PDFs with fewer pages (1-2 pages) or individual images.');
     }
@@ -87,12 +82,10 @@ export function UploadAnswerSheet({
         return;
       }
       
-      // Check file size - warn if greater than 5MB
       if (file.size > 5 * 1024 * 1024) {
         toast.warning('File is larger than 5MB. It will be significantly compressed which may affect image quality.');
       }
       
-      // Check file size - error if greater than 20MB
       if (file.size > 20 * 1024 * 1024) {
         toast.error('File is too large (>20MB). Please reduce the file size or split the document into smaller parts.');
         return;
@@ -103,19 +96,15 @@ export function UploadAnswerSheet({
   };
 
   const processFile = async (file: File) => {
-    // Auto-upload as soon as file is selected
     setIsUploading(true);
     setProcessingStep("Uploading file...");
     
     try {
-      // Show processing toast
       toast.info('Processing file for evaluation...');
       
-      // Processing step depends on file type
       if (file.type === 'application/pdf') {
         setProcessingStep("Converting PDF to compressed JPEG images...");
         
-        // For large PDFs, display a more specific message
         if (file.size > 2 * 1024 * 1024) {
           toast.warning('Processing large PDF. Converting to grayscale JPEG with reduced resolution to improve processing time.');
         }
@@ -123,41 +112,34 @@ export function UploadAnswerSheet({
         setProcessingStep("Converting to optimized JPEG for OCR...");
       }
       
-      // Upload the file to storage
       const { publicUrl, zipUrl } = await uploadAnswerSheetFile(file, studentId);
       
       setProcessingStep("Saving to database...");
-      // Save to test_answers table
-      await saveTestAnswer(
+      await updateTestAnswer({
         studentId,
-        selectedSubject,
-        testId || '',
-        publicUrl,
-        file.type === 'application/pdf' ? 
+        subjectId: selectedSubject,
+        testId: testId || '',
+        answerSheetUrl: publicUrl,
+        textContent: file.type === 'application/pdf' ? 
           'PDF converted to grayscale JPEG at 100 DPI with compression' : 
           'Image optimized to grayscale JPEG with compression',
         zipUrl
-      );
+      });
       
-      // Reset form
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       
       toast.success('Answer sheet uploaded and compressed successfully');
       
-      // Dispatch event to notify other components
       const customEvent = new CustomEvent('answerSheetUploaded', {
         detail: { studentId, subjectId: selectedSubject, testId, zipUrl }
       });
       document.dispatchEvent(customEvent);
       
-      // Call the callback if provided
       if (onUploadComplete) {
         onUploadComplete();
       }
-      
-      // No longer refreshing the page
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload answer sheet');
@@ -222,7 +204,7 @@ export function UploadAnswerSheet({
           Drop your file here or click to browse
         </p>
         
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-center mb-1">
           PDF, PNG, JPG (max 5MB recommended, 20MB limit)
         </p>
         

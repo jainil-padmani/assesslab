@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
   uploadAnswerSheetFile, 
-  saveTestAnswer,
+  updateTestAnswer,
   getAnswerSheetUrl
 } from "@/utils/assessment/fileUploadUtils";
 
@@ -80,13 +80,13 @@ export function useUploadAssessment(studentId: string, subjectId: string, testId
       const { publicUrl } = await uploadAnswerSheetFile(file);
       
       // Save to test_answers
-      await saveTestAnswer(
+      await updateTestAnswer({
         studentId, 
         subjectId, 
         testId, 
-        publicUrl,
-        "Uploaded document"
-      );
+        answerSheetUrl: publicUrl,
+        textContent: "Uploaded document"
+      });
       
       // Update UI state
       setAnswerSheetUrl(publicUrl);
