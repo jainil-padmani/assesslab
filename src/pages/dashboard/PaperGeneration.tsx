@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   HelpCircle,
   Upload,
@@ -42,6 +42,7 @@ import { QuestionHistory } from "@/components/paper-generation/QuestionHistory";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { GeneratedPaper } from '@/types/papers';
 
 export default function PaperGeneration() {
   const { user } = useUser();
@@ -69,6 +70,31 @@ export default function PaperGeneration() {
       
       if (error) throw error;
       return data;
+    },
+    enabled: !!user?.id
+  });
+
+  // Fetch generated papers for history
+  const { data: papers = [], refetch: refetchPapers } = useQuery({
+    queryKey: ['generated-papers'],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('generated_papers')
+        .select(`
+          id,
+          topic,
+          created_at,
+          subject_id,
+          questions,
+          subjects:subject_id (name)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as unknown as GeneratedPaper[];
     },
     enabled: !!user?.id
   });
@@ -381,6 +407,8 @@ export default function PaperGeneration() {
           </CardHeader>
           <CardContent>
             <QuestionHistory
+              papers={papers}
+              fetchPapers={refetchPapers}
               viewMode="grid"
               enableFiltering={true}
               showViewAll={true}

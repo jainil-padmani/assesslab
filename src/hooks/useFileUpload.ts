@@ -68,16 +68,12 @@ export function useFileUpload() {
       const fileName = `${uniquePrefix}_${file.name}`;
       const filePath = folder ? `${folder}/${fileName}` : fileName;
 
-      // Upload the file
+      // Upload the file - using the correct type for upload options
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
-          onUploadProgress: (event) => {
-            const progressPercent = (event.loaded / event.total) * 100;
-            onProgress(Math.round(progressPercent));
-          },
         });
 
       if (error) throw error;

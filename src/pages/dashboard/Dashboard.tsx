@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/hooks/useUser";
@@ -52,25 +53,31 @@ export default function Dashboard() {
   const isLoading = isUserLoading || isTestMetricsLoading || isAcademicsLoading;
 
   const getCompletedTestsCount = () => {
-    if (!testMetrics) return 0;
+    if (!testMetrics || !Array.isArray(testMetrics)) return 0;
     
-    // Handle array type correctly
-    if (Array.isArray(testMetrics)) {
-      const completed = testMetrics.find(metric => metric.status === 'Completed');
-      return completed ? parseInt(completed.count, 10) || 0 : 0;
-    }
-    return 0;
+    const completed = testMetrics.find(metric => 
+      typeof metric === 'object' && 
+      metric !== null && 
+      'status' in metric && 
+      metric.status === 'Completed' && 
+      'count' in metric
+    );
+    
+    return completed && typeof completed.count === 'number' ? completed.count : 0;
   };
 
   const getPendingTestsCount = () => {
-    if (!testMetrics) return 0;
+    if (!testMetrics || !Array.isArray(testMetrics)) return 0;
     
-    // Handle array type correctly
-    if (Array.isArray(testMetrics)) {
-      const pending = testMetrics.find(metric => metric.status === 'Pending');
-      return pending ? parseInt(pending.count, 10) || 0 : 0;
-    }
-    return 0;
+    const pending = testMetrics.find(metric => 
+      typeof metric === 'object' && 
+      metric !== null && 
+      'status' in metric && 
+      metric.status === 'Pending' && 
+      'count' in metric
+    );
+    
+    return pending && typeof pending.count === 'number' ? pending.count : 0;
   };
   
   return (
