@@ -68,7 +68,7 @@ export function useFileUpload() {
       const fileName = `${uniquePrefix}_${file.name}`;
       const filePath = folder ? `${folder}/${fileName}` : fileName;
 
-      // Upload the file - using the correct type for upload options
+      // Upload the file - no onUploadProgress option in FileOptions
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(filePath, file, {

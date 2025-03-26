@@ -55,29 +55,35 @@ export default function Dashboard() {
   const getCompletedTestsCount = () => {
     if (!testMetrics || !Array.isArray(testMetrics)) return 0;
     
-    const completed = testMetrics.find(metric => 
+    // Type guard to ensure we're working with valid objects
+    const validMetrics = testMetrics.filter((metric): metric is { status: string; count: number } => 
       typeof metric === 'object' && 
       metric !== null && 
       'status' in metric && 
-      metric.status === 'Completed' && 
-      'count' in metric
+      'count' in metric &&
+      typeof metric.status === 'string' &&
+      typeof metric.count === 'number'
     );
     
-    return completed && typeof completed.count === 'number' ? completed.count : 0;
+    const completed = validMetrics.find(metric => metric.status === 'Completed');
+    return completed ? completed.count : 0;
   };
 
   const getPendingTestsCount = () => {
     if (!testMetrics || !Array.isArray(testMetrics)) return 0;
     
-    const pending = testMetrics.find(metric => 
+    // Type guard to ensure we're working with valid objects
+    const validMetrics = testMetrics.filter((metric): metric is { status: string; count: number } => 
       typeof metric === 'object' && 
       metric !== null && 
       'status' in metric && 
-      metric.status === 'Pending' && 
-      'count' in metric
+      'count' in metric &&
+      typeof metric.status === 'string' &&
+      typeof metric.count === 'number'
     );
     
-    return pending && typeof pending.count === 'number' ? pending.count : 0;
+    const pending = validMetrics.find(metric => metric.status === 'Pending');
+    return pending ? pending.count : 0;
   };
   
   return (

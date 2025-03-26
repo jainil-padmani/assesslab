@@ -56,7 +56,6 @@ export default function PaperGeneration() {
   const [questionType, setQuestionType] = useState("mixed");
   const [difficultyLevel, setDifficultyLevel] = useState("medium");
   
-  // Fetch subjects
   const { data: subjects = [] } = useQuery({
     queryKey: ['subjects'],
     queryFn: async () => {
@@ -74,7 +73,6 @@ export default function PaperGeneration() {
     enabled: !!user?.id
   });
 
-  // Fetch generated papers for history
   const { data: papers = [], refetch: refetchPapers } = useQuery({
     queryKey: ['generated-papers'],
     queryFn: async () => {
@@ -102,7 +100,6 @@ export default function PaperGeneration() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // Check if file is PDF
       if (file.type !== 'application/pdf') {
         toast.error("Please upload a PDF file");
         return;
@@ -130,10 +127,8 @@ export default function PaperGeneration() {
     setIsGenerating(true);
     
     try {
-      // Simulate API call with timeout
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock generated questions
       const mockQuestions = [
         "What is the capital of France?",
         "Explain the process of photosynthesis.",
@@ -163,7 +158,6 @@ export default function PaperGeneration() {
       return;
     }
     
-    // Logic to save questions
     toast.success("Questions saved successfully!");
   };
   
@@ -408,7 +402,9 @@ export default function PaperGeneration() {
           <CardContent>
             <QuestionHistory
               papers={papers}
-              fetchPapers={refetchPapers}
+              fetchPapers={async () => {
+                await refetchPapers();
+              }}
               viewMode="grid"
               enableFiltering={true}
               showViewAll={true}

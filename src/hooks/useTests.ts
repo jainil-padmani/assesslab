@@ -3,6 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+export interface TestMetric {
+  status: string;
+  count: number;
+}
+
 export function useTests() {
   // Fetch all tests
   const { 
@@ -33,19 +38,23 @@ export function useTests() {
   const { 
     data: testMetrics,
     isLoading: isMetricsLoading
-  } = useQuery({
+  } = useQuery<TestMetric[]>({
     queryKey: ['test-metrics'],
     queryFn: async () => {
       try {
-        // Use aggregate function instead of group to avoid TS error
         const { data, error } = await supabase
           .from('tests')
-          .select('status, count')
           .select('status, count(*)')
+          .group('status')
           .order('status');
         
         if (error) throw error;
-        return data;
+        
+        // Transform the data to ensure it matches the TestMetric interface
+        return (data || []).map(item => ({
+          status: item.status || 'Unknown',
+          count: typeof item.count === 'number' ? item.count : 0
+        })) as TestMetric[];
       } catch (error: any) {
         console.error('Error fetching test metrics:', error);
         return [];
