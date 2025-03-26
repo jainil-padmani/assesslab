@@ -1,4 +1,3 @@
-
 import { AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -25,8 +24,9 @@ export function AnswerSheetWarnings({
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [hasBeenRefreshed, setHasBeenRefreshed] = useState(false);
 
-  // Listen for test file upload events
+  // Listen for test file upload events but with rate limiting
   useEffect(() => {
     const handleTestFileEvent = (event: Event) => {
       console.log(`Test file event received: ${(event as CustomEvent).type}`);
@@ -34,7 +34,7 @@ export function AnswerSheetWarnings({
       // Set a minimum time between refreshes to prevent too many refreshes
       const now = new Date();
       const shouldRefresh = !lastRefreshTime || 
-                           (now.getTime() - lastRefreshTime.getTime() > 2000);
+                           (now.getTime() - lastRefreshTime.getTime() > 5000);
       
       if (shouldRefresh && onTestFilesUploaded) {
         console.log("Triggering test files refresh");
@@ -46,8 +46,7 @@ export function AnswerSheetWarnings({
     // Listen for multiple events that should trigger a refresh
     const events = [
       'testFileUploaded',
-      'testFileAssigned',
-      'filesRefreshed'
+      'testFileAssigned'
     ];
     
     events.forEach(event => {
@@ -61,30 +60,24 @@ export function AnswerSheetWarnings({
     };
   }, [onTestFilesUploaded, lastRefreshTime]);
   
-  // Force refresh every 10 seconds when upload dialog is open
+  // Only refresh once when the dialog is opened
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    
-    if (openUploadDialog) {
-      interval = setInterval(() => {
-        refreshTestFiles();
-      }, 10000);
+    if (openUploadDialog && !hasBeenRefreshed) {
+      refreshTestFiles();
+      setHasBeenRefreshed(true);
     }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
   }, [openUploadDialog]);
 
-  // Initial refresh on component mount
+  // Initial refresh on component mount, but only once
   useEffect(() => {
-    if (onTestFilesUploaded) {
+    if (onTestFilesUploaded && !hasBeenRefreshed) {
       refreshTestFiles();
+      setHasBeenRefreshed(true);
     }
   }, []);
 
   const refreshTestFiles = async () => {
-    if (!onTestFilesUploaded) return;
+    if (!onTestFilesUploaded || isRefreshing) return;
     
     setIsRefreshing(true);
     
@@ -97,14 +90,12 @@ export function AnswerSheetWarnings({
       // Then trigger the callback
       onTestFilesUploaded();
       
-      // Schedule additional refreshes to ensure files are loaded
+      // Just one follow-up refresh after 2 seconds to catch late files
       setTimeout(() => {
-        onTestFilesUploaded();
+        if (onTestFilesUploaded) {
+          onTestFilesUploaded();
+        }
       }, 2000);
-      
-      setTimeout(() => {
-        onTestFilesUploaded();
-      }, 5000);
     } catch (error) {
       console.error("Error refreshing test files:", error);
     } finally {
@@ -115,6 +106,8 @@ export function AnswerSheetWarnings({
   const handleUploadSuccess = () => {
     toast.success("Test papers uploaded successfully");
     refreshTestFiles();
+    // Reset the refresh state so we can refresh again
+    setHasBeenRefreshed(false);
   };
 
   return (

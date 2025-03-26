@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
@@ -100,15 +99,12 @@ export default function Check() {
     };
   }, [refreshAllData, refreshCount]);
 
-  // Initial data refresh
+  // Initial data refresh - only once when component mounts
   useEffect(() => {
-    // Refresh when the component mounts
+    // Refresh when the component mounts, but only once
     refreshAllData();
     
-    // Set up periodic refreshes
-    const interval = setInterval(refreshAllData, 30000); // Every 30 seconds
-    
-    return () => clearInterval(interval);
+    // No periodic refreshes anymore, just one when a test is selected
   }, [refreshAllData]);
 
   // Extract question papers and answer keys from test files

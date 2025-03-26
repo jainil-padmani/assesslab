@@ -1,4 +1,3 @@
-
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnswerSheetHeader } from "./AnswerSheetHeader";
@@ -42,13 +41,14 @@ export function StudentAnswerSheetsCard({
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<Student[]>(classStudents);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  const [hasInitiallyRefreshed, setHasInitiallyRefreshed] = useState(false);
   
   // Create a memoized callback for refreshing files
   const refreshFiles = useCallback(async () => {
     try {
       const now = new Date();
-      // Limit refreshes to at most once every 2 seconds
-      if (now.getTime() - lastRefreshTime.getTime() < 2000) {
+      // Limit refreshes to at most once every 5 seconds
+      if (now.getTime() - lastRefreshTime.getTime() < 5000) {
         return;
       }
       
@@ -73,9 +73,15 @@ export function StudentAnswerSheetsCard({
     }
   }, [lastRefreshTime]);
   
-  // Listen for any kind of refresh events
+  // Listen for any kind of refresh events with rate limiting
   useEffect(() => {
     const handleRefreshEvent = () => {
+      // Only refresh if it's been at least 5 seconds since last refresh
+      const now = new Date();
+      if (now.getTime() - lastRefreshTime.getTime() < 5000) {
+        return;
+      }
+      
       console.log('Refresh event received in StudentAnswerSheetsCard');
       refreshFiles();
     };
@@ -83,8 +89,7 @@ export function StudentAnswerSheetsCard({
     const events = [
       'answerSheetUploaded',
       'testFileUploaded',
-      'testFileAssigned',
-      'filesRefreshed'
+      'testFileAssigned'
     ];
     
     events.forEach(event => {
@@ -96,29 +101,21 @@ export function StudentAnswerSheetsCard({
         document.removeEventListener(event, handleRefreshEvent);
       });
     };
-  }, [refreshFiles]);
+  }, [refreshFiles, lastRefreshTime]);
 
-  // Periodic storage refresh
+  // Just one initial refresh when test changes
   useEffect(() => {
-    const interval = setInterval(refreshFiles, 30000); // Every 30 seconds
-    return () => clearInterval(interval);
-  }, [refreshFiles]);
+    if (!hasInitiallyRefreshed && selectedTest) {
+      console.log("Initial file refresh for test:", selectedTest);
+      refreshFiles();
+      setHasInitiallyRefreshed(true);
+    }
+  }, [selectedTest, refreshFiles, hasInitiallyRefreshed]);
 
-  // Initial refresh when component mounts or test changes
+  // Reset the initialRefresh flag when test changes
   useEffect(() => {
-    refreshFiles();
-    
-    // Set up more frequent initial refreshes to catch any missed updates
-    const initialRefreshTimes = [2000, 5000, 10000]; // 2, 5, and 10 seconds after mount
-    
-    const timeouts = initialRefreshTimes.map(time => 
-      setTimeout(refreshFiles, time)
-    );
-    
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout));
-    };
-  }, [selectedTest, refreshFiles]);
+    setHasInitiallyRefreshed(false);
+  }, [selectedTest]);
 
   // Filter students based on search query
   useEffect(() => {
@@ -140,9 +137,6 @@ export function StudentAnswerSheetsCard({
   const { questionPapers, answerKeys } = useMemo(() => {
     const questionPapers = testFiles.filter(file => file.question_paper_url);
     const answerKeys = testFiles.filter(file => file.answer_key_url);
-    
-    console.log(`Checking test files availability: ${JSON.stringify(testFiles.map(f => f.topic))}`);
-    console.log(`Test files ready: ${questionPapers.length > 0 && answerKeys.length > 0} (${questionPapers.length} question papers, ${answerKeys.length} answer keys)`);
     
     return { questionPapers, answerKeys };
   }, [testFiles]);
