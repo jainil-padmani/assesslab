@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { 
@@ -22,21 +22,53 @@ interface TestFile {
   created_at: string;
 }
 
-export function useTestPapers(test: Test & { subjects: { name: string, subject_code: string } }) {
+export function useTestPapers(test: Test & { subjects: { name: string, subject_code: string } }, refreshTrigger: number = 0) {
   const [isUploading, setIsUploading] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
 
   // Fetch existing test files
-  const { data: testFiles, refetch: refetchTestFiles } = useQuery({
-    queryKey: ["testFiles", test.id],
-    queryFn: () => fetchTestFiles(test.id)
+  const { 
+    data: testFiles, 
+    refetch: refetchTestFiles,
+    isLoading: isTestFilesLoading
+  } = useQuery({
+    queryKey: ["testFiles", test.id, refreshTrigger],
+    queryFn: async () => {
+      console.log('Fetching test files for test ID:', test.id);
+      const files = await fetchTestFiles(test.id);
+      console.log('Fetched test files:', files.length);
+      return files;
+    },
+    staleTime: 0 // Always refetch to ensure we have the latest data
   });
 
   // Fetch subject files that could be assigned to this test
-  const { data: subjectFiles, refetch: refetchSubjectFiles } = useQuery({
-    queryKey: ["subjectFiles", test.subject_id],
+  const { 
+    data: subjectFiles, 
+    refetch: refetchSubjectFiles,
+    isLoading: isSubjectFilesLoading
+  } = useQuery({
+    queryKey: ["subjectFiles", test.subject_id, refreshTrigger],
     queryFn: () => fetchSubjectFiles(test.subject_id)
   });
+
+  // Force refresh when the component mounts or refreshTrigger changes
+  useEffect(() => {
+    const refreshData = async () => {
+      try {
+        // Force refresh storage before refetching
+        await forceRefreshStorage();
+        
+        // Refetch both test files and subject files
+        await refetchTestFiles();
+        await refetchSubjectFiles();
+      } catch (error) {
+        console.error("Error refreshing data:", error);
+      }
+    };
+    
+    refreshData();
+  }, [refreshTrigger]);
 
   const assignExistingPaper = async (fileId: string) => {
     if (!fileId) {
@@ -98,6 +130,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     testFiles,
     subjectFiles,
     isUploading,
+    isLoading: isTestFilesLoading || isSubjectFilesLoading,
     openUploadDialog,
     setOpenUploadDialog,
     assignExistingPaper,

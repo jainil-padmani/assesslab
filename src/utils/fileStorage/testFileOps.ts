@@ -30,6 +30,14 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
     // Get all files from storage
     const storageData = await listStorageFiles();
 
+    // Look for files with the pattern test_{testId}
+    const testFiles = storageData.filter(file => 
+      file.name.startsWith(`test_${testId}_`) || // Direct match
+      file.name.includes(`/test_${testId}_`) // For files in subdirectories
+    );
+
+    console.log(`Found ${testFiles.length} files matching test_${testId}`);
+
     // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
     
@@ -137,20 +145,24 @@ export const assignSubjectFilesToTest = async (
     
     // Copy question paper (required)
     await copyStorageFile(questionPaperFileName, newQuestionPaperName);
+    console.log(`Copied question paper to: ${newQuestionPaperName}`);
     
     // Copy answer key (now required)
     await copyStorageFile(answerKeyFileName, newAnswerKeyName);
+    console.log(`Copied answer key to: ${newAnswerKeyName}`);
     
     // Copy handwritten paper if it exists
+    let newHandwrittenName = '';
     if (subjectFile.handwritten_paper_url) {
       const handwrittenFileName = extractFilenameFromUrl(subjectFile.handwritten_paper_url);
       const handwrittenExt = getFileExtension(handwrittenFileName);
-      const newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
+      newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
       await copyStorageFile(handwrittenFileName, newHandwrittenName);
+      console.log(`Copied handwritten paper to: ${newHandwrittenName}`);
     }
 
     // Insert records into subject_documents for test files
-    await supabase.from('subject_documents').insert([
+    const documentsToInsert = [
       {
         subject_id: test.subject_id,
         user_id: user.id,
@@ -169,7 +181,28 @@ export const assignSubjectFilesToTest = async (
         file_type: answerKeyExt,
         file_size: 0 // We don't have the actual file size here
       }
-    ]);
+    ];
+    
+    if (newHandwrittenName) {
+      documentsToInsert.push({
+        subject_id: test.subject_id,
+        user_id: user.id,
+        file_name: newHandwrittenName,
+        document_type: 'handwrittenPaper',
+        document_url: getPublicUrl(newHandwrittenName).data.publicUrl,
+        file_type: getFileExtension(newHandwrittenName),
+        file_size: 0 // We don't have the actual file size here
+      });
+    }
+    
+    const { error: insertError } = await supabase
+      .from('subject_documents')
+      .insert(documentsToInsert);
+      
+    if (insertError) {
+      console.error("Error inserting document records:", insertError);
+      throw insertError;
+    }
 
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();

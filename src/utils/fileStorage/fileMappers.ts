@@ -1,139 +1,159 @@
+import { StorageFile } from "./storageHelpers";
 
-import type { SubjectFile } from "@/types/dashboard";
-import { getPublicUrl } from "./storageHelpers";
-
-export const mapSubjectFiles = (storageData: any[], subjectId: string): Map<string, SubjectFile> => {
-  const filesMap = new Map<string, SubjectFile>();
-  
-  if (!storageData) return filesMap;
-  
-  for (const file of storageData) {
-    const fileName = file.name;
-    const parts = fileName.split('_');
-    
-    if (parts.length < 3 || parts[0] !== subjectId) continue;
-    
-    const topic = parts[1];
-    const groupKey = `${subjectId}_${topic}`;
-    
-    if (!filesMap.has(groupKey)) {
-      filesMap.set(groupKey, {
-        id: groupKey,
-        subject_id: subjectId,
-        topic: topic.replace(/_/g, ' '),
-        question_paper_url: '',
-        answer_key_url: '',
-        handwritten_paper_url: null,
-        created_at: file.created_at || new Date().toISOString()
-      });
-    }
-    
-    const { data: { publicUrl } } = getPublicUrl(fileName);
-    const currentFile = filesMap.get(groupKey)!;
-    
-    if (fileName.includes('questionPaper')) {
-      currentFile.question_paper_url = publicUrl;
-    } else if (fileName.includes('answerKey')) {
-      currentFile.answer_key_url = publicUrl;
-    } else if (fileName.includes('handwrittenPaper')) {
-      currentFile.handwritten_paper_url = publicUrl;
-    }
+interface TestFileMap {
+  [key: string]: {
+    id: string;
+    test_id: string;
+    topic: string;
+    question_paper_url: string;
+    answer_key_url?: string;
+    handwritten_paper_url?: string | null;
+    created_at: string;
   }
-  
-  return filesMap;
-};
+}
 
-export const mapTestFiles = (storageData: any[], testId: string): Map<string, any> => {
-  const filesMap = new Map();
+interface SubjectFileMap {
+  [key: string]: {
+    id: string;
+    subject_id: string;
+    topic: string;
+    question_paper_url?: string;
+    answer_key_url?: string;
+    handwritten_paper_url?: string | null;
+    created_at: string;
+  }
+}
+
+export const mapTestFiles = (files: StorageFile[], testId: string): TestFileMap => {
+  const testFilesMap: TestFileMap = {};
+  
+  console.log(`Mapping ${files.length} files for test ID: ${testId}`);
+  
   const testPrefix = `test_${testId}`;
   
-  if (!storageData) return filesMap;
+  // Filter for files that match the test prefix
+  const testFiles = files.filter(file => 
+    file.name.startsWith(testPrefix) || 
+    file.name.includes(`/${testPrefix}_`)
+  );
   
-  for (const file of storageData) {
-    const fileName = file.name;
+  console.log(`Found ${testFiles.length} files with test prefix ${testPrefix}`);
+  
+  // Process each file
+  for (const file of testFiles) {
+    // Extract filename without path
+    const fileName = file.name.includes('/') 
+      ? file.name.split('/').pop() || file.name
+      : file.name;
+    
+    // Extract parts from filename 
+    // Format: test_<testId>_<topic>_<type>_<timestamp>.<ext>
     const parts = fileName.split('_');
+    if (parts.length < 4) continue;
     
-    if (parts.length < 3 || !fileName.startsWith(testPrefix)) continue;
+    // Extract test ID and make sure it matches
+    const fileTestId = parts[1];
+    if (fileTestId !== testId) continue;
     
-    const topic = parts[2];
-    const groupKey = `${testPrefix}_${topic}`;
+    // Extract topic name (may contain multiple parts)
+    // We need to account for the fact that the topic itself might contain underscores
+    // The format is: test_<testId>_<topic>_<type>_<timestamp>.<ext>
+    // So we need to extract everything between the testId and the type
+    const typeIndex = Math.max(
+      fileName.lastIndexOf('_questionPaper_'),
+      fileName.lastIndexOf('_answerKey_'),
+      fileName.lastIndexOf('_handwrittenPaper_')
+    );
     
-    if (!filesMap.has(groupKey)) {
-      filesMap.set(groupKey, {
-        id: groupKey,
+    if (typeIndex === -1) continue;
+    
+    // Extract topic by removing the prefix and suffix
+    const topicStart = testPrefix.length + 1; // +1 for the underscore
+    const topic = fileName.substring(topicStart, typeIndex).replace(/_/g, ' ').trim();
+    
+    // Create map key
+    const mapKey = `${testId}_${topic}`;
+    
+    // Initialize the entry if it doesn't exist
+    if (!testFilesMap[mapKey]) {
+      testFilesMap[mapKey] = {
+        id: mapKey,
         test_id: testId,
-        topic: topic.replace(/_/g, ' '),
+        topic,
         question_paper_url: '',
-        answer_key_url: '',
-        handwritten_paper_url: null,
-        created_at: file.created_at || new Date().toISOString()
-      });
+        created_at: new Date().toISOString()
+      };
     }
     
-    const { data: { publicUrl } } = getPublicUrl(fileName);
-    const currentFile = filesMap.get(groupKey);
-    
-    if (fileName.includes('questionPaper')) {
-      currentFile.question_paper_url = publicUrl;
-    } else if (fileName.includes('answerKey')) {
-      currentFile.answer_key_url = publicUrl;
-    } else if (fileName.includes('handwrittenPaper')) {
-      currentFile.handwritten_paper_url = publicUrl;
+    // Set the appropriate URL based on file type
+    if (fileName.includes('_questionPaper_')) {
+      testFilesMap[mapKey].question_paper_url = file.publicUrl;
+    } else if (fileName.includes('_answerKey_')) {
+      testFilesMap[mapKey].answer_key_url = file.publicUrl;
+    } else if (fileName.includes('_handwrittenPaper_')) {
+      testFilesMap[mapKey].handwritten_paper_url = file.publicUrl;
     }
   }
   
-  return filesMap;
+  console.log(`Mapped ${Object.keys(testFilesMap).length} test file groups`);
+  
+  return testFilesMap;
 };
 
-// Add the missing mapper function for subject-test files relationship
-export const mapTestFilesToSubject = async (storageData: any[], subjectId: string, tests: any[], existingMap: Map<string, SubjectFile>): Promise<Map<string, SubjectFile>> => {
-  // Create a copy of the existing map to avoid mutation issues
-  const filesMap = new Map<string, SubjectFile>(existingMap);
+export const mapSubjectFiles = (files: StorageFile[], subjectId: string): SubjectFileMap => {
+  const subjectFilesMap: SubjectFileMap = {};
   
-  if (!storageData || !tests || tests.length === 0) return filesMap;
+  console.log(`Mapping ${files.length} files for subject ID: ${subjectId}`);
   
-  // Process each test associated with this subject
-  for (const test of tests) {
-    const testId = test.id;
-    const testPrefix = `test_${testId}`;
+  const subjectPrefix = `${subjectId}`;
+  
+  // Filter for files that match the subject prefix
+  const subjectFiles = files.filter(file => file.name.startsWith(subjectPrefix));
+  
+  console.log(`Found ${subjectFiles.length} files with subject prefix ${subjectPrefix}`);
+  
+  // Process each file
+  for (const file of subjectFiles) {
+    // Extract filename without path
+    const fileName = file.name.includes('/') 
+      ? file.name.split('/').pop() || file.name
+      : file.name;
     
-    // Find files for this test
-    for (const file of storageData) {
-      const fileName = file.name;
-      
-      if (!fileName.startsWith(testPrefix)) continue;
-      
-      const parts = fileName.split('_');
-      if (parts.length < 3) continue;
-      
-      const topic = parts[2];
-      const groupKey = `${testPrefix}_${topic}`;
-      
-      // Add to map if not already present
-      if (!filesMap.has(groupKey)) {
-        filesMap.set(groupKey, {
-          id: groupKey,
-          subject_id: subjectId,
-          topic: `${test.name}: ${topic.replace(/_/g, ' ')}`,
-          question_paper_url: '',
-          answer_key_url: '',
-          handwritten_paper_url: null,
-          created_at: file.created_at || new Date().toISOString()
-        });
-      }
-      
-      const { data: { publicUrl } } = getPublicUrl(fileName);
-      const currentFile = filesMap.get(groupKey)!;
-      
-      if (fileName.includes('questionPaper')) {
-        currentFile.question_paper_url = publicUrl;
-      } else if (fileName.includes('answerKey')) {
-        currentFile.answer_key_url = publicUrl;
-      } else if (fileName.includes('handwrittenPaper')) {
-        currentFile.handwritten_paper_url = publicUrl;
-      }
+    // Extract parts from filename
+    const parts = fileName.split('_');
+    if (parts.length < 3) continue;
+    
+    // Extract subject ID and make sure it matches
+    const fileSubjectId = parts[0];
+    if (fileSubjectId !== subjectId) continue;
+    
+    // Extract topic name
+    const topic = parts[1].replace(/_/g, ' ');
+    
+    // Create map key
+    const mapKey = `${subjectId}_${topic}`;
+    
+    // Initialize the entry if it doesn't exist
+    if (!subjectFilesMap[mapKey]) {
+      subjectFilesMap[mapKey] = {
+        id: mapKey,
+        subject_id: subjectId,
+        topic,
+        created_at: new Date().toISOString()
+      };
+    }
+    
+    // Set the appropriate URL based on file type
+    if (fileName.includes('_questionPaper_')) {
+      subjectFilesMap[mapKey].question_paper_url = file.publicUrl;
+    } else if (fileName.includes('_answerKey_')) {
+      subjectFilesMap[mapKey].answer_key_url = file.publicUrl;
+    } else if (fileName.includes('_handwrittenPaper_')) {
+      subjectFilesMap[mapKey].handwritten_paper_url = file.publicUrl;
     }
   }
   
-  return filesMap;
+  console.log(`Mapped ${Object.keys(subjectFilesMap).length} subject file groups`);
+  
+  return subjectFilesMap;
 };

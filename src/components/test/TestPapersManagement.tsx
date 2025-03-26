@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -13,21 +13,31 @@ import type { Test } from "@/types/tests";
 import { useTestPapers } from "@/hooks/useTestPapers";
 import { TestPaperCard } from "./TestPaperCard";
 import { TestPaperAssignDialog } from "./TestPaperAssignDialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface TestPapersProps {
   test: Test & { subjects: { name: string, subject_code: string } };
 }
 
 export function TestPapersManagement({ test }: TestPapersProps) {
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
   const {
     testFiles,
     subjectFiles,
     isUploading,
+    isLoading,
     openUploadDialog,
     setOpenUploadDialog,
     assignExistingPaper,
     handleDeleteFile
-  } = useTestPapers(test);
+  } = useTestPapers(test, refreshTrigger);
+
+  const handleAssignPaper = async (fileId: string) => {
+    await assignExistingPaper(fileId);
+    // Trigger a refresh after assignment
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   return (
     <Card className="mb-8">
@@ -42,12 +52,18 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           onOpenChange={setOpenUploadDialog}
           subjectFiles={subjectFiles}
           isUploading={isUploading}
-          onAssignPaper={assignExistingPaper}
+          onAssignPaper={handleAssignPaper}
         />
       </CardHeader>
       
       <CardContent>
-        {!testFiles || testFiles.length === 0 ? (
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-40 w-full" />
+            ))}
+          </div>
+        ) : !testFiles || testFiles.length === 0 ? (
           <div className="text-center py-6">
             <p className="text-muted-foreground">No papers uploaded yet for this test.</p>
             <Button variant="outline" className="mt-4" onClick={() => setOpenUploadDialog(true)}>
@@ -61,7 +77,10 @@ export function TestPapersManagement({ test }: TestPapersProps) {
               <TestPaperCard 
                 key={file.id} 
                 file={file} 
-                onDelete={handleDeleteFile} 
+                onDelete={() => {
+                  handleDeleteFile(file);
+                  setRefreshTrigger(prev => prev + 1);
+                }} 
               />
             ))}
           </div>
