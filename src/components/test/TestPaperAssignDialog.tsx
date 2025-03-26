@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { FilePlus, AlertTriangle, FileCheck, Loader2 } from "lucide-react";
+import { FilePlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { SubjectFile } from "@/types/dashboard";
 
@@ -41,25 +41,12 @@ export function TestPaperAssignDialog({
 }: TestPaperAssignDialogProps) {
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
   const [validSubjectFiles, setValidSubjectFiles] = useState<SubjectFile[]>([]);
-  const [assignAttempted, setAssignAttempted] = useState(false);
-
-  // Reset selection when dialog opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedExistingFile(null);
-      setAssignAttempted(false);
-    }
-  }, [isOpen]);
 
   // Filter out files that don't have answer keys
   useEffect(() => {
     if (subjectFiles) {
-      console.log("Filtering subject files for valid papers:", subjectFiles);
-      const validFiles = subjectFiles.filter(file => 
-        file.question_paper_url && file.answer_key_url
-      );
+      const validFiles = subjectFiles.filter(file => file.question_paper_url && file.answer_key_url);
       setValidSubjectFiles(validFiles);
-      console.log("Valid subject files:", validFiles);
       
       // Reset selection if the selected file is no longer valid
       if (selectedExistingFile && !validFiles.some(file => file.id === selectedExistingFile)) {
@@ -69,31 +56,16 @@ export function TestPaperAssignDialog({
   }, [subjectFiles, selectedExistingFile]);
 
   const handleAssignPaper = async () => {
-    setAssignAttempted(true);
-    
-    if (!selectedExistingFile) {
-      toast.error("Please select a paper to assign");
-      return;
-    }
-    
-    const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
-    
-    if (!selectedFile?.answer_key_url) {
-      toast.error("Selected file does not have an answer key, which is required");
-      return;
-    }
-    
-    try {
-      console.log("Assigning paper with ID:", selectedExistingFile);
-      toast.info("Assigning paper, please wait...");
-      await onAssignPaper(selectedExistingFile);
+    if (selectedExistingFile) {
+      const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
       
-      // Reset selection after successful assignment
+      if (!selectedFile?.answer_key_url) {
+        toast.error("Selected file does not have an answer key, which is required");
+        return;
+      }
+      
+      await onAssignPaper(selectedExistingFile);
       setSelectedExistingFile(null);
-      setAssignAttempted(false);
-    } catch (error) {
-      console.error("Error during paper assignment:", error);
-      toast.error("Failed to assign paper. Please try again.");
     }
   };
 
@@ -102,7 +74,7 @@ export function TestPaperAssignDialog({
       <DialogTrigger asChild>
         <Button>
           <FilePlus className="mr-2 h-4 w-4" />
-          Assign Existing Papers
+          Add Papers
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
@@ -117,7 +89,7 @@ export function TestPaperAssignDialog({
           <div className="flex items-center space-x-2 rounded-md bg-amber-50 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <div className="text-sm">
-              Note: Only papers with both question papers and answer keys are shown. Answer keys are required.
+              Note: Only papers with both question papers and answer keys are shown. Answer keys are now required.
             </div>
           </div>
 
@@ -144,20 +116,14 @@ export function TestPaperAssignDialog({
                 )}
               </SelectContent>
             </Select>
-            {assignAttempted && !selectedExistingFile && (
-              <p className="text-sm text-red-500 mt-1">Please select a paper</p>
-            )}
           </div>
           
           {selectedExistingFile && (
             <div className="border rounded-md p-3 bg-muted/30">
-              <div className="flex items-center">
-                <FileCheck className="h-4 w-4 text-green-500 mr-2" />
-                <p className="text-sm font-medium">
-                  Selected Paper: {validSubjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-sm font-medium mb-1">
+                Selected Paper: {validSubjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
+              </p>
+              <p className="text-xs text-muted-foreground">
                 This will create a copy of the selected paper and its answer key for this test.
               </p>
             </div>
@@ -165,22 +131,12 @@ export function TestPaperAssignDialog({
         </div>
         
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>
-            Cancel
-          </Button>
           <Button
             type="submit"
             onClick={handleAssignPaper}
             disabled={isUploading || !selectedExistingFile}
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Assigning...
-              </>
-            ) : (
-              'Assign Papers'
-            )}
+            {isUploading ? 'Assigning...' : 'Assign Papers'}
           </Button>
         </DialogFooter>
       </DialogContent>

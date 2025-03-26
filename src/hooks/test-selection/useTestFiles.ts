@@ -13,12 +13,9 @@ export interface TestFile {
 
 export function useTestFiles(selectedTest: string) {
   const [testFiles, setTestFiles] = useState<TestFile[]>([]);
-  const [hasInitiallyFetched, setHasInitiallyFetched] = useState(false);
 
   useEffect(() => {
     if (selectedTest) {
-      // Reset flag when test changes
-      setHasInitiallyFetched(false);
       fetchTestPapers();
     } else {
       setTestFiles([]);
@@ -27,19 +24,15 @@ export function useTestFiles(selectedTest: string) {
 
   const fetchTestPapers = async () => {
     try {
-      if (!selectedTest) return [];
+      if (!selectedTest) return;
       
-      console.log("Fetching test papers for test:", selectedTest);
       const files = await fetchTestFiles(selectedTest);
       setTestFiles(files);
-      setHasInitiallyFetched(true);
-      return files;
     } catch (error: any) {
       toast.error('Failed to fetch test papers');
       console.error('Error fetching test papers:', error);
-      return [];
     }
   };
 
-  return { testFiles, fetchTestPapers, hasInitiallyFetched };
+  return { testFiles };
 }

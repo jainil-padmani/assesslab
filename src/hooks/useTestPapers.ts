@@ -1,109 +1,107 @@
 
-import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useTestPapersData } from "./test/useTestPapersData";
-import { useTestPaperAssignment } from "./test/useTestPaperAssignment";
-import { useTestFileDeletion } from "./test/useTestFileDeletion";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { 
+  fetchSubjectFiles, 
+  assignSubjectFilesToTest, 
+  fetchTestFiles,
+  deleteFileGroup
+} from "@/utils/subjectFilesUtils";
+import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 import type { Test } from "@/types/tests";
+import type { SubjectFile } from "@/types/dashboard";
 
-export function useTestPapers(
-  test: Test & { subjects: { name: string, subject_code: string } }, 
-  refreshTrigger: number = 0
-) {
-  const queryClient = useQueryClient();
+interface TestFile {
+  id: string;
+  test_id: string;
+  topic: string;
+  question_paper_url: string;
+  answer_key_url: string;
+  handwritten_paper_url: string | null;
+  created_at: string;
+}
+
+export function useTestPapers(test: Test & { subjects: { name: string, subject_code: string } }) {
+  const [isUploading, setIsUploading] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  
-  // Use the data fetching hook
-  const papersData = useTestPapersData(test, refreshTrigger);
-  
-  // Use the file assignment hook
-  const { isUploading, assignExistingPaper } = useTestPaperAssignment(
-    test, 
-    papersData.subjectFiles,
-    {
-      refreshStorage: papersData.refreshStorage,
-      refetchTestFiles: papersData.refetchTestFiles,
-      refetchSubjectFiles: papersData.refetchSubjectFiles,
-      triggerLocalRefresh: papersData.triggerLocalRefresh
-    }
-  );
-  
-  // Use the file deletion hook
-  const { handleDeleteFile } = useTestFileDeletion({
-    refreshStorage: papersData.refreshStorage,
-    refetchTestFiles: papersData.refetchTestFiles,
-    refetchSubjectFiles: papersData.refetchSubjectFiles,
-    triggerLocalRefresh: papersData.triggerLocalRefresh
+
+  // Fetch existing test files
+  const { data: testFiles, refetch: refetchTestFiles } = useQuery({
+    queryKey: ["testFiles", test.id],
+    queryFn: () => fetchTestFiles(test.id)
   });
 
-  // Force refresh when the refreshTrigger changes
-  useEffect(() => {
-    const refreshData = async () => {
-      try {
-        console.log("Refreshing data due to trigger change:", papersData.combinedRefreshTrigger);
+  // Fetch subject files that could be assigned to this test
+  const { data: subjectFiles, refetch: refetchSubjectFiles } = useQuery({
+    queryKey: ["subjectFiles", test.subject_id],
+    queryFn: () => fetchSubjectFiles(test.subject_id)
+  });
+
+  const assignExistingPaper = async (fileId: string) => {
+    if (!fileId) {
+      toast.error("Please select a file to assign");
+      return;
+    }
+
+    setIsUploading(true);
+    
+    try {
+      const fileToAssign = subjectFiles?.find(file => file.id === fileId);
+      
+      if (!fileToAssign) {
+        throw new Error("Selected file not found");
+      }
+      
+      const success = await assignSubjectFilesToTest(test.id, fileToAssign);
+      
+      if (success) {
+        toast.success("Files assigned successfully!");
+        setOpenUploadDialog(false);
         
         // Force refresh storage before refetching
-        await papersData.refreshStorage();
+        await forceRefreshStorage();
         
-        // Invalidate queries to ensure fresh data
-        queryClient.invalidateQueries({ queryKey: ["testFiles"] });
-        queryClient.invalidateQueries({ queryKey: ["subjectFiles"] });
+        // Refetch both test files and subject files to ensure we have the latest data
+        await refetchTestFiles();
+        await refetchSubjectFiles();
+      }
+    } catch (error) {
+      console.error("Error assigning files:", error);
+      toast.error("Failed to assign files. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteFile = async (file: TestFile) => {
+    try {
+      const testPrefix = `test_${file.test_id}`;
+      const success = await deleteFileGroup(testPrefix, file.topic);
+      if (success) {
+        toast.success("Files deleted successfully");
+        
+        // Force refresh storage before refetching
+        await forceRefreshStorage();
         
         // Refetch both test files and subject files
-        await Promise.all([papersData.refetchTestFiles(), papersData.refetchSubjectFiles()]);
-      } catch (error) {
-        console.error("Error refreshing data:", error);
+        await refetchTestFiles();
+        await refetchSubjectFiles();
       }
-    };
-    
-    if (papersData.combinedRefreshTrigger > 0) {
-      refreshData();
+    } catch (error) {
+      console.error("Error deleting files:", error);
+      toast.error("Failed to delete files");
     }
-  }, [papersData.combinedRefreshTrigger, papersData.refetchTestFiles, papersData.refetchSubjectFiles, queryClient, papersData.refreshStorage]);
-
-  // Explicit function to force a complete refresh
-  const forceCompleteRefresh = async () => {
-    console.log("Forcing complete refresh of test papers data");
-    
-    // Reset the refresh trigger to force a UI update
-    papersData.triggerLocalRefresh();
-    
-    // Wait briefly before refreshing storage
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Force refresh storage
-    await papersData.refreshStorage();
-    
-    // Invalidate all related queries
-    queryClient.invalidateQueries();
-    
-    // Explicitly refetch both test files and subject files
-    await Promise.all([papersData.refetchTestFiles(), papersData.refetchSubjectFiles()]);
-    
-    console.log("Complete refresh finished");
   };
 
   return {
-    // Data
-    testFiles: papersData.testFiles,
-    subjectFiles: papersData.subjectFiles,
-    
-    // Loading states
+    testFiles,
+    subjectFiles,
     isUploading,
-    isLoading: papersData.isTestFilesLoading || papersData.isSubjectFilesLoading,
-    
-    // UI state
     openUploadDialog,
     setOpenUploadDialog,
-    
-    // Operations
     assignExistingPaper,
     handleDeleteFile,
-    
-    // Refresh functions
-    refetchTestFiles: papersData.refetchTestFiles,
-    refetchSubjectFiles: papersData.refetchSubjectFiles,
-    refreshStorage: papersData.refreshStorage,
-    forceCompleteRefresh
+    refetchTestFiles
   };
 }

@@ -2,17 +2,6 @@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Define StorageFile type for use across the application
-export interface StorageFile {
-  name: string;
-  id: string;
-  publicUrl: string;
-  created_at?: string;
-  updated_at?: string;
-  last_accessed_at?: string;
-  metadata?: any;
-}
-
 // Get public URL for a file in storage
 export const getPublicUrl = (fileName: string, bucket = 'files') => {
   return supabase
@@ -22,7 +11,7 @@ export const getPublicUrl = (fileName: string, bucket = 'files') => {
 };
 
 // List all files in a storage bucket
-export const listStorageFiles = async (bucket = 'files'): Promise<StorageFile[]> => {
+export const listStorageFiles = async (bucket = 'files') => {
   try {
     const { data, error } = await supabase
       .storage
@@ -30,18 +19,8 @@ export const listStorageFiles = async (bucket = 'files'): Promise<StorageFile[]>
       .list();
       
     if (error) throw error;
-    
-    // Transform the storage items to include public URLs
-    const filesWithUrls = (data || []).map(file => {
-      const { data: { publicUrl } } = getPublicUrl(file.name, bucket);
-      return {
-        ...file,
-        publicUrl
-      };
-    });
-    
-    console.log(`Listed ${filesWithUrls.length || 0} files from storage`);
-    return filesWithUrls;
+    console.log(`Listed ${data?.length || 0} files from storage`);
+    return data || [];
   } catch (error: any) {
     console.error('Error listing files:', error);
     toast.error('Failed to list files');
@@ -113,49 +92,22 @@ export const deleteStorageFile = async (fileName: string, bucket = 'files') => {
   }
 };
 
-/**
- * Force a refresh of the storage listing
- * This uploads and then deletes a temporary file to trigger a cache refresh
- */
-export const forceRefreshStorage = async (): Promise<void> => {
+// Force refresh files from storage
+export const forceRefreshStorage = async () => {
   try {
-    // Create a small text file
-    const timestamp = Date.now();
-    const fileName = `refresh_${timestamp}.txt`;
-    const content = "refresh";
+    // This is a workaround to force a refresh of the storage cache
+    const dummyFileName = `refresh_${Date.now()}.txt`;
+    const dummyFile = new Blob(['refresh'], { type: 'text/plain' });
     
-    console.log(`Uploading file: ${fileName}, size: ${content.length} bytes`);
+    // Upload a dummy file
+    await uploadStorageFile(dummyFileName, dummyFile as File);
     
-    // Create a file object
-    const file = new File([content], fileName, {
-      type: "text/plain",
-    });
+    // Delete the dummy file
+    await deleteStorageFile(dummyFileName);
     
-    // Upload the file
-    const { error: uploadError } = await supabase.storage
-      .from('files')
-      .upload(fileName, file);
-      
-    if (uploadError) {
-      console.error(`Error during refresh upload: ${uploadError.message}`);
-      return;
-    }
-    
-    console.log(`Successfully uploaded: ${fileName}`);
-    
-    // Delete the file immediately
-    console.log(`Attempting to delete: ${fileName}`);
-    const { error: deleteError } = await supabase.storage
-      .from('files')
-      .remove([fileName]);
-      
-    if (deleteError) {
-      console.error(`Error during refresh delete: ${deleteError.message}`);
-      return;
-    }
-    
-    console.log(`Successfully deleted: ${fileName}`);
+    return true;
   } catch (error) {
-    console.error("Error during storage refresh:", error);
+    console.error('Error refreshing storage:', error);
+    return false;
   }
 };

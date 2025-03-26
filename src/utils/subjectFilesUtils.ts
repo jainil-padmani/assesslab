@@ -6,8 +6,7 @@ export {
   uploadSubjectFile
 } from './fileStorage/subjectFileOps';
 
-// Update imports to use the reorganized structure
 export {
-  fetchTestFiles,
-  assignSubjectFilesToTest
-} from './fileStorage/testFiles';
+  assignSubjectFilesToTest,
+  fetchTestFiles
+} from './fileStorage/testFileOps';

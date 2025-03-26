@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { useTestSelection } from "@/hooks/useTestSelection";
 import { useEvaluations } from "@/hooks/useEvaluations";
@@ -9,20 +10,17 @@ import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
 import { Button } from "@/components/ui/button";
 import { Info, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { forceRefreshStorage } from "@/utils/fileStorage/storageHelpers";
 
 export default function Check() {
   // State for showing the guide
   const [showGuide, setShowGuide] = useState(false);
-  const [refreshCount, setRefreshCount] = useState(0);
   
   // Use custom hooks for test selection
   const { 
     selectedClass, setSelectedClass,
     selectedSubject, setSelectedSubject,
     selectedTest, setSelectedTest,
-    classes, subjects, tests, testFiles, classStudents,
-    refetchTestFiles
+    classes, subjects, tests, testFiles, classStudents
   } = useTestSelection();
 
   // Use our optimized useEvaluations hook
@@ -39,73 +37,19 @@ export default function Check() {
     getStudentAnswerSheetUrl
   } = useEvaluations(selectedTest, selectedSubject, classStudents);
 
-  // Function to force a refresh of all data
-  const refreshAllData = useCallback(async () => {
-    console.log("Refreshing all data in Check page");
-    
-    try {
-      // Force refresh storage first
-      await forceRefreshStorage();
-      
-      // Refetch test files and evaluations
-      if (refetchTestFiles) await refetchTestFiles();
-      await refetchEvaluations();
-      
-      // Increment refresh counter
-      setRefreshCount(prev => prev + 1);
-      
-      console.log("All data refreshed successfully");
-    } catch (error) {
-      console.error("Error refreshing data:", error);
-    }
-  }, [refetchTestFiles, refetchEvaluations]);
-
-  // Set up event listener for file-related events
+  // Set up event listener for answer sheet uploads
   useEffect(() => {
-    const handleFileEvent = async (event: Event) => {
-      const eventName = (event as CustomEvent).type;
-      const detail = (event as CustomEvent).detail;
-      
-      console.log(`File event received in Check page: ${eventName}`, detail);
-      
-      // Only refresh if we haven't refreshed recently (rate limiting)
-      const lastRefreshStr = localStorage.getItem('lastCheckRefresh');
-      const lastRefresh = lastRefreshStr ? parseInt(lastRefreshStr, 10) : 0;
-      const shouldRefresh = refreshCount === 0 || 
-                           (Date.now() - lastRefresh > 5000);
-      
-      if (shouldRefresh) {
-        console.log("Refreshing data due to file event");
-        localStorage.setItem('lastCheckRefresh', Date.now().toString());
-        await refreshAllData();
-      }
+    const handleAnswerSheetUploaded = () => {
+      console.log('Answer sheet uploaded event received - refreshing evaluations');
+      refetchEvaluations();
     };
 
-    const events = [
-      'answerSheetUploaded',
-      'testFileUploaded',
-      'testFileAssigned',
-      'filesRefreshed'
-    ];
-    
-    events.forEach(event => {
-      document.addEventListener(event, handleFileEvent);
-    });
+    document.addEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
     
     return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, handleFileEvent);
-      });
+      document.removeEventListener('answerSheetUploaded', handleAnswerSheetUploaded);
     };
-  }, [refreshAllData, refreshCount]);
-
-  // Initial data refresh - only once when component mounts
-  useEffect(() => {
-    // Refresh when the component mounts, but only once
-    refreshAllData();
-    
-    // No periodic refreshes anymore, just one when a test is selected
-  }, [refreshAllData]);
+  }, [refetchEvaluations]);
 
   // Extract question papers and answer keys from test files
   const { questionPapers, answerKeys } = useMemo(() => {
