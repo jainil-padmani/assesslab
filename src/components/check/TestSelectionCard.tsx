@@ -98,9 +98,8 @@ export function TestSelectionCard({
                 value={selectedTest} 
                 onValueChange={setSelectedTest}
                 disabled={!selectedSubject || tests.length === 0}
-                className="flex-1"
               >
-                <SelectTrigger>
+                <SelectTrigger className="flex-1">
                   <SelectValue placeholder={!selectedSubject ? "Select subject first" : tests.length === 0 ? "No tests available" : "Select Test"} />
                 </SelectTrigger>
                 <SelectContent>

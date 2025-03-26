@@ -41,6 +41,7 @@ export function useTestDetail(testId: string | undefined) {
     setEditMarks,
     handleSaveMarks: (grade: any) => handleSaveMarks(grade, refetchGrades),
     handleUpdateAnswerScore,
+    refetchTest,
     refetch: refetchAll
   };
 }
