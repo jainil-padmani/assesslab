@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-interface QuestionHistoryProps {
+export interface QuestionHistoryProps {
   data: any[];
   viewMode: 'grid' | 'list';
   enableFiltering: boolean;

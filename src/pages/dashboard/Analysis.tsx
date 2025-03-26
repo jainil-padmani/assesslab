@@ -1,427 +1,264 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFileUpload } from '@/hooks/useFileUpload';
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  FileText, 
-  Upload, 
-  Clock, 
-  ChevronRight, 
-  BarChart, 
-  PieChart, 
-  LineChart
-} from "lucide-react";
-import { useSubjects } from "@/hooks/useSubjects";
-import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileUp, FileText, Upload, Clock, FileCheck } from "lucide-react";
 
 export default function Analysis() {
   const navigate = useNavigate();
-  const [analysisType, setAnalysisType] = useState<"question-paper" | "answer-key" | "comparison">("question-paper");
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const { subjects } = useSubjects();
+  const [selectedType, setSelectedType] = useState("question_paper");
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   
-  // File upload handling
+  // Configure file upload for question papers
   const questionPaperUpload = useFileUpload({
-    accept: ".pdf,.docx,.doc",
-    maxSize: 10, // MB
-    onUploadSuccess: (fileUrl) => {
-      navigate('/dashboard/analysis-result', { 
-        state: { 
-          fileUrl,
-          analysisType,
-          subjectId: selectedSubject
-        } 
-      });
-    },
-    onUploadError: (error) => {
-      toast.error(`Upload failed: ${error}`);
+    bucketName: 'files',
+    folderPath: 'analysis/question_papers',
+    fileTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxSize: 10,
+    onUploadSuccess: (url) => {
+      setUploadedFileUrl(url);
+      // Trigger analysis or redirect to next step
+      if (url) {
+        navigate(`/dashboard/analysis/result`, { 
+          state: { 
+            fileUrl: url, 
+            fileType: selectedType,
+            subjectId: selectedSubject
+          } 
+        });
+      }
     }
   });
-
+  
+  // Configure file upload for answer keys
   const answerKeyUpload = useFileUpload({
-    accept: ".pdf,.docx,.doc",
-    maxSize: 10, // MB
-    onUploadSuccess: (fileUrl) => {
-      navigate('/dashboard/analysis-result', { 
-        state: { 
-          fileUrl,
-          analysisType,
-          subjectId: selectedSubject
-        } 
-      });
-    },
-    onUploadError: (error) => {
-      toast.error(`Upload failed: ${error}`);
+    bucketName: 'files',
+    folderPath: 'analysis/answer_keys',
+    fileTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxSize: 10,
+    onUploadSuccess: (url) => {
+      setUploadedFileUrl(url);
+      // Trigger analysis or redirect to next step
+      if (url) {
+        navigate(`/dashboard/analysis/result`, { 
+          state: { 
+            fileUrl: url, 
+            fileType: selectedType,
+            subjectId: selectedSubject
+          } 
+        });
+      }
     }
   });
-
-  // Fetch recent analysis history
-  const { data: recentAnalysis = [], isLoading: isHistoryLoading } = useQuery({
-    queryKey: ['analysis-history'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('analysis_history')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
-  const handleSubmit = () => {
-    if (!selectedSubject) {
-      toast.error("Please select a subject");
-      return;
-    }
-
-    if (analysisType === "question-paper") {
-      questionPaperUpload.openFileDialog();
-    } else if (analysisType === "answer-key") {
-      answerKeyUpload.openFileDialog();
-    } else {
-      // Handle comparison type - requires both files
-      toast.info("Please upload both question paper and answer key");
-      questionPaperUpload.openFileDialog();
-    }
-  };
-
+  
+  // Choose which upload hook to use based on selected type
+  const fileUpload = selectedType === 'question_paper' ? questionPaperUpload : answerKeyUpload;
+  
   return (
-    <div className="container mx-auto space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Analytics</h1>
-          <p className="text-muted-foreground mt-1">Analyze question papers and test insights</p>
-        </div>
-        <Button 
-          variant="outline" 
-          onClick={() => navigate('/dashboard/analysis-history')}
-          className="flex items-center gap-2"
-        >
-          <Clock className="h-4 w-4" />
-          View Analysis History
-        </Button>
+    <div className="container mx-auto py-6 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">Paper Analysis</h1>
+        <p className="text-muted-foreground mt-1">
+          Upload question papers or answer keys for AI analysis
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="col-span-1 md:col-span-2">
           <CardHeader>
-            <CardTitle>New Analysis</CardTitle>
-            <CardDescription>Upload a question paper or answer key for analysis</CardDescription>
+            <CardTitle>Upload Paper for Analysis</CardTitle>
+            <CardDescription>
+              Upload a question paper or answer key to get AI-powered analysis and insights.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="question-paper" className="w-full" onValueChange={(value) => setAnalysisType(value as any)}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="question-paper">Question Paper</TabsTrigger>
-                <TabsTrigger value="answer-key">Answer Key</TabsTrigger>
-                <TabsTrigger value="comparison">Compare Both</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="question-paper" className="space-y-4 mt-4">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="subject-select">Select Subject</label>
-                    <select 
-                      id="subject-select"
-                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2"
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                    >
-                      <option value="">Select a subject</option>
-                      {subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.subject_code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex justify-center p-6 border-2 border-dashed rounded-lg">
-                    <div className="text-center space-y-4">
-                      <div className="mx-auto bg-blue-50 dark:bg-blue-900/20 h-14 w-14 rounded-full flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="document-type">Document Type</Label>
+              <Select 
+                value={selectedType} 
+                onValueChange={setSelectedType}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="question_paper">Question Paper</SelectItem>
+                  <SelectItem value="answer_key">Answer Key</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                {selectedType === 'question_paper' 
+                  ? 'Upload a question paper for difficulty analysis and blooms taxonomy mapping.' 
+                  : 'Upload an answer key to generate marking schemes and model answers.'}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject (Optional)</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No subject</SelectItem>
+                  <SelectItem value="physics">Physics</SelectItem>
+                  <SelectItem value="chemistry">Chemistry</SelectItem>
+                  <SelectItem value="mathematics">Mathematics</SelectItem>
+                  <SelectItem value="biology">Biology</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Selecting a subject improves analysis accuracy and enables subject-specific insights.
+              </p>
+            </div>
+            
+            <div className="mt-4">
+              <input
+                type="file"
+                className="hidden"
+                ref={fileUpload.fileInputRef}
+                onChange={fileUpload.handleFileChange}
+                accept={fileUpload.accept}
+              />
+              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors"
+                onClick={fileUpload.openFileDialog}>
+                <div className="flex flex-col items-center justify-center">
+                  <FileUp className="h-10 w-10 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-1">Upload {selectedType === 'question_paper' ? 'Question Paper' : 'Answer Key'}</h3>
+                  <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                    Drag and drop your file here, or click to browse. We support PDF, JPEG, and PNG files up to 10MB.
+                  </p>
+                  <Button disabled={fileUpload.isUploading}>
+                    {fileUpload.isUploading ? (
+                      <div className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Uploading... {fileUpload.progress}%
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">Upload question paper</p>
-                        <p className="text-xs text-muted-foreground mt-1">PDF, DOCX (Max 10MB)</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => questionPaperUpload.openFileDialog()}
-                        className="mx-auto"
-                      >
+                    ) : (
+                      <div className="flex items-center">
                         <Upload className="mr-2 h-4 w-4" />
-                        Select File
-                      </Button>
-                      {questionPaperUpload.fileName && (
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                          Selected: {questionPaperUpload.fileName}
-                        </p>
-                      )}
-                      {questionPaperUpload.isUploading && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400">
-                          Uploading... {questionPaperUpload.progress}%
-                        </p>
-                      )}
-                    </div>
-                    <input
-                      type="file"
-                      ref={questionPaperUpload.fileInputRef}
-                      onChange={questionPaperUpload.handleFileChange}
-                      accept={questionPaperUpload.accept}
-                      style={{ display: "none" }}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end">
-                  <Button onClick={handleSubmit} disabled={!selectedSubject || questionPaperUpload.isUploading}>
-                    Analyze Paper
+                        Upload File
+                      </div>
+                    )}
                   </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="answer-key" className="space-y-4 mt-4">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="subject-select-ak">Select Subject</label>
-                    <select 
-                      id="subject-select-ak"
-                      className="w-full h-10 rounded-md border border-input bg-background px-3 py-2"
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                    >
-                      <option value="">Select a subject</option>
-                      {subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.subject_code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div className="flex justify-center p-6 border-2 border-dashed rounded-lg">
-                    <div className="text-center space-y-4">
-                      <div className="mx-auto bg-green-50 dark:bg-green-900/20 h-14 w-14 rounded-full flex items-center justify-center">
-                        <FileText className="h-6 w-6 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Upload answer key</p>
-                        <p className="text-xs text-muted-foreground mt-1">PDF, DOCX (Max 10MB)</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => answerKeyUpload.openFileDialog()}
-                        className="mx-auto"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Select File
-                      </Button>
-                      {answerKeyUpload.fileName && (
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                          Selected: {answerKeyUpload.fileName}
-                        </p>
-                      )}
-                      {answerKeyUpload.isUploading && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400">
-                          Uploading... {answerKeyUpload.progress}%
-                        </p>
-                      )}
+                  {fileUpload.fileName && (
+                    <div className="mt-4 text-sm text-muted-foreground">
+                      Selected file: {fileUpload.fileName}
                     </div>
-                    <input
-                      type="file"
-                      ref={answerKeyUpload.fileInputRef}
-                      onChange={answerKeyUpload.handleFileChange}
-                      accept={answerKeyUpload.accept}
-                      style={{ display: "none" }}
-                    />
-                  </div>
+                  )}
                 </div>
-                
-                <div className="flex justify-end">
-                  <Button onClick={handleSubmit} disabled={!selectedSubject || answerKeyUpload.isUploading}>
-                    Analyze Answer Key
-                  </Button>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="comparison" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="subject-select-comp">Select Subject</label>
-                  <select 
-                    id="subject-select-comp"
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2"
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                  >
-                    <option value="">Select a subject</option>
-                    {subjects.map(subject => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name} ({subject.subject_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="flex justify-center p-6 border-2 border-dashed rounded-lg">
-                    <div className="text-center space-y-4">
-                      <div className="mx-auto bg-blue-50 dark:bg-blue-900/20 h-12 w-12 rounded-full flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Question Paper</p>
-                        <p className="text-xs text-muted-foreground mt-1">PDF, DOCX (Max 10MB)</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => questionPaperUpload.openFileDialog()}
-                        className="mx-auto"
-                      >
-                        <Upload className="mr-2 h-3 w-3" />
-                        Select File
-                      </Button>
-                      {questionPaperUpload.fileName && (
-                        <p className="text-xs font-medium text-green-600 dark:text-green-400">
-                          Selected: {questionPaperUpload.fileName}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-center p-6 border-2 border-dashed rounded-lg">
-                    <div className="text-center space-y-4">
-                      <div className="mx-auto bg-green-50 dark:bg-green-900/20 h-12 w-12 rounded-full flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Answer Key</p>
-                        <p className="text-xs text-muted-foreground mt-1">PDF, DOCX (Max 10MB)</p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => answerKeyUpload.openFileDialog()}
-                        className="mx-auto"
-                      >
-                        <Upload className="mr-2 h-3 w-3" />
-                        Select File
-                      </Button>
-                      {answerKeyUpload.fileName && (
-                        <p className="text-xs font-medium text-green-600 dark:text-green-400">
-                          Selected: {answerKeyUpload.fileName}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex justify-end">
-                  <Button onClick={handleSubmit} disabled={!selectedSubject}>
-                    Compare Both
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </CardContent>
+          <CardFooter className="bg-muted/50 flex flex-col items-start px-6 py-4 border-t">
+            <h4 className="font-medium mb-2">What to expect from the analysis:</h4>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>Difficulty level assessment for each question</li>
+              <li>Bloom's Taxonomy mapping and cognitive level distribution</li>
+              <li>Course outcome coverage analysis</li>
+              <li>Question quality evaluation</li>
+              <li>Visual charts and exportable reports</li>
+            </ul>
+          </CardFooter>
         </Card>
         
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Recent Analysis</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/analysis-history')}>
-                View All
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
+            <div className="flex items-center space-x-2">
+              <FileCheck className="h-5 w-5 text-primary" />
+              <CardTitle>Recently Analyzed</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
-            {isHistoryLoading ? (
-              <div className="py-4 text-center">
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            ) : recentAnalysis.length === 0 ? (
-              <div className="text-center py-8 px-4">
-                <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <BarChart className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">No analysis history found</p>
-                <p className="text-xs text-muted-foreground mt-1">Upload a file to analyze</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {recentAnalysis.map((analysis: any) => (
-                  <div 
-                    key={analysis.id}
-                    className="flex justify-between items-center p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                    onClick={() => navigate('/dashboard/analysis-result', { state: { historyId: analysis.id } })}
-                  >
-                    <div className="flex items-center space-x-3">
-                      {analysis.analysis?.type === 'question-paper' ? (
-                        <BarChart className="h-8 w-8 text-blue-500" />
-                      ) : analysis.analysis?.type === 'answer-key' ? (
-                        <PieChart className="h-8 w-8 text-green-500" />
-                      ) : (
-                        <LineChart className="h-8 w-8 text-purple-500" />
-                      )}
-                      <div>
-                        <p className="font-medium text-sm">{analysis.title}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(analysis.created_at)}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3 p-3 bg-secondary/50 rounded-md">
+                <FileText className="h-8 w-8 text-primary/70" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Physics Midterm 2023</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Badge variant="outline">Question Paper</Badge>
+                    <span className="text-xs text-muted-foreground">3 days ago</span>
                   </div>
-                ))}
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/dashboard/analysis/history')}
+                >
+                  View
+                </Button>
               </div>
-            )}
+              
+              <div className="flex items-center space-x-3 p-3 bg-secondary/50 rounded-md">
+                <FileText className="h-8 w-8 text-primary/70" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Chemistry Final Exam</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <Badge variant="outline">Answer Key</Badge>
+                    <span className="text-xs text-muted-foreground">5 days ago</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/dashboard/analysis/history')}
+                >
+                  View
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              variant="ghost" 
+              className="w-full flex items-center justify-center"
+              onClick={() => navigate('/dashboard/analysis/history')}
+            >
+              <Clock className="mr-2 h-4 w-4" /> View All Analyzed Papers
+            </Button>
+          </CardFooter>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <div className="flex items-center space-x-2">
+              <FileUp className="h-5 w-5 text-primary" />
+              <CardTitle>What You Can Upload</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 bg-secondary/50 rounded-md">
+              <h4 className="font-medium mb-1">Question Papers</h4>
+              <p className="text-sm text-muted-foreground">
+                Upload question papers to analyze difficulty levels, bloom's taxonomy distribution, and generate rubrics.
+              </p>
+            </div>
+            
+            <div className="p-3 bg-secondary/50 rounded-md">
+              <h4 className="font-medium mb-1">Answer Keys</h4>
+              <p className="text-sm text-muted-foreground">
+                Upload answer keys to generate detailed marking schemes, model answers, and evaluation guidelines.
+              </p>
+            </div>
+            
+            <div className="p-3 bg-secondary/50 rounded-md">
+              <h4 className="font-medium mb-1">File Formats</h4>
+              <p className="text-sm text-muted-foreground">
+                We support PDF documents, scanned images (JPG, PNG), and typed documents.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
-      
-      {/* Analytics Charts Section */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Overview Analytics</CardTitle>
-          <CardDescription>Summary of recent test metrics and performance trends</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-8 text-muted-foreground">
-            <div className="text-center">
-              <BarChart className="h-12 w-12 mx-auto mb-2 opacity-20" />
-              <p>Analytics dashboard coming soon</p>
-              <p className="text-sm mt-1">Run analysis on question papers to see insights here</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

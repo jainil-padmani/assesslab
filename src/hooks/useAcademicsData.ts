@@ -9,9 +9,9 @@ interface Class {
   id: string;
   name: string;
   department: string | null;
+  year: number | null;
   user_id: string;
   created_at: string;
-  updated_at: string;
 }
 
 /**

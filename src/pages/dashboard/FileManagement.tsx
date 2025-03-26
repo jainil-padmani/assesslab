@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
@@ -25,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DotsHorizontalIcon, PlusIcon, Search, Upload, FileText, List, Grid } from 'lucide-react';
+import { MoreHorizontal, PlusIcon, Search, Upload, FileText, List, Grid } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,21 +35,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useUser } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
   UploadedFile,
   FilesListProps
 } from '@/types/fileManagement';
-import {
-  fetchSubjectFiles,
-  deleteFileGroup,
-  uploadSubjectFile
-} from '@/utils/subjectFilesUtils';
+
+// Import utility functions
+import { fetchSubjectFiles, deleteFileGroup, uploadSubjectFile } from '@/utils/subjectFilesUtils';
 
 export default function FileManagement() {
-  const { user } = useUser();
+  const { data: { user } = { user: null } } = useQuery({
+    queryKey: ['auth-user'],
+    queryFn: async () => {
+      return await supabase.auth.getUser();
+    }
+  });
+  
   const currentUserId = user?.id;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -85,56 +89,61 @@ export default function FileManagement() {
 
   useEffect(() => {
     if (files) {
-      setUploadedFiles(files);
+      setUploadedFiles(files as unknown as UploadedFile[]);
     }
   }, [files]);
 
   const queryClient = useQueryClient();
 
   // Upload file mutation
-  const uploadFileMutation = useMutation(
-    async ({ file, subjectId, topic }: { file: File, subjectId: string, topic: string }) => {
+  const uploadFileMutation = useMutation({
+    mutationFn: async ({ file, subjectId, topic }: { file: File, subjectId: string, topic: string }) => {
       if (!currentUserId) {
         throw new Error("User ID is required to upload files.");
       }
-      return uploadSubjectFile(file, currentUserId, subjectId, topic, (progress) => {
-        setUploadProgress(progress);
-      });
+      
+      setIsUploading(true);
+      try {
+        return await uploadSubjectFile(subjectId, topic, file, 'questionPaper');
+      } finally {
+        setIsUploading(false);
+      }
     },
-    {
-      onSuccess: () => {
-        toast.success('File uploaded successfully!');
-        refetch();
-        setIsUploading(false);
-        setUploadProgress(0);
-      },
-      onError: (error: any) => {
-        toast.error(`File upload failed: ${error.message}`);
-        setIsUploading(false);
-        setUploadProgress(0);
-      },
-      onSettled: () => {
-        queryClient.invalidateQueries(['uploaded-files']);
-      },
-    }
-  );
+    onSuccess: () => {
+      toast.success('File uploaded successfully!');
+      refetch();
+      setUploadProgress(0);
+    },
+    onError: (error: any) => {
+      toast.error(`File upload failed: ${error.message}`);
+      setUploadProgress(0);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['uploaded-files'] });
+    },
+  });
 
   // Delete file mutation
-  const deleteFileMutation = useMutation(
-    (fileGroup: UploadedFile) => deleteFileGroup(fileGroup.id),
-    {
-      onSuccess: () => {
-        toast.success('File deleted successfully!');
-        refetch();
-      },
-      onError: (error: any) => {
+  const deleteFileMutation = useMutation({
+    mutationFn: async (fileGroup: UploadedFile) => {
+      try {
+        return await deleteFileGroup(fileGroup.id, fileGroup.file_name.split('_')[0]);
+      } catch (error: any) {
         toast.error(`File deletion failed: ${error.message}`);
-      },
-      onSettled: () => {
-        queryClient.invalidateQueries(['uploaded-files']);
-      },
-    }
-  );
+        return false;
+      }
+    },
+    onSuccess: () => {
+      toast.success('File deleted successfully!');
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(`File deletion failed: ${error.message}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['uploaded-files'] });
+    },
+  });
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -145,7 +154,6 @@ export default function FileManagement() {
       return;
     }
 
-    setIsUploading(true);
     try {
       await uploadFileMutation.mutateAsync({ 
         file, 
@@ -154,8 +162,6 @@ export default function FileManagement() {
       });
     } catch (error: any) {
       toast.error(`File upload failed: ${error.message}`);
-      setIsUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -241,7 +247,7 @@ export default function FileManagement() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
-                  <DotsHorizontalIcon className="h-4 w-4" />
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -366,8 +372,8 @@ export default function FileManagement() {
                 className="hidden"
                 onChange={handleFileUpload}
               />
-              <Button asChild htmlFor="upload" disabled={isUploading}>
-                <Label htmlFor="upload" className="cursor-pointer flex items-center">
+              <Button disabled={isUploading}>
+                <Label htmlFor="upload" className="cursor-pointer flex items-center m-0">
                   {isUploading ? (
                     <>Uploading... {uploadProgress}%</>
                   ) : (
