@@ -34,7 +34,12 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   // Force refresh storage function
   const refreshStorage = useCallback(async () => {
     console.log("Forcibly refreshing storage");
-    await forceRefreshStorage();
+    try {
+      await forceRefreshStorage();
+      console.log("Storage refresh completed");
+    } catch (error) {
+      console.error("Error during storage refresh:", error);
+    }
   }, []);
 
   // Fetch existing test files
@@ -45,7 +50,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   } = useQuery({
     queryKey: ["testFiles", test.id, combinedRefreshTrigger],
     queryFn: async () => {
-      console.log('Fetching test files for test ID:', test.id);
+      console.log('Fetching test files for test ID:', test.id, 'with trigger:', combinedRefreshTrigger);
       
       // Force refresh storage to ensure we have the latest files
       await refreshStorage();
@@ -55,7 +60,8 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       return files;
     },
     staleTime: 0, // Always refetch to ensure we have the latest data
-    retry: 1,     // Don't retry too many times
+    retry: 2,     // Retry twice in case of temporary storage issues
+    retryDelay: 1000, // Wait 1 second between retries
   });
 
   // Fetch subject files that could be assigned to this test
@@ -66,7 +72,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   } = useQuery({
     queryKey: ["subjectFiles", test.subject_id, combinedRefreshTrigger],
     queryFn: async () => {
-      console.log('Fetching subject files for subject ID:', test.subject_id);
+      console.log('Fetching subject files for subject ID:', test.subject_id, 'with trigger:', combinedRefreshTrigger);
       
       // Force refresh storage to ensure we have the latest files
       await refreshStorage();
@@ -76,7 +82,8 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       return files;
     },
     staleTime: 0, // Always refetch to ensure we have the latest data
-    retry: 1,     // Don't retry too many times
+    retry: 2,     // Retry twice in case of temporary storage issues
+    retryDelay: 1000, // Wait 1 second between retries
   });
 
   // Force refresh when the refreshTrigger changes
@@ -93,8 +100,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         queryClient.invalidateQueries({ queryKey: ["subjectFiles"] });
         
         // Refetch both test files and subject files
-        await refetchTestFiles();
-        await refetchSubjectFiles();
+        await Promise.all([refetchTestFiles(), refetchSubjectFiles()]);
       } catch (error) {
         console.error("Error refreshing data:", error);
       }
@@ -120,10 +126,15 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         throw new Error("Selected file not found");
       }
       
+      console.log("Starting file assignment process for:", fileToAssign.topic);
       const success = await assignSubjectFilesToTest(test.id, fileToAssign);
       
       if (success) {
+        console.log("Assignment reported as successful, refreshing data");
         toast.success("Files assigned successfully!");
+        
+        // Wait briefly before refreshing to allow storage operations to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Force refresh storage before refetching
         await refreshStorage();
@@ -131,13 +142,14 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         // Trigger a local refresh to update the UI
         setLocalRefreshTrigger(prev => prev + 1);
         
-        // Invalidate queries
-        queryClient.invalidateQueries({ queryKey: ["testFiles"] });
-        queryClient.invalidateQueries({ queryKey: ["subjectFiles"] });
+        // Invalidate queries with wide scope to ensure cache is cleared
+        queryClient.invalidateQueries();
         
-        // Refetch both test files and subject files to ensure we have the latest data
-        await refetchTestFiles();
-        await refetchSubjectFiles();
+        // Specifically refetch the test files with a delay to ensure storage is updated
+        setTimeout(async () => {
+          console.log("Performing delayed refetch of test files");
+          await refetchTestFiles();
+        }, 1500);
         
         return true;
       }
@@ -183,6 +195,28 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     }
   };
 
+  // Explicit function to force a complete refresh
+  const forceCompleteRefresh = useCallback(async () => {
+    console.log("Forcing complete refresh of test papers data");
+    
+    // Reset the refresh trigger to force a UI update
+    setLocalRefreshTrigger(prev => prev + 1);
+    
+    // Wait briefly before refreshing storage
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Force refresh storage
+    await refreshStorage();
+    
+    // Invalidate all related queries
+    queryClient.invalidateQueries();
+    
+    // Explicitly refetch both test files and subject files
+    await Promise.all([refetchTestFiles(), refetchSubjectFiles()]);
+    
+    console.log("Complete refresh finished");
+  }, [queryClient, refreshStorage, refetchTestFiles, refetchSubjectFiles]);
+
   return {
     testFiles,
     subjectFiles,
@@ -194,6 +228,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     handleDeleteFile,
     refetchTestFiles,
     refetchSubjectFiles,
-    refreshStorage
+    refreshStorage,
+    forceCompleteRefresh
   };
 }

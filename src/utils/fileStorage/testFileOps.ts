@@ -78,12 +78,12 @@ export const assignSubjectFilesToTest = async (
     // Force a refresh to ensure we get the latest files
     await forceRefreshStorage();
 
-    // Extract topic and sanitize it for use in filenames
-    const topic = subjectFile.topic.replace(/\s+/g, '_');
+    // Sanitize topic for use in filenames - replace all spaces and special characters with underscores
+    const originalTopic = subjectFile.topic;
+    const sanitizedTopic = originalTopic.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
     
     // Log the actual filenames we're looking for to help with debugging
-    console.log("Looking for subject files with pattern:", 
-      `${subjectFile.subject_id}_${topic}_questionPaper`);
+    console.log(`Processing files for topic: "${originalTopic}" (sanitized to: "${sanitizedTopic}")`);
     
     // Get direct file URLs from the SubjectFile object
     const questionPaperUrl = subjectFile.question_paper_url;
@@ -115,11 +115,16 @@ export const assignSubjectFilesToTest = async (
     
     const questionPaperFileName = extractFilenameFromUrl(questionPaperUrl);
     const answerKeyFileName = extractFilenameFromUrl(answerKeyUrl);
-    console.log("Extracted question paper filename:", questionPaperFileName);
-    console.log("Extracted answer key filename:", answerKeyFileName);
     
-    // Create new filenames for test copies
+    console.log("Source filenames:", {
+      questionPaper: questionPaperFileName,
+      answerKey: answerKeyFileName,
+      handwrittenPaper: subjectFile.handwritten_paper_url ? extractFilenameFromUrl(subjectFile.handwritten_paper_url) : "none"
+    });
+    
+    // Create new filenames for test copies with better uniqueness
     const timestamp = Date.now();
+    const uniqueId = Math.random().toString(36).substring(2, 8); // Add a random string for uniqueness
     const testPrefix = `test_${testId}`;
     
     // Determine file extensions
@@ -131,10 +136,14 @@ export const assignSubjectFilesToTest = async (
     const questionPaperExt = getFileExtension(questionPaperFileName);
     const answerKeyExt = getFileExtension(answerKeyFileName);
     
-    // Create new filenames
-    const sanitizedTopic = topic.replace(/\s+/g, '_');
-    const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}.${questionPaperExt}`;
-    const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyExt}`;
+    // Create new filenames with better uniqueness
+    const newQuestionPaperName = `${testPrefix}_${sanitizedTopic}_questionPaper_${timestamp}_${uniqueId}.${questionPaperExt}`;
+    const newAnswerKeyName = `${testPrefix}_${sanitizedTopic}_answerKey_${timestamp}_${uniqueId}.${answerKeyExt}`;
+    
+    console.log("Destination filenames:", {
+      questionPaper: newQuestionPaperName,
+      answerKey: newAnswerKeyName
+    });
     
     // Copy question paper (required)
     await copyStorageFile(questionPaperFileName, newQuestionPaperName);
@@ -149,10 +158,13 @@ export const assignSubjectFilesToTest = async (
     if (subjectFile.handwritten_paper_url) {
       const handwrittenFileName = extractFilenameFromUrl(subjectFile.handwritten_paper_url);
       const handwrittenExt = getFileExtension(handwrittenFileName);
-      newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}.${handwrittenExt}`;
+      newHandwrittenName = `${testPrefix}_${sanitizedTopic}_handwrittenPaper_${timestamp}_${uniqueId}.${handwrittenExt}`;
       await copyStorageFile(handwrittenFileName, newHandwrittenName);
       console.log(`Copied handwritten paper to: ${newHandwrittenName}`);
     }
+
+    // Force a refresh to ensure we have the latest state after copying
+    await forceRefreshStorage();
 
     // Get the public URLs for the new files
     const questionPaperPublicUrl = getPublicUrl(newQuestionPaperName).data.publicUrl;
@@ -193,6 +205,8 @@ export const assignSubjectFilesToTest = async (
       });
     }
     
+    console.log("Inserting document records:", documentsToInsert);
+    
     const { error: insertError } = await supabase
       .from('subject_documents')
       .insert(documentsToInsert);
@@ -204,6 +218,18 @@ export const assignSubjectFilesToTest = async (
 
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();
+    
+    // Verify the files were correctly inserted
+    const { data: insertedDocuments, error: verifyError } = await supabase
+      .from('subject_documents')
+      .select('*')
+      .in('file_name', [newQuestionPaperName, newAnswerKeyName, newHandwrittenName].filter(Boolean));
+      
+    if (verifyError) {
+      console.error("Error verifying inserted documents:", verifyError);
+    } else {
+      console.log("Verified inserted documents:", insertedDocuments?.length || 0, "records found");
+    }
 
     console.log("Files assigned to test successfully");
     toast.success("Files assigned to test successfully");
@@ -214,4 +240,3 @@ export const assignSubjectFilesToTest = async (
     return false;
   }
 };
-

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { FilePlus, AlertTriangle } from "lucide-react";
+import { FilePlus, AlertTriangle, FileCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { SubjectFile } from "@/types/dashboard";
 
@@ -41,11 +41,13 @@ export function TestPaperAssignDialog({
 }: TestPaperAssignDialogProps) {
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
   const [validSubjectFiles, setValidSubjectFiles] = useState<SubjectFile[]>([]);
+  const [assignAttempted, setAssignAttempted] = useState(false);
 
   // Reset selection when dialog opens/closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedExistingFile(null);
+      setAssignAttempted(false);
     }
   }, [isOpen]);
 
@@ -65,6 +67,8 @@ export function TestPaperAssignDialog({
   }, [subjectFiles, selectedExistingFile]);
 
   const handleAssignPaper = async () => {
+    setAssignAttempted(true);
+    
     if (!selectedExistingFile) {
       toast.error("Please select a paper to assign");
       return;
@@ -82,6 +86,7 @@ export function TestPaperAssignDialog({
       await onAssignPaper(selectedExistingFile);
       // Reset selection after successful assignment
       setSelectedExistingFile(null);
+      setAssignAttempted(false);
     } catch (error) {
       console.error("Error during paper assignment:", error);
       toast.error("Failed to assign paper. Please try again.");
@@ -135,14 +140,20 @@ export function TestPaperAssignDialog({
                 )}
               </SelectContent>
             </Select>
+            {assignAttempted && !selectedExistingFile && (
+              <p className="text-sm text-red-500 mt-1">Please select a paper</p>
+            )}
           </div>
           
           {selectedExistingFile && (
             <div className="border rounded-md p-3 bg-muted/30">
-              <p className="text-sm font-medium mb-1">
-                Selected Paper: {validSubjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
-              </p>
-              <p className="text-xs text-muted-foreground">
+              <div className="flex items-center">
+                <FileCheck className="h-4 w-4 text-green-500 mr-2" />
+                <p className="text-sm font-medium">
+                  Selected Paper: {validSubjectFiles?.find(f => f.id === selectedExistingFile)?.topic}
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
                 This will create a copy of the selected paper and its answer key for this test.
               </p>
             </div>

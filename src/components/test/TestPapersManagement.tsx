@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -8,7 +8,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FilePlus } from "lucide-react";
+import { FilePlus, RefreshCw } from "lucide-react";
 import type { Test } from "@/types/tests";
 import { useTestPapers } from "@/hooks/useTestPapers";
 import { TestPaperCard } from "./TestPaperCard";
@@ -22,6 +22,7 @@ interface TestPapersProps {
 
 export function TestPapersManagement({ test }: TestPapersProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const {
     testFiles,
@@ -33,22 +34,39 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     assignExistingPaper,
     handleDeleteFile,
     refetchTestFiles,
-    refreshStorage
+    refreshStorage,
+    forceCompleteRefresh
   } = useTestPapers(test, refreshTrigger);
 
-  // Force refresh when component mounts
+  // Force refresh when component mounts and also on refreshTrigger change
   useEffect(() => {
     const refreshData = async () => {
       console.log("Initial test papers refresh for test ID:", test.id);
-      // Force a refresh when the component mounts
-      setRefreshTrigger(prev => prev + 1);
-      // Explicitly refresh storage and refetch test files
-      await refreshStorage();
-      await refetchTestFiles();
+      await forceCompleteRefresh();
     };
     
     refreshData();
-  }, [test.id, refetchTestFiles, refreshStorage]);
+  }, [test.id, forceCompleteRefresh]);
+
+  const handleManualRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      console.log("Manual refresh triggered");
+      
+      // Increment refresh trigger to force component update
+      setRefreshTrigger(prev => prev + 1);
+      
+      // Explicitly force a complete refresh
+      await forceCompleteRefresh();
+      
+      toast.success("Files refreshed successfully");
+    } catch (error) {
+      console.error("Error during manual refresh:", error);
+      toast.error("Failed to refresh files");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleAssignPaper = async (fileId: string) => {
     try {
@@ -70,17 +88,16 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         // Close the dialog
         setOpenUploadDialog(false);
         
-        // Trigger multiple refresh mechanisms to ensure UI updates
-        setRefreshTrigger(prev => prev + 1);
-        
-        // Force refresh storage
-        await refreshStorage();
-        
-        // Explicitly refetch test files
-        await refetchTestFiles();
-        
+        // Show success message
         toast.success("Paper successfully assigned to test");
-        console.log("Paper assigned successfully. New test files:", testFiles);
+        
+        // Log current state
+        console.log("Paper assigned successfully. Current test files:", testFiles);
+        
+        // Force a refresh after a slight delay to ensure storage is updated
+        setTimeout(async () => {
+          await forceCompleteRefresh();
+        }, 2000);
       } else {
         toast.error("Failed to assign paper to test");
       }
@@ -94,12 +111,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     try {
       const success = await handleDeleteFile(file);
       if (success) {
-        // Trigger a refresh after deletion
-        setRefreshTrigger(prev => prev + 1);
-        // Force refresh storage
-        await refreshStorage();
-        // Explicitly refetch test files
-        await refetchTestFiles();
+        // Force refresh after deletion
+        await forceCompleteRefresh();
       }
     } catch (error) {
       console.error("Error deleting test paper:", error);
@@ -118,14 +131,24 @@ export function TestPapersManagement({ test }: TestPapersProps) {
           <CardTitle>Test Papers</CardTitle>
           <CardDescription>Manage question papers and answer keys for this test</CardDescription>
         </div>
-        <TestPaperAssignDialog
-          testId={test.id}
-          isOpen={openUploadDialog}
-          onOpenChange={setOpenUploadDialog}
-          subjectFiles={subjectFiles}
-          isUploading={isUploading}
-          onAssignPaper={handleAssignPaper}
-        />
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <TestPaperAssignDialog
+            testId={test.id}
+            isOpen={openUploadDialog}
+            onOpenChange={setOpenUploadDialog}
+            subjectFiles={subjectFiles}
+            isUploading={isUploading}
+            onAssignPaper={handleAssignPaper}
+          />
+        </div>
       </CardHeader>
       
       <CardContent>
