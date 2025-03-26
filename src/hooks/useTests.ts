@@ -42,19 +42,29 @@ export function useTests() {
     queryKey: ['test-metrics'],
     queryFn: async () => {
       try {
+        // First, fetch all tests to calculate metrics client-side
         const { data, error } = await supabase
           .from('tests')
-          .select('status, count(*)')
-          .group('status')
-          .order('status');
+          .select('status');
         
         if (error) throw error;
         
-        // Transform the data to ensure it matches the TestMetric interface
-        return (data || []).map(item => ({
-          status: item.status || 'Unknown',
-          count: typeof item.count === 'number' ? item.count : 0
-        })) as TestMetric[];
+        // Manually count tests by status
+        const statusCounts: Record<string, number> = {};
+        
+        // Count each status
+        data.forEach(test => {
+          const status = test.status || 'Unknown';
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+        
+        // Convert to array of TestMetric objects
+        const metrics: TestMetric[] = Object.entries(statusCounts).map(([status, count]) => ({
+          status,
+          count
+        }));
+        
+        return metrics;
       } catch (error: any) {
         console.error('Error fetching test metrics:', error);
         return [];
