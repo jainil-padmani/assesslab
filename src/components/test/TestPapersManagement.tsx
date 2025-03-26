@@ -31,14 +31,22 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     openUploadDialog,
     setOpenUploadDialog,
     assignExistingPaper,
-    handleDeleteFile
+    handleDeleteFile,
+    refetchTestFiles
   } = useTestPapers(test, refreshTrigger);
 
   // Force refresh when component mounts
   useEffect(() => {
-    // Trigger a refresh
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
+    const refreshData = async () => {
+      console.log("Initial test papers refresh for test ID:", test.id);
+      // Force a refresh when the component mounts
+      setRefreshTrigger(prev => prev + 1);
+      // Explicitly refetch test files
+      await refetchTestFiles();
+    };
+    
+    refreshData();
+  }, [test.id, refetchTestFiles]);
 
   const handleAssignPaper = async (fileId: string) => {
     try {
@@ -53,13 +61,20 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         return;
       }
       
-      await assignExistingPaper(fileId);
+      const success = await assignExistingPaper(fileId);
       
-      // Close the dialog and trigger a refresh
-      setOpenUploadDialog(false);
-      setRefreshTrigger(prev => prev + 1);
-      
-      toast.success("Paper successfully assigned to test");
+      if (success) {
+        // Close the dialog
+        setOpenUploadDialog(false);
+        
+        // Trigger multiple refresh mechanisms to ensure UI updates
+        setRefreshTrigger(prev => prev + 1);
+        await refetchTestFiles();
+        
+        toast.success("Paper successfully assigned to test");
+      } else {
+        toast.error("Failed to assign paper to test");
+      }
     } catch (error) {
       console.error("Error assigning paper:", error);
       toast.error("Failed to assign paper to test");
@@ -68,9 +83,12 @@ export function TestPapersManagement({ test }: TestPapersProps) {
 
   const handleDeleteTestPaper = async (file: any) => {
     try {
-      await handleDeleteFile(file);
-      // Trigger a refresh after deletion
-      setRefreshTrigger(prev => prev + 1);
+      const success = await handleDeleteFile(file);
+      if (success) {
+        // Trigger a refresh after deletion
+        setRefreshTrigger(prev => prev + 1);
+        await refetchTestFiles();
+      }
     } catch (error) {
       console.error("Error deleting test paper:", error);
     }

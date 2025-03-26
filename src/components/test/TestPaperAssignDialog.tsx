@@ -56,16 +56,25 @@ export function TestPaperAssignDialog({
   }, [subjectFiles, selectedExistingFile]);
 
   const handleAssignPaper = async () => {
-    if (selectedExistingFile) {
-      const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
-      
-      if (!selectedFile?.answer_key_url) {
-        toast.error("Selected file does not have an answer key, which is required");
-        return;
-      }
-      
+    if (!selectedExistingFile) {
+      toast.error("Please select a paper to assign");
+      return;
+    }
+    
+    const selectedFile = validSubjectFiles.find(file => file.id === selectedExistingFile);
+    
+    if (!selectedFile?.answer_key_url) {
+      toast.error("Selected file does not have an answer key, which is required");
+      return;
+    }
+    
+    try {
       await onAssignPaper(selectedExistingFile);
+      // Reset selection after successful assignment
       setSelectedExistingFile(null);
+    } catch (error) {
+      console.error("Error during paper assignment:", error);
+      toast.error("Failed to assign paper. Please try again.");
     }
   };
 

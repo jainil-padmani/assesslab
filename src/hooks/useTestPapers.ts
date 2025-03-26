@@ -25,6 +25,10 @@ interface TestFile {
 export function useTestPapers(test: Test & { subjects: { name: string, subject_code: string } }, refreshTrigger: number = 0) {
   const [isUploading, setIsUploading] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [localRefreshTrigger, setLocalRefreshTrigger] = useState(0);
+  
+  // Combine external refresh trigger with local one
+  const combinedRefreshTrigger = refreshTrigger + localRefreshTrigger;
 
   // Fetch existing test files
   const { 
@@ -32,7 +36,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     refetch: refetchTestFiles,
     isLoading: isTestFilesLoading
   } = useQuery({
-    queryKey: ["testFiles", test.id, refreshTrigger],
+    queryKey: ["testFiles", test.id, combinedRefreshTrigger],
     queryFn: async () => {
       console.log('Fetching test files for test ID:', test.id);
       
@@ -53,7 +57,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
     refetch: refetchSubjectFiles,
     isLoading: isSubjectFilesLoading
   } = useQuery({
-    queryKey: ["subjectFiles", test.subject_id, refreshTrigger],
+    queryKey: ["subjectFiles", test.subject_id, combinedRefreshTrigger],
     queryFn: async () => {
       console.log('Fetching subject files for subject ID:', test.subject_id);
       
@@ -72,7 +76,7 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
   useEffect(() => {
     const refreshData = async () => {
       try {
-        console.log("Refreshing data due to trigger change:", refreshTrigger);
+        console.log("Refreshing data due to trigger change:", combinedRefreshTrigger);
         
         // Force refresh storage before refetching
         await forceRefreshStorage();
@@ -85,15 +89,15 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
       }
     };
     
-    if (refreshTrigger > 0) {
+    if (combinedRefreshTrigger > 0) {
       refreshData();
     }
-  }, [refreshTrigger, refetchTestFiles, refetchSubjectFiles]);
+  }, [combinedRefreshTrigger, refetchTestFiles, refetchSubjectFiles]);
 
   const assignExistingPaper = async (fileId: string) => {
     if (!fileId) {
       toast.error("Please select a file to assign");
-      return;
+      return false;
     }
 
     setIsUploading(true);
@@ -112,6 +116,9 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         
         // Force refresh storage before refetching
         await forceRefreshStorage();
+        
+        // Trigger a local refresh to update the UI
+        setLocalRefreshTrigger(prev => prev + 1);
         
         // Refetch both test files and subject files to ensure we have the latest data
         await refetchTestFiles();
@@ -138,6 +145,9 @@ export function useTestPapers(test: Test & { subjects: { name: string, subject_c
         
         // Force refresh storage before refetching
         await forceRefreshStorage();
+        
+        // Trigger a local refresh to update the UI
+        setLocalRefreshTrigger(prev => prev + 1);
         
         // Refetch both test files and subject files
         await refetchTestFiles();
