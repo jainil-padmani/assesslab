@@ -70,8 +70,10 @@ export default function Check() {
       console.log(`File event received in Check page: ${eventName}`, detail);
       
       // Only refresh if we haven't refreshed recently (rate limiting)
+      const lastRefreshStr = localStorage.getItem('lastCheckRefresh');
+      const lastRefresh = lastRefreshStr ? parseInt(lastRefreshStr, 10) : 0;
       const shouldRefresh = refreshCount === 0 || 
-                           Date.now() - localStorage.getItem('lastCheckRefresh') > 5000;
+                           (Date.now() - lastRefresh > 5000);
       
       if (shouldRefresh) {
         console.log("Refreshing data due to file event");

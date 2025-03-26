@@ -24,15 +24,17 @@ export function useTestFiles(selectedTest: string) {
 
   const fetchTestPapers = async () => {
     try {
-      if (!selectedTest) return;
+      if (!selectedTest) return [];
       
       const files = await fetchTestFiles(selectedTest);
       setTestFiles(files);
+      return files;
     } catch (error: any) {
       toast.error('Failed to fetch test papers');
       console.error('Error fetching test papers:', error);
+      return [];
     }
   };
 
-  return { testFiles };
+  return { testFiles, fetchTestPapers };
 }

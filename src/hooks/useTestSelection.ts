@@ -25,14 +25,23 @@ export function useTestSelection() {
   const { classes } = useClasses();
   const { subjects } = useSubjects(selectedClass);
   const { tests } = useTests(selectedClass, selectedSubject);
-  const { testFiles } = useTestFiles(selectedTest);
+  const { testFiles, fetchTestPapers } = useTestFiles(selectedTest);
   const { classStudents } = useClassStudents(selectedClass);
+
+  // Add refetchTestFiles function to match expected interface
+  const refetchTestFiles = async () => {
+    if (selectedTest) {
+      return fetchTestPapers();
+    }
+    return Promise.resolve();
+  };
 
   return { 
     selectedClass, setSelectedClass,
     selectedSubject, setSelectedSubject,
     selectedTest, setSelectedTest,
     classes, subjects, tests, testFiles, classStudents,
-    isLoading, setIsLoading
+    isLoading, setIsLoading,
+    refetchTestFiles
   };
 }
