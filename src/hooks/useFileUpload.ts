@@ -18,6 +18,8 @@ export interface FileUploadResult {
   fileType: string | null;
   fileSize: number | null;
   error: string | null;
+  zipUrl?: string;
+  textContent?: string;
 }
 
 /**
