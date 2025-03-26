@@ -1,6 +1,7 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { forceRefreshStorage } from "./storageHelpers";
+import { forceRefreshStorage, deleteStorageFile } from "./storageHelpers";
 import { mapSubjectFiles } from "./mappers";
 
 /**
