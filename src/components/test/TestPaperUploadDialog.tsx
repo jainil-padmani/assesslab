@@ -62,6 +62,10 @@ export function TestPaperUploadDialog({
       setIsUploading(true);
       setUploadProgress(10);
 
+      // Force refresh storage first to prevent conflicts
+      await forceRefreshStorage();
+      setUploadProgress(20);
+
       // Sanitize topic name for file naming
       const sanitizedTopic = topicName.trim().replace(/\s+/g, '_').toLowerCase();
       const timestamp = Date.now();
@@ -80,6 +84,15 @@ export function TestPaperUploadDialog({
         throw new Error(`Failed to upload question paper: ${questionPaperError.message}`);
       }
 
+      // Get question paper URL
+      const { data: questionPaperUrlData } = await supabase.storage
+        .from('files')
+        .getPublicUrl(questionPaperPath);
+
+      if (!questionPaperUrlData) {
+        throw new Error("Failed to get question paper URL");
+      }
+
       // Upload answer key
       setUploadProgress(60);
       const answerKeyPath = `test_${testId}_${sanitizedTopic}_answerKey_${timestamp}.${answerKeyFile.name.split('.').pop()}`;
@@ -94,37 +107,72 @@ export function TestPaperUploadDialog({
         throw new Error(`Failed to upload answer key: ${answerKeyError.message}`);
       }
 
-      setUploadProgress(90);
+      // Get answer key URL
+      const { data: answerKeyUrlData } = await supabase.storage
+        .from('files')
+        .getPublicUrl(answerKeyPath);
+
+      if (!answerKeyUrlData) {
+        throw new Error("Failed to get answer key URL");
+      }
+
+      setUploadProgress(80);
       
-      // Force refresh storage
+      // Force refresh storage to ensure changes are visible
       await forceRefreshStorage();
+      setUploadProgress(90);
+
+      // Record uploads in subject_documents table for improved tracking
+      try {
+        // Add question paper to subject_documents
+        await supabase.from('subject_documents').insert({
+          document_url: questionPaperUrlData.publicUrl,
+          document_type: 'question_paper',
+          file_name: questionPaperFile.name,
+          file_type: questionPaperFile.type,
+          file_size: questionPaperFile.size,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+        
+        // Add answer key to subject_documents
+        await supabase.from('subject_documents').insert({
+          document_url: answerKeyUrlData.publicUrl,
+          document_type: 'answer_key',
+          file_name: answerKeyFile.name,
+          file_type: answerKeyFile.type,
+          file_size: answerKeyFile.size,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+      } catch (dbError) {
+        // Don't fail the upload process if the database insert fails
+        console.error("Error adding documents to subject_documents:", dbError);
+      }
       
       setUploadProgress(100);
       toast.success("Test papers uploaded successfully");
       
-      // Dispatch more comprehensive global events for test file upload
-      const testFileUploadedEvent = new CustomEvent('testFileUploaded', {
-        detail: {
-          testId,
-          topic: topicName,
-          questionPaperPath,
-          answerKeyPath,
-          timestamp: new Date().toISOString()
-        }
-      });
-      document.dispatchEvent(testFileUploadedEvent);
-
-      // Also dispatch a generic file refresh event
-      const fileRefreshEvent = new CustomEvent('filesRefreshed', {
-        detail: { source: 'testPaperUpload', testId }
-      });
-      document.dispatchEvent(fileRefreshEvent);
+      // Dispatch multiple events to ensure all components are notified
+      const eventDetails = {
+        testId,
+        topic: topicName,
+        questionPaperPath,
+        answerKeyPath,
+        questionPaperUrl: questionPaperUrlData.publicUrl,
+        answerKeyUrl: answerKeyUrlData.publicUrl,
+        timestamp: new Date().toISOString()
+      };
       
-      // Additional event to notify test file assignment
-      const testFileAssignedEvent = new CustomEvent('testFileAssigned', {
-        detail: { testId, timestamp: new Date().toISOString() }
-      });
-      document.dispatchEvent(testFileAssignedEvent);
+      const eventTypes = [
+        'testFileUploaded',
+        'testFileAssigned',
+        'filesRefreshed'
+      ];
+      
+      for (const eventType of eventTypes) {
+        const event = new CustomEvent(eventType, { detail: eventDetails });
+        document.dispatchEvent(event);
+        console.log(`Dispatched ${eventType} event`);
+      }
       
       // Reset form and close dialog
       handleReset();
@@ -136,6 +184,12 @@ export function TestPaperUploadDialog({
         setTimeout(async () => {
           await forceRefreshStorage();
           if (onSuccess) onSuccess();
+          
+          // Dispatch another event after delay
+          const delayedEvent = new CustomEvent('filesRefreshed', { 
+            detail: { source: 'delayedAfterUpload', testId, delay }
+          });
+          document.dispatchEvent(delayedEvent);
         }, delay);
       }
     } catch (error: any) {

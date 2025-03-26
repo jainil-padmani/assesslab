@@ -24,12 +24,21 @@ export function AnswerSheetWarnings({
 }: AnswerSheetWarningsProps) {
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   // Listen for test file upload events
   useEffect(() => {
-    const handleTestFileUploaded = () => {
-      if (onTestFilesUploaded) {
-        console.log("Test file uploaded event detected in AnswerSheetWarnings");
+    const handleTestFileEvent = (event: Event) => {
+      console.log(`Test file event received: ${(event as CustomEvent).type}`);
+      
+      // Set a minimum time between refreshes to prevent too many refreshes
+      const now = new Date();
+      const shouldRefresh = !lastRefreshTime || 
+                           (now.getTime() - lastRefreshTime.getTime() > 2000);
+      
+      if (shouldRefresh && onTestFilesUploaded) {
+        console.log("Triggering test files refresh");
+        setLastRefreshTime(now);
         refreshTestFiles();
       }
     };
@@ -42,15 +51,15 @@ export function AnswerSheetWarnings({
     ];
     
     events.forEach(event => {
-      document.addEventListener(event, handleTestFileUploaded);
+      document.addEventListener(event, handleTestFileEvent);
     });
     
     return () => {
       events.forEach(event => {
-        document.removeEventListener(event, handleTestFileUploaded);
+        document.removeEventListener(event, handleTestFileEvent);
       });
     };
-  }, [onTestFilesUploaded]);
+  }, [onTestFilesUploaded, lastRefreshTime]);
   
   // Force refresh every 10 seconds when upload dialog is open
   useEffect(() => {
@@ -67,12 +76,21 @@ export function AnswerSheetWarnings({
     };
   }, [openUploadDialog]);
 
+  // Initial refresh on component mount
+  useEffect(() => {
+    if (onTestFilesUploaded) {
+      refreshTestFiles();
+    }
+  }, []);
+
   const refreshTestFiles = async () => {
     if (!onTestFilesUploaded) return;
     
     setIsRefreshing(true);
     
     try {
+      console.log("Refreshing test files from AnswerSheetWarnings");
+      
       // First force a storage refresh
       await forceRefreshStorage();
       

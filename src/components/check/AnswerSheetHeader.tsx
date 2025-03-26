@@ -1,7 +1,6 @@
 
-import { CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileCheck, DownloadCloud } from "lucide-react";
+import { Brain } from "lucide-react";
 
 interface AnswerSheetHeaderProps {
   onEvaluateAll: () => void;
@@ -11,39 +10,29 @@ interface AnswerSheetHeaderProps {
 
 export function AnswerSheetHeader({ 
   onEvaluateAll, 
-  areTestFilesReady, 
-  evaluatingStudents 
+  areTestFilesReady,
+  evaluatingStudents
 }: AnswerSheetHeaderProps) {
+  const isEvaluating = evaluatingStudents.length > 0;
+  
   return (
-    <CardHeader className="pb-3 bg-muted/30">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <CardTitle className="text-xl font-semibold">Student Answer Sheets</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Upload and evaluate handwritten answer sheets
-          </CardDescription>
-        </div>
-        
-        <div className="flex flex-col gap-2 sm:flex-row items-center">
-          <Button 
-            onClick={onEvaluateAll}
-            disabled={evaluatingStudents.length > 0 || !areTestFilesReady}
-            className="w-full sm:w-auto gap-2 font-medium shadow-sm"
-          >
-            <FileCheck className="h-4 w-4" />
-            Evaluate All Sheets
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="icon"
-            className="border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <DownloadCloud className="h-4 w-4" />
-            <span className="sr-only">Export Results</span>
-          </Button>
-        </div>
+    <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800">
+      <div>
+        <h3 className="text-lg font-semibold">Student Answer Sheets</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Upload, manage and evaluate answer sheets
+        </p>
       </div>
-    </CardHeader>
+      <Button 
+        variant="default" 
+        size="sm" 
+        onClick={onEvaluateAll}
+        disabled={isEvaluating || !areTestFilesReady}
+        className="flex items-center"
+      >
+        <Brain className="mr-2 h-4 w-4" />
+        {isEvaluating ? 'Evaluating...' : 'Evaluate All'}
+      </Button>
+    </div>
   );
 }

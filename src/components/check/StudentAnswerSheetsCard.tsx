@@ -1,5 +1,5 @@
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnswerSheetHeader } from "./AnswerSheetHeader";
 import { AnswerSheetWarnings } from "./AnswerSheetWarnings";
@@ -41,12 +41,43 @@ export function StudentAnswerSheetsCard({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<Student[]>(classStudents);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
+  
+  // Create a memoized callback for refreshing files
+  const refreshFiles = useCallback(async () => {
+    try {
+      const now = new Date();
+      // Limit refreshes to at most once every 2 seconds
+      if (now.getTime() - lastRefreshTime.getTime() < 2000) {
+        return;
+      }
+      
+      console.log("Refreshing files in StudentAnswerSheetsCard");
+      setLastRefreshTime(now);
+      
+      // Force refresh storage
+      await forceRefreshStorage();
+      
+      // Update the refresh trigger with a slight delay
+      setTimeout(() => {
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
+      
+      // Dispatch a global event to notify other components
+      const event = new CustomEvent('filesRefreshed', {
+        detail: { source: 'StudentAnswerSheetsCard', timestamp: now.toISOString() }
+      });
+      document.dispatchEvent(event);
+    } catch (error) {
+      console.error("Error refreshing files:", error);
+    }
+  }, [lastRefreshTime]);
   
   // Listen for any kind of refresh events
   useEffect(() => {
     const handleRefreshEvent = () => {
       console.log('Refresh event received in StudentAnswerSheetsCard');
-      setRefreshTrigger(prev => prev + 1);
+      refreshFiles();
     };
     
     const events = [
@@ -65,40 +96,29 @@ export function StudentAnswerSheetsCard({
         document.removeEventListener(event, handleRefreshEvent);
       });
     };
-  }, []);
+  }, [refreshFiles]);
 
   // Periodic storage refresh
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        console.log("Periodic storage refresh");
-        await forceRefreshStorage();
-        // Increment refresh trigger after a brief delay
-        setTimeout(() => {
-          setRefreshTrigger(prev => prev + 1);
-        }, 500);
-      } catch (error) {
-        console.error("Error in periodic storage refresh:", error);
-      }
-    }, 30000); // Every 30 seconds
-    
+    const interval = setInterval(refreshFiles, 30000); // Every 30 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshFiles]);
 
-  // Initial refresh when component mounts
+  // Initial refresh when component mounts or test changes
   useEffect(() => {
-    const initialRefresh = async () => {
-      try {
-        console.log("Initial storage refresh");
-        await forceRefreshStorage();
-        setRefreshTrigger(prev => prev + 1);
-      } catch (error) {
-        console.error("Error in initial storage refresh:", error);
-      }
-    };
+    refreshFiles();
     
-    initialRefresh();
-  }, [selectedTest]);
+    // Set up more frequent initial refreshes to catch any missed updates
+    const initialRefreshTimes = [2000, 5000, 10000]; // 2, 5, and 10 seconds after mount
+    
+    const timeouts = initialRefreshTimes.map(time => 
+      setTimeout(refreshFiles, time)
+    );
+    
+    return () => {
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [selectedTest, refreshFiles]);
 
   // Filter students based on search query
   useEffect(() => {
@@ -120,6 +140,10 @@ export function StudentAnswerSheetsCard({
   const { questionPapers, answerKeys } = useMemo(() => {
     const questionPapers = testFiles.filter(file => file.question_paper_url);
     const answerKeys = testFiles.filter(file => file.answer_key_url);
+    
+    console.log(`Checking test files availability: ${JSON.stringify(testFiles.map(f => f.topic))}`);
+    console.log(`Test files ready: ${questionPapers.length > 0 && answerKeys.length > 0} (${questionPapers.length} question papers, ${answerKeys.length} answer keys)`);
+    
     return { questionPapers, answerKeys };
   }, [testFiles]);
 

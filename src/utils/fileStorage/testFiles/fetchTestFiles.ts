@@ -24,11 +24,16 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
       .eq('id', testId)
       .single();
       
-    if (testError) throw testError;
+    if (testError) {
+      console.error('Test not found:', testError);
+      toast.error('Test not found');
+      return [];
+    }
     
     // Get all files from storage
+    const { listStorageFiles } = await import('../storageHelpers');
     const storageData = await listStorageFiles();
-
+    
     // Map the files to test files
     const filesMap = mapTestFiles(storageData, testId);
     
@@ -37,17 +42,18 @@ export const fetchTestFiles = async (testId: string): Promise<any[]> => {
       file => file.question_paper_url && file.answer_key_url
     );
     
-    console.log("Fetched test files:", files.length);
+    console.log(`Fetched ${files.length} test files for test ID: ${testId}`);
+    
+    // Dispatch an event to notify other components
+    const event = new CustomEvent('testFilesLoaded', { 
+      detail: { testId, filesCount: files.length }
+    });
+    document.dispatchEvent(event);
+    
     return files;
   } catch (error) {
     console.error('Error fetching test files:', error);
     toast.error('Failed to fetch test files');
     return [];
   }
-};
-
-// Re-export helper function to avoid circular dependencies
-const listStorageFiles = async () => {
-  const { listStorageFiles } = await import('../storageHelpers');
-  return listStorageFiles();
 };

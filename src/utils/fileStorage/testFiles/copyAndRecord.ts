@@ -1,12 +1,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { forceRefreshStorage } from "../storageHelpers";
+import { toast } from "sonner";
 
 /**
  * Copies a file from one location to another in the storage bucket and records the operation
  * 
  * @param sourceUrl The source URL of the file to copy
  * @param destinationKey The destination key for the copied file
- * @param testId The ID of the test to record the operation for
+ * @param testId The ID of the test to record the operation
  * @returns The public URL of the copied file
  */
 export const copyAndRecord = async (
@@ -44,19 +46,45 @@ export const copyAndRecord = async (
     console.log(`Successfully copied file to ${destinationKey}`);
     console.log(`Public URL: ${urlData.publicUrl}`);
     
-    // Dispatch an event to notify that a test file has been assigned
-    const event = new CustomEvent('testFileAssigned', {
-      detail: {
-        testId,
-        destinationKey,
-        publicUrl: urlData.publicUrl
-      }
-    });
-    document.dispatchEvent(event);
+    // Force refresh storage to ensure changes are visible immediately
+    await forceRefreshStorage();
+    
+    // Dispatch multiple events to ensure all components are notified
+    const eventTypes = [
+      'testFileAssigned',  // Main event
+      'testFileUploaded',  // Additional event for upload listeners
+      'filesRefreshed'     // Generic refresh event
+    ];
+    
+    for (const eventType of eventTypes) {
+      const event = new CustomEvent(eventType, {
+        detail: {
+          testId,
+          destinationKey,
+          publicUrl: urlData.publicUrl,
+          timestamp: new Date().toISOString()
+        }
+      });
+      document.dispatchEvent(event);
+      console.log(`Dispatched ${eventType} event for ${destinationKey}`);
+    }
+    
+    // Show a toast notification
+    toast.success("Test file successfully assigned");
+    
+    // Schedule additional refreshes to ensure all components pick up the changes
+    setTimeout(() => forceRefreshStorage(), 1000);
+    setTimeout(() => {
+      const refreshEvent = new CustomEvent('filesRefreshed', { 
+        detail: { source: 'delayed', testId }
+      });
+      document.dispatchEvent(refreshEvent);
+    }, 2000);
     
     return urlData.publicUrl;
   } catch (error: any) {
     console.error("Error copying file:", error);
+    toast.error(`Error copying file: ${error.message}`);
     throw error;
   }
 };
