@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,9 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { QuestionMarkCircle, BookOpen, History, Plus, Brain, List, Grid } from 'lucide-react';
+import { HelpCircle, BookOpen, History, Plus, Brain, List, Grid } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import QuestionHistory from '@/components/paper-generation/QuestionHistory';
+import { QuestionHistory } from '@/components/paper-generation/QuestionHistory';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -108,7 +107,7 @@ export default function PaperGeneration() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center">
-              <QuestionMarkCircle className="mr-2 h-5 w-5 text-primary" />
+              <HelpCircle className="mr-2 h-5 w-5 text-primary" />
               Question Library
             </CardTitle>
           </CardHeader>

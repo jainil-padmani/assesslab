@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -14,12 +13,14 @@ import {
   UserPlus, 
   Upload,
   ClipboardList,
-  Calendar 
+  Calendar,
+  School as SchoolIcon,
+  ChevronRight,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
-// Quick actions for the dashboard
 const quickActions = [
   {
     title: "Add Student",
@@ -55,7 +56,6 @@ const quickActions = [
   }
 ];
 
-// Function to format date
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat('en-US', { 
@@ -68,7 +68,6 @@ const formatDate = (dateString: string) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   
-  // Fetch recent tests
   const { data: recentTests = [] } = useQuery({
     queryKey: ['recent-tests'],
     queryFn: async () => {
@@ -90,7 +89,6 @@ export default function Dashboard() {
     }
   });
 
-  // Fetch evaluations count
   const { data: evaluationsCount = { completed: 0, pending: 0 } } = useQuery({
     queryKey: ['evaluations-count'],
     queryFn: async () => {
@@ -99,20 +97,19 @@ export default function Dashboard() {
         .select('status', { count: 'exact', head: true })
         .eq('status', 'completed');
       
-      const { count: completed } = data || { count: 0 };
+      const completed = data?.count || 0;
       
       const { data: pendingData, error: pendingError } = await supabase
         .from('paper_evaluations')
         .select('status', { count: 'exact', head: true })
         .eq('status', 'pending');
       
-      const { count: pending } = pendingData || { count: 0 };
+      const pending = pendingData?.count || 0;
       
       return { completed, pending };
     }
   });
 
-  // Fetch class count
   const { data: stats = { students: 0, classes: 0, subjects: 0 } } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
@@ -141,7 +138,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Actions Section */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -170,9 +166,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Key Metrics Section */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Recent Tests */}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -223,7 +217,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Stats */}
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-2">
@@ -265,7 +258,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center text-sm text-muted-foreground">
-                    <School className="mr-2 h-4 w-4" /> Classes
+                    <SchoolIcon className="mr-2 h-4 w-4" /> Classes
                   </span>
                   <span className="font-medium">{stats.classes}</span>
                 </div>
@@ -299,5 +292,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-import { ChevronRight, Users } from "lucide-react";

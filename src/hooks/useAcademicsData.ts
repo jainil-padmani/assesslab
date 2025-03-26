@@ -2,7 +2,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Student, Class, Subject } from '@/types/dashboard';
+import type { Student, Subject } from '@/types/dashboard';
+import type { Class } from '@/hooks/useClassData';
 
 /**
  * Custom hook to load and manage all academics-related data in one place
