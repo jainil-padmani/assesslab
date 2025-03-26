@@ -42,11 +42,20 @@ export function TestPaperAssignDialog({
   const [selectedExistingFile, setSelectedExistingFile] = useState<string | null>(null);
   const [validSubjectFiles, setValidSubjectFiles] = useState<SubjectFile[]>([]);
 
+  // Reset selection when dialog opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedExistingFile(null);
+    }
+  }, [isOpen]);
+
   // Filter out files that don't have answer keys
   useEffect(() => {
     if (subjectFiles) {
+      console.log("Filtering subject files for valid papers:", subjectFiles);
       const validFiles = subjectFiles.filter(file => file.question_paper_url && file.answer_key_url);
       setValidSubjectFiles(validFiles);
+      console.log("Valid subject files:", validFiles);
       
       // Reset selection if the selected file is no longer valid
       if (selectedExistingFile && !validFiles.some(file => file.id === selectedExistingFile)) {
@@ -69,6 +78,7 @@ export function TestPaperAssignDialog({
     }
     
     try {
+      console.log("Assigning paper with ID:", selectedExistingFile);
       await onAssignPaper(selectedExistingFile);
       // Reset selection after successful assignment
       setSelectedExistingFile(null);

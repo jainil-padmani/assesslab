@@ -154,6 +154,11 @@ export const assignSubjectFilesToTest = async (
       console.log(`Copied handwritten paper to: ${newHandwrittenName}`);
     }
 
+    // Get the public URLs for the new files
+    const questionPaperPublicUrl = getPublicUrl(newQuestionPaperName).data.publicUrl;
+    const answerKeyPublicUrl = getPublicUrl(newAnswerKeyName).data.publicUrl;
+    const handwrittenPublicUrl = newHandwrittenName ? getPublicUrl(newHandwrittenName).data.publicUrl : null;
+
     // Insert records into subject_documents for test files
     const documentsToInsert = [
       {
@@ -161,7 +166,7 @@ export const assignSubjectFilesToTest = async (
         user_id: user.id,
         file_name: newQuestionPaperName,
         document_type: 'questionPaper',
-        document_url: getPublicUrl(newQuestionPaperName).data.publicUrl,
+        document_url: questionPaperPublicUrl,
         file_type: questionPaperExt,
         file_size: 0 // We don't have the actual file size here
       },
@@ -170,7 +175,7 @@ export const assignSubjectFilesToTest = async (
         user_id: user.id,
         file_name: newAnswerKeyName,
         document_type: 'answerKey',
-        document_url: getPublicUrl(newAnswerKeyName).data.publicUrl,
+        document_url: answerKeyPublicUrl,
         file_type: answerKeyExt,
         file_size: 0 // We don't have the actual file size here
       }
@@ -182,7 +187,7 @@ export const assignSubjectFilesToTest = async (
         user_id: user.id,
         file_name: newHandwrittenName,
         document_type: 'handwrittenPaper',
-        document_url: getPublicUrl(newHandwrittenName).data.publicUrl,
+        document_url: handwrittenPublicUrl,
         file_type: getFileExtension(newHandwrittenName),
         file_size: 0 // We don't have the actual file size here
       });
@@ -200,6 +205,7 @@ export const assignSubjectFilesToTest = async (
     // Force a final refresh to ensure storage is updated
     await forceRefreshStorage();
 
+    console.log("Files assigned to test successfully");
     toast.success("Files assigned to test successfully");
     return true;
   } catch (error: any) {
@@ -208,3 +214,4 @@ export const assignSubjectFilesToTest = async (
     return false;
   }
 };
+

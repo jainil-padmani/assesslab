@@ -32,7 +32,8 @@ export function TestPapersManagement({ test }: TestPapersProps) {
     setOpenUploadDialog,
     assignExistingPaper,
     handleDeleteFile,
-    refetchTestFiles
+    refetchTestFiles,
+    refreshStorage
   } = useTestPapers(test, refreshTrigger);
 
   // Force refresh when component mounts
@@ -41,12 +42,13 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       console.log("Initial test papers refresh for test ID:", test.id);
       // Force a refresh when the component mounts
       setRefreshTrigger(prev => prev + 1);
-      // Explicitly refetch test files
+      // Explicitly refresh storage and refetch test files
+      await refreshStorage();
       await refetchTestFiles();
     };
     
     refreshData();
-  }, [test.id, refetchTestFiles]);
+  }, [test.id, refetchTestFiles, refreshStorage]);
 
   const handleAssignPaper = async (fileId: string) => {
     try {
@@ -61,6 +63,7 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         return;
       }
       
+      console.log("Assigning paper:", selectedFile);
       const success = await assignExistingPaper(fileId);
       
       if (success) {
@@ -69,9 +72,15 @@ export function TestPapersManagement({ test }: TestPapersProps) {
         
         // Trigger multiple refresh mechanisms to ensure UI updates
         setRefreshTrigger(prev => prev + 1);
+        
+        // Force refresh storage
+        await refreshStorage();
+        
+        // Explicitly refetch test files
         await refetchTestFiles();
         
         toast.success("Paper successfully assigned to test");
+        console.log("Paper assigned successfully. New test files:", testFiles);
       } else {
         toast.error("Failed to assign paper to test");
       }
@@ -87,12 +96,20 @@ export function TestPapersManagement({ test }: TestPapersProps) {
       if (success) {
         // Trigger a refresh after deletion
         setRefreshTrigger(prev => prev + 1);
+        // Force refresh storage
+        await refreshStorage();
+        // Explicitly refetch test files
         await refetchTestFiles();
       }
     } catch (error) {
       console.error("Error deleting test paper:", error);
     }
   };
+
+  // Debug log to check if files are being displayed
+  useEffect(() => {
+    console.log("Current test files:", testFiles);
+  }, [testFiles]);
 
   return (
     <Card className="mb-8">
