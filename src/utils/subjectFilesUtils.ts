@@ -7,6 +7,7 @@ export {
 } from './fileStorage/subjectFileOps';
 
 export {
-  assignSubjectFilesToTest,
-  fetchTestFiles
-} from './fileStorage/testFileOps';
+  fetchTestFiles,
+  assignSubjectFilesToTest
+} from './fileStorage/testFiles';
+
