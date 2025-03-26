@@ -19,11 +19,11 @@ export async function extractTextFromPdf(
   try {
     console.log("PDF file detected, converting to images first before OCR");
     
-    // Get the pre-converted images
-    let imageUrls = await getDocumentPagesAsImages(pdfUrl);
+    // Get the pre-converted images - CRITICAL STEP
+    const imageUrls = await getDocumentPagesAsImages(pdfUrl);
     
     if (!imageUrls || imageUrls.length === 0) {
-      throw new Error(`Failed to convert PDF to images: ${pdfUrl}`);
+      throw new Error(`Failed to convert PDF to images: ${pdfUrl}. PDF must be converted to images before processing.`);
     }
     
     console.log(`Successfully converted PDF to ${imageUrls.length} images, processing for OCR`);
@@ -40,9 +40,9 @@ export async function extractTextFromPdf(
     
     // More descriptive error to help diagnose the issue
     if (pdfError.message.includes("PDF must be converted")) {
-      throw new Error(`PDF conversion error: ${pdfError.message}. This may indicate that PDF pre-rendering failed.`);
+      throw new Error(`PDF conversion error: ${pdfError.message}. PDF pre-rendering failed. Please check document converter service.`);
     } else {
-      throw new Error(`PDF conversion error: ${pdfError.message}`);
+      throw new Error(`PDF conversion error: ${pdfError.message}. Make sure the document service is properly configured.`);
     }
   }
 }

@@ -1,434 +1,216 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { History } from "lucide-react";
-import { useSubjects } from "@/hooks/useSubjects";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { GeneratedPaper, Question, Json } from "@/types/papers";
-import { SubjectSelect } from "@/components/paper-generation/SubjectSelect";
-import { ContentUpload } from "@/components/paper-generation/ContentUpload";
-import { QuestionTypes } from "@/components/paper-generation/QuestionTypes";
-import { QuestionParameters } from "@/components/paper-generation/QuestionParameters";
-import { GeneratedQuestions } from "@/components/paper-generation/GeneratedQuestions";
-import { QuestionHistory } from "@/components/paper-generation/QuestionHistory";
 
-interface CourseOutcome {
-  id: string;
-  co_number: number;
-  description: string;
-  questionCount: number;
-  selected: boolean;
-  open: boolean; // Track if this course outcome's collapsible is open
-  questionDistribution: {
-    "1 mark": number;
-    "2 marks": number;
-    "4 marks": number;
-    "8 marks": number;
-  }
-}
-
-type QuestionMode = "multiple-choice" | "theory";
-
-interface TheoryQuestionConfig {
-  "1 mark": number;
-  "2 marks": number;
-  "4 marks": number;
-  "8 marks": number;
-}
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { QuestionMarkCircle, BookOpen, History, Plus, Brain, List, Grid } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import QuestionHistory from '@/components/paper-generation/QuestionHistory';
+import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function PaperGeneration() {
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [topicName, setTopicName] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [papers, setPapers] = useState<GeneratedPaper[]>([]);
-  const [filteredPapers, setFilteredPapers] = useState<GeneratedPaper[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
-  const { subjects, isLoading: isSubjectsLoading } = useSubjects();
   const navigate = useNavigate();
-  
-  const [contentUrl, setContentUrl] = useState<string>("");
-  const [extractedContent, setExtractedContent] = useState<string>("");
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
-  const [difficulty, setDifficulty] = useState<number>(50);
-  const [bloomsTaxonomy, setBloomsTaxonomy] = useState<any>({
-    remember: 20,
-    understand: 20,
-    apply: 15,
-    analyze: 15,
-    evaluate: 15,
-    create: 15
-  });
-  
-  const [questionMode, setQuestionMode] = useState<QuestionMode>("multiple-choice");
-  const [multipleChoiceCount, setMultipleChoiceCount] = useState<number>(10);
-  const [theoryQuestionConfig, setTheoryQuestionConfig] = useState<TheoryQuestionConfig>({
-    "1 mark": 5,
-    "2 marks": 3,
-    "4 marks": 2,
-    "8 marks": 1
-  });
-  
-  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
-  const [isLoadingCourseOutcomes, setIsLoadingCourseOutcomes] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filterSubject, setFilterSubject] = useState<string>('all');
 
-  useEffect(() => {
-    if (selectedSubject && papers.length > 0) {
-      setFilteredPapers(papers.filter(paper => paper.subject_id === selectedSubject));
-    } else {
-      setFilteredPapers(papers);
-    }
-  }, [selectedSubject, papers]);
-
-  useEffect(() => {
-    fetchPapers();
-  }, []);
-  
-  useEffect(() => {
-    if (selectedSubject) {
-      fetchCourseOutcomes(selectedSubject);
-    } else {
-      setCourseOutcomes([]);
-    }
-  }, [selectedSubject]);
-
-  const fetchPapers = async () => {
-    try {
-      setIsHistoryLoading(true);
-      console.log("Fetching papers...");
+  // Fetch subjects for filtering
+  const { data: subjects = [] } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => {
       const { data, error } = await supabase
-        .from("generated_papers")
-        .select("*, subjects(name)")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      
-      if (error) {
-        console.error("Error fetching papers:", error);
-        throw error;
-      }
-      
-      console.log("Papers data:", data);
-      
-      if (data) {
-        const mappedData = data.map((paper: any) => ({
-          ...paper,
-          subject_name: paper.subjects?.name || "Unknown Subject",
-          questions: paper.questions as Question[] | any
-        }));
-        
-        setPapers(mappedData as GeneratedPaper[]);
-        setFilteredPapers(mappedData as GeneratedPaper[]);
-      } else {
-        setPapers([]);
-        setFilteredPapers([]);
-      }
-    } catch (error: any) {
-      console.error("Error fetching papers:", error);
-      toast.error("Failed to load paper history");
-      setPapers([]);
-      setFilteredPapers([]);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  };
-  
-  const fetchCourseOutcomes = async (subjectId: string) => {
-    try {
-      setIsLoadingCourseOutcomes(true);
-      
-      const { data, error } = await supabase
-        .from('course_outcomes')
-        .select('*')
-        .eq('subject_id', subjectId)
-        .order('co_number', { ascending: true });
-      
+        .from('subjects')
+        .select('id, name')
+        .order('name');
       if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch recent questions for the dashboard
+  const { data: recentQuestions = [] } = useQuery({
+    queryKey: ['recent-questions'],
+    queryFn: async () => {
+      let query = supabase
+        .from('generated_questions')
+        .select('id, topic, created_at, subject_id, questions, subjects(name)')
+        .order('created_at', { ascending: false })
+        .limit(10);
       
-      if (data && data.length > 0) {
-        const mappedOutcomes = data.map(co => ({
-          id: co.id,
-          co_number: co.co_number,
-          description: co.description,
-          questionCount: 2,
-          selected: true,
-          open: false, // Initially collapsed
-          questionDistribution: {
-            "1 mark": 1,
-            "2 marks": 1,
-            "4 marks": 0,
-            "8 marks": 0
-          }
-        }));
-        
-        setCourseOutcomes(mappedOutcomes);
-      } else {
-        setCourseOutcomes([]);
-      }
-    } catch (error) {
-      console.error("Error fetching course outcomes:", error);
-      toast.error("Failed to load course outcomes");
-      setCourseOutcomes([]);
-    } finally {
-      setIsLoadingCourseOutcomes(false);
-    }
-  };
-
-  const handleBloomsTaxonomyChange = (level: string, value: number[]) => {
-    setBloomsTaxonomy(prev => ({
-      ...prev,
-      [level]: value[0]
-    }));
-  };
-
-  const calculateTotalMarks = () => {
-    if (questionMode === "multiple-choice") {
-      return multipleChoiceCount;
-    } else {
-      if (courseOutcomes.length > 0) {
-        const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-        let totalMarks = 0;
-        
-        selectedCourseOutcomes.forEach(co => {
-          totalMarks += co.questionDistribution["1 mark"] * 1;
-          totalMarks += co.questionDistribution["2 marks"] * 2;
-          totalMarks += co.questionDistribution["4 marks"] * 4;
-          totalMarks += co.questionDistribution["8 marks"] * 8;
-        });
-        
-        return totalMarks;
-      } else {
-        return (
-          theoryQuestionConfig["1 mark"] * 1 +
-          theoryQuestionConfig["2 marks"] * 2 +
-          theoryQuestionConfig["4 marks"] * 4 +
-          theoryQuestionConfig["8 marks"] * 8
-        );
-      }
-    }
-  };
-
-  const generateQuestions = async () => {
-    if (!extractedContent && !contentUrl) {
-      toast.error("Please upload content material first");
-      return;
-    }
-    
-    if (!selectedSubject) {
-      toast.error("Please select a subject");
-      return;
-    }
-    
-    if (!topicName) {
-      toast.error("Please enter a topic name");
-      return;
-    }
-    
-    if (questionMode === "theory" && courseOutcomes.length > 0) {
-      const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-      if (selectedCourseOutcomes.length === 0) {
-        toast.error("Please select at least one course outcome for theory questions");
-        return;
-      }
-    }
-    
-    setIsGenerating(true);
-    toast.info("Generating questions, this may take a moment...");
-    
-    try {
-      let questionTypesConfig = {};
-      
-      if (questionMode === "multiple-choice") {
-        questionTypesConfig = {
-          "Multiple Choice (1 mark)": multipleChoiceCount
-        };
-      } else {
-        if (courseOutcomes.length > 0) {
-          const selectedCourseOutcomes = courseOutcomes.filter(co => co.selected);
-          const aggregatedDistribution = {
-            "Short Answer (1 mark)": 0,
-            "Short Answer (2 marks)": 0,
-            "Medium Answer (4 marks)": 0,
-            "Long Answer (8 marks)": 0
-          };
-          
-          selectedCourseOutcomes.forEach(co => {
-            aggregatedDistribution["Short Answer (1 mark)"] += co.questionDistribution["1 mark"];
-            aggregatedDistribution["Short Answer (2 marks)"] += co.questionDistribution["2 marks"];
-            aggregatedDistribution["Medium Answer (4 marks)"] += co.questionDistribution["4 marks"];
-            aggregatedDistribution["Long Answer (8 marks)"] += co.questionDistribution["8 marks"];
-          });
-          
-          questionTypesConfig = aggregatedDistribution;
-        } else {
-          questionTypesConfig = {
-            "Short Answer (1 mark)": theoryQuestionConfig["1 mark"],
-            "Short Answer (2 marks)": theoryQuestionConfig["2 marks"],
-            "Medium Answer (4 marks)": theoryQuestionConfig["4 marks"],
-            "Long Answer (8 marks)": theoryQuestionConfig["8 marks"]
-          };
-        }
+      if (filterSubject !== 'all') {
+        query = query.eq('subject_id', filterSubject);
       }
       
-      const response = await supabase.functions.invoke('generate-questions', {
-        body: {
-          topic: topicName,
-          content: extractedContent || "No content provided",
-          bloomsTaxonomy,
-          difficulty,
-          courseOutcomes: courseOutcomes.length > 0 && questionMode === "theory" 
-            ? courseOutcomes.filter(co => co.selected) 
-            : undefined,
-          questionTypes: questionTypesConfig,
-          questionMode: questionMode
-        }
-      });
-      
-      if (response.error) {
-        console.error("Error generating questions:", response.error);
-        toast.error(`Error generating questions: ${response.error}`);
-        setIsGenerating(false);
-        return;
-      }
-      
-      setGeneratedQuestions(response.data.questions);
-      
-      if (response.data.warning) {
-        toast.warning(response.data.warning);
-      }
-      
-      try {
-        const { error: saveQuestionsError } = await supabase.from('generated_questions').insert({
-          subject_id: selectedSubject,
-          topic: topicName,
-          questions: response.data.questions as Json,
-          user_id: (await supabase.auth.getUser()).data.user?.id || '',
-          question_mode: questionMode
-        });
-        
-        if (saveQuestionsError) throw saveQuestionsError;
-        
-        const questionsJson = response.data.questions as Json;
-        
-        const { error: savePaperError } = await supabase.from('generated_papers').insert({
-          subject_id: selectedSubject,
-          topic: topicName,
-          paper_url: "",
-          questions: questionsJson,
-          content_url: contentUrl || null,
-          user_id: (await supabase.auth.getUser()).data.user?.id || '',
-          question_mode: questionMode
-        });
-        
-        if (savePaperError) throw savePaperError;
-        
-        toast.success("Questions generated and saved successfully");
-        fetchPapers();
-      } catch (saveError) {
-        console.error("Error saving questions:", saveError);
-        toast.error("Questions generated but failed to save to history");
-      }
-    } catch (error) {
-      console.error("Error generating questions:", error);
-      toast.error("Failed to generate questions");
-    } finally {
-      setIsGenerating(false);
-    }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: true
+  });
+
+  const handleCreateClick = () => {
+    navigate('/dashboard/paper-generation/create');
   };
 
-  const viewQuestionsHistory = () => {
-    navigate("/dashboard/paper-generation/questions-history");
+  const handleHistoryClick = () => {
+    navigate('/dashboard/paper-generation/history');
   };
 
-  const isGenerateDisabled = () => {
-    return (
-      isGenerating || 
-      (!extractedContent && !contentUrl) || 
-      !selectedSubject || 
-      !topicName || 
-      (questionMode === "theory" && courseOutcomes.length > 0 && courseOutcomes.filter(co => co.selected).length === 0)
-    );
-  };
-
-  const clearQuestions = () => {
-    setGeneratedQuestions([]);
-  };
-
-  const updateQuestions = (updatedQuestions: Question[]) => {
-    setGeneratedQuestions(updatedQuestions);
+  const handleQuestionHistoryClick = () => {
+    navigate('/dashboard/paper-generation/questions-history');
   };
 
   return (
-    <div className="container max-w-4xl mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Questions Generation</h1>
-        <Button
-          variant="outline"
-          onClick={viewQuestionsHistory}
-          className="flex items-center gap-2"
-        >
-          <History className="h-4 w-4" />
-          View Questions History
-        </Button>
-      </div>
-      
-      {generatedQuestions.length === 0 ? (
-        <div className="space-y-6">
-          <SubjectSelect
-            selectedSubject={selectedSubject}
-            setSelectedSubject={setSelectedSubject}
-            topicName={topicName}
-            setTopicName={setTopicName}
-            subjects={subjects}
-            isSubjectsLoading={isSubjectsLoading}
-          />
-          
-          <ContentUpload
-            selectedSubject={selectedSubject}
-            contentUrl={contentUrl}
-            setContentUrl={setContentUrl}
-            extractedContent={extractedContent}
-            setExtractedContent={setExtractedContent}
-          />
-          
-          <QuestionTypes
-            questionMode={questionMode}
-            setQuestionMode={setQuestionMode}
-            multipleChoiceCount={multipleChoiceCount}
-            setMultipleChoiceCount={setMultipleChoiceCount}
-            theoryQuestionConfig={theoryQuestionConfig}
-            setTheoryQuestionConfig={setTheoryQuestionConfig}
-            courseOutcomes={courseOutcomes}
-            setCourseOutcomes={setCourseOutcomes}
-            isLoadingCourseOutcomes={isLoadingCourseOutcomes}
-            calculateTotalMarks={calculateTotalMarks}
-          />
-          
-          <QuestionParameters
-            difficulty={difficulty}
-            setDifficulty={setDifficulty}
-            bloomsTaxonomy={bloomsTaxonomy}
-            handleBloomsTaxonomyChange={handleBloomsTaxonomyChange}
-            generateQuestions={generateQuestions}
-            isGenerating={isGenerating}
-            isDisabled={isGenerateDisabled()}
-          />
+    <div className="container mx-auto">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Question Bank</h1>
+          <p className="text-muted-foreground mt-1">Generate and manage questions</p>
         </div>
-      ) : (
-        <GeneratedQuestions
-          questions={generatedQuestions}
-          topicName={topicName}
-          clearQuestions={clearQuestions}
-          updateQuestions={updateQuestions}
-        />
-      )}
-      
-      {filteredPapers.length > 0 && generatedQuestions.length === 0 && (
-        <QuestionHistory
-          papers={filteredPapers}
-          fetchPapers={fetchPapers}
-        />
-      )}
+        <div className="flex gap-2">
+          <Button onClick={handleCreateClick} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Generate Questions
+          </Button>
+          <Button variant="outline" onClick={handleHistoryClick} className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            View Papers
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <Brain className="mr-2 h-5 w-5 text-primary" />
+              AI Question Generation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Generate questions using AI by uploading study materials or entering text
+            </p>
+          </CardContent>
+          <CardFooter className="pt-0">
+            <Button size="sm" onClick={handleCreateClick} className="w-full">Generate Now</Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <QuestionMarkCircle className="mr-2 h-5 w-5 text-primary" />
+              Question Library
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Browse and search through your saved question bank by subject or topic
+            </p>
+          </CardContent>
+          <CardFooter className="pt-0">
+            <Button size="sm" onClick={handleQuestionHistoryClick} variant="outline" className="w-full">
+              View Library
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <BookOpen className="mr-2 h-5 w-5 text-primary" />
+              Question Paper Templates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Create and manage templates for generating complete question papers
+            </p>
+          </CardContent>
+          <CardFooter className="pt-0">
+            <Button size="sm" onClick={handleHistoryClick} variant="outline" className="w-full">
+              Manage Templates
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="recent" className="w-full">
+        <div className="flex justify-between items-center mb-4">
+          <TabsList>
+            <TabsTrigger value="recent">Recent Questions</TabsTrigger>
+            <TabsTrigger value="papers">Generated Papers</TabsTrigger>
+          </TabsList>
+          
+          <div className="flex items-center gap-2">
+            <select 
+              className="h-9 rounded-md border border-input px-3 py-1 text-sm shadow-sm"
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+            >
+              <option value="all">All Subjects</option>
+              {subjects.map((subject: any) => (
+                <option key={subject.id} value={subject.id}>{subject.name}</option>
+              ))}
+            </select>
+            
+            <div className="border rounded-md flex">
+              <Button 
+                variant={viewMode === 'grid' ? 'default' : 'ghost'} 
+                size="icon" 
+                onClick={() => setViewMode('grid')}
+                className="rounded-r-none h-9 w-9"
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant={viewMode === 'list' ? 'default' : 'ghost'} 
+                size="icon" 
+                onClick={() => setViewMode('list')}
+                className="rounded-l-none h-9 w-9"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+        
+        <TabsContent value="recent">
+          <QuestionHistory 
+            data={recentQuestions}
+            viewMode={viewMode}
+            enableFiltering={false}
+            showViewAll={true}
+            onViewAllClick={handleQuestionHistoryClick}
+          />
+        </TabsContent>
+        
+        <TabsContent value="papers">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center justify-center text-center py-8">
+                <BookOpen className="h-12 w-12 text-muted-foreground opacity-20 mb-4" />
+                <h3 className="text-lg font-medium">Paper Templates</h3>
+                <p className="text-sm text-muted-foreground max-w-md mt-2 mb-6">
+                  Create paper templates to organize questions into structured formats for exams and assessments
+                </p>
+                <Button onClick={handleHistoryClick}>
+                  View Generated Papers
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -2,73 +2,82 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  LayoutDashboard,
+  GraduationCap,
+  School,
   BookOpen,
+  FileText,
+  ClipboardList,
   Brain,
   CheckCircle,
-  Settings,
-  ClipboardList,
-  LayoutDashboard,
-  LogOut,
-  GraduationCap,
-  Notebook,
   FileUp,
-  School,
-  FileText,
-  PenTool
+  BarChart,
+  Settings,
+  LogOut,
+  ChevronDown,
+  ChevronRight,
+  Users,
 } from "lucide-react";
 import { useNavigate, NavigateFunction } from "react-router-dom";
 import { useState, useEffect } from "react";
 
-const links = [
+const navItems = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
     href: "/dashboard",
   },
   {
-    title: "Students",
+    title: "Academics",
     icon: GraduationCap,
-    href: "/dashboard/students",
+    submenu: [
+      {
+        title: "Students",
+        icon: Users,
+        href: "/dashboard/students",
+      },
+      {
+        title: "Classes",
+        icon: School,
+        href: "/dashboard/classes",
+      },
+      {
+        title: "Subjects",
+        icon: BookOpen,
+        href: "/dashboard/subjects",
+      },
+    ],
   },
   {
-    title: "Classes",
-    icon: School,
-    href: "/dashboard/classes",
-  },
-  {
-    title: "Subjects",
-    icon: Notebook,
-    href: "/dashboard/subjects",
-  },
-  {
-    title: "Tests",
+    title: "Assessments",
     icon: ClipboardList,
-    href: "/dashboard/tests",
+    submenu: [
+      {
+        title: "Tests",
+        icon: FileText,
+        href: "/dashboard/tests",
+      },
+      {
+        title: "Question Bank",
+        icon: Brain,
+        href: "/dashboard/paper-generation",
+      },
+      {
+        title: "Auto Grade",
+        icon: CheckCircle,
+        href: "/dashboard/check",
+      },
+    ],
   },
   {
-    title: "Questions Generation",
-    icon: FileText,
-    href: "/dashboard/paper-generation",
-  },
-  {
-    title: "File Management",
+    title: "Resources",
     icon: FileUp,
     href: "/dashboard/file-management",
   },
   {
-    title: "Take Test",
-    icon: PenTool,
-    href: "/dashboard/take-test",
-  },
-  {
-    title: "Analysis",
-    icon: Brain,
+    title: "Analytics",
+    icon: BarChart,
     href: "/dashboard/analysis",
-  },
-  {
-    title: "Auto Check",
-    icon: CheckCircle,
-    href: "/dashboard/check",
   },
   {
     title: "Settings",
@@ -85,6 +94,8 @@ interface DashboardNavProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function DashboardNav({ className, onSignOut, closeMenu, navigate: navigateProp, ...props }: DashboardNavProps) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  
   // Only call useNavigate if we're inside a Router context
   let routerNavigate: NavigateFunction | undefined;
   try {
@@ -117,6 +128,14 @@ export function DashboardNav({ className, onSignOut, closeMenu, navigate: naviga
       window.location.href = href;
     }
   };
+
+  const toggleSubmenu = (title: string) => {
+    setExpandedMenus(prev => 
+      prev.includes(title) 
+        ? prev.filter(item => item !== title) 
+        : [...prev, title]
+    );
+  };
   
   return (
     <div className={cn("relative", className)} {...props}>
@@ -130,20 +149,65 @@ export function DashboardNav({ className, onSignOut, closeMenu, navigate: naviga
             )}
             {!isMobile && <h2 className="mb-4 px-4 text-xl font-semibold tracking-tight">Menu</h2>}
             <nav className="space-y-2">
-              {links.map((link) => (
-                <div
-                  key={link.href}
-                  onClick={() => handleNavLinkClick(link.href)}
-                  className={cn(
-                    "group flex items-center rounded-md px-3 cursor-pointer",
-                    isMobile ? "text-sm py-2.5" : "text-sm py-2",
-                    location.pathname === link.href || location.pathname.startsWith(`${link.href}/`) 
-                      ? "bg-accent text-accent-foreground" 
-                      : "transparent hover:bg-accent hover:text-accent-foreground"
+              {navItems.map((item) => (
+                <div key={item.title} className="space-y-1">
+                  {item.submenu ? (
+                    <>
+                      <div
+                        onClick={() => toggleSubmenu(item.title)}
+                        className={cn(
+                          "group flex items-center justify-between rounded-md px-3 py-2 cursor-pointer text-sm",
+                          expandedMenus.includes(item.title) 
+                            ? "bg-accent text-accent-foreground" 
+                            : "transparent hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        <div className="flex items-center">
+                          <item.icon className={cn("mr-2", isMobile ? "h-4 w-4" : "h-4 w-4")} />
+                          <span>{item.title}</span>
+                        </div>
+                        {expandedMenus.includes(item.title) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </div>
+                      {expandedMenus.includes(item.title) && (
+                        <div className="ml-6 space-y-1 mt-1">
+                          {item.submenu.map((subItem) => (
+                            <div
+                              key={subItem.title}
+                              onClick={() => handleNavLinkClick(subItem.href)}
+                              className={cn(
+                                "group flex items-center rounded-md px-3 cursor-pointer",
+                                isMobile ? "text-sm py-2" : "text-sm py-1.5",
+                                location.pathname === subItem.href || location.pathname.startsWith(`${subItem.href}/`) 
+                                  ? "bg-accent/50 text-accent-foreground" 
+                                  : "transparent hover:bg-accent/50 hover:text-accent-foreground"
+                              )}
+                            >
+                              <subItem.icon className={cn("mr-2", isMobile ? "h-4 w-4" : "h-4 w-4")} />
+                              <span>{subItem.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div
+                      onClick={() => handleNavLinkClick(item.href)}
+                      className={cn(
+                        "group flex items-center rounded-md px-3 cursor-pointer",
+                        isMobile ? "text-sm py-2.5" : "text-sm py-2",
+                        location.pathname === item.href || location.pathname.startsWith(`${item.href}/`) 
+                          ? "bg-accent text-accent-foreground" 
+                          : "transparent hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      <item.icon className={cn("mr-2", isMobile ? "h-4 w-4" : "h-4 w-4")} />
+                      <span>{item.title}</span>
+                    </div>
                   )}
-                >
-                  <link.icon className={cn("mr-2", isMobile ? "h-4 w-4" : "h-4 w-4")} />
-                  <span>{link.title}</span>
                 </div>
               ))}
               <Button

@@ -8,8 +8,10 @@ import { StudentAnswerSheetsCard } from "@/components/check/StudentAnswerSheetsC
 import { EvaluationResultsCard } from "@/components/check/EvaluationResultsCard";
 import { AutoCheckGuide } from "@/components/check/AutoCheckGuide";
 import { Button } from "@/components/ui/button";
-import { Info, AlertCircle } from "lucide-react";
+import { Info, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 export default function Check() {
   // State for showing the guide
@@ -57,6 +59,16 @@ export default function Check() {
     const answerKeys = testFiles.filter(file => file.answer_key_url);
     return { questionPapers, answerKeys };
   }, [testFiles]);
+
+  // Stats for the evaluation progress
+  const stats = useMemo(() => {
+    const total = evaluations.length;
+    const completed = evaluations.filter(e => e.status === 'completed').length;
+    const pending = evaluations.filter(e => e.status === 'pending').length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    return { total, completed, pending, percent };
+  }, [evaluations]);
 
   const handleEvaluateSingle = async (studentId: string) => {
     try {
@@ -224,14 +236,17 @@ export default function Check() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Auto Check</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Auto Grade</h1>
+          <p className="text-muted-foreground mt-1">AI-powered paper evaluation</p>
+        </div>
         <Button
           variant="outline"
           onClick={() => setShowGuide(true)}
           className="flex items-center gap-2"
         >
           <Info className="h-4 w-4" />
-          How to Use Auto Check
+          How to Use Auto Grade
         </Button>
       </div>
       
@@ -242,9 +257,58 @@ export default function Check() {
           <Alert variant="default" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
             <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             <AlertDescription className="text-blue-800 dark:text-blue-300">
-              Auto Check uses AI to evaluate student answer sheets. Select a test, ensure it has question papers and answer keys, then evaluate student submissions.
+              Auto Grade uses AI to evaluate student answer sheets. Select a test, ensure it has question papers and answer keys, then evaluate student submissions.
             </AlertDescription>
           </Alert>
+          
+          {/* Overview Card */}
+          {selectedTest && evaluations.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Evaluation Progress</CardTitle>
+                <CardDescription>
+                  {stats.completed} of {stats.total} papers evaluated
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Progress value={stats.percent} className="h-2"/>
+                  
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="flex justify-center mb-1">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {stats.completed}
+                      </div>
+                      <p className="text-xs text-green-800 dark:text-green-300">Completed</p>
+                    </div>
+                    
+                    <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                      <div className="flex justify-center mb-1">
+                        <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {stats.pending}
+                      </div>
+                      <p className="text-xs text-amber-800 dark:text-amber-300">Pending</p>
+                    </div>
+                    
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="flex justify-center mb-1">
+                        <div className="h-5 w-5 text-blue-600 dark:text-blue-400 font-bold">%</div>
+                      </div>
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {stats.percent}
+                      </div>
+                      <p className="text-xs text-blue-800 dark:text-blue-300">Complete</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           <TestSelectionCard
             classes={classes}
