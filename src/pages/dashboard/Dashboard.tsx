@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/hooks/useUser";
@@ -55,25 +54,23 @@ export default function Dashboard() {
   const getCompletedTestsCount = () => {
     if (!testMetrics) return 0;
     
-    // Handle both array type and object with count property
+    // Handle array type correctly
     if (Array.isArray(testMetrics)) {
       const completed = testMetrics.find(metric => metric.status === 'Completed');
-      return completed ? (completed as any).count || 0 : 0;
-    } else {
-      return (testMetrics as any).count || 0;
+      return completed ? parseInt(completed.count, 10) || 0 : 0;
     }
+    return 0;
   };
 
   const getPendingTestsCount = () => {
     if (!testMetrics) return 0;
     
-    // Handle both array type and object with count property
+    // Handle array type correctly
     if (Array.isArray(testMetrics)) {
       const pending = testMetrics.find(metric => metric.status === 'Pending');
-      return pending ? (pending as any).count || 0 : 0;
-    } else {
-      return (testMetrics as any).count || 0;
+      return pending ? parseInt(pending.count, 10) || 0 : 0;
     }
+    return 0;
   };
   
   return (

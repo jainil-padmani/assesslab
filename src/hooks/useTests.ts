@@ -37,10 +37,12 @@ export function useTests() {
     queryKey: ['test-metrics'],
     queryFn: async () => {
       try {
+        // Use aggregate function instead of group to avoid TS error
         const { data, error } = await supabase
           .from('tests')
+          .select('status, count')
           .select('status, count(*)')
-          .group('status');
+          .order('status');
         
         if (error) throw error;
         return data;

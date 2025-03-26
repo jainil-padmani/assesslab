@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
@@ -37,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useUser } from '@/hooks/useUser';
 import {
   UploadedFile,
   FilesListProps
@@ -46,12 +46,7 @@ import {
 import { fetchSubjectFiles, deleteFileGroup, uploadSubjectFile } from '@/utils/subjectFilesUtils';
 
 export default function FileManagement() {
-  const { data: { user } = { user: null } } = useQuery({
-    queryKey: ['auth-user'],
-    queryFn: async () => {
-      return await supabase.auth.getUser();
-    }
-  });
+  const { user } = useUser();
   
   const currentUserId = user?.id;
   const [searchQuery, setSearchQuery] = useState('');
@@ -373,16 +368,18 @@ export default function FileManagement() {
                 onChange={handleFileUpload}
               />
               <Button disabled={isUploading}>
-                <Label htmlFor="upload" className="cursor-pointer flex items-center m-0">
-                  {isUploading ? (
-                    <>Uploading... {uploadProgress}%</>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Select File
-                    </>
-                  )}
-                </Label>
+                <div className="cursor-pointer flex items-center">
+                  <label htmlFor="upload" className="cursor-pointer flex items-center m-0">
+                    {isUploading ? (
+                      <>Uploading... {uploadProgress}%</>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Select File
+                      </>
+                    )}
+                  </label>
+                </div>
               </Button>
             </div>
             

@@ -46,7 +46,7 @@ export function useAcademicsData() {
           .order('name');
         
         if (error) throw error;
-        return data as Class[];
+        return data as unknown as Class[];
       } catch (error: any) {
         console.error('Error fetching classes:', error);
         toast.error(`Failed to load classes: ${error.message}`);

@@ -1,264 +1,350 @@
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFileUpload } from '@/hooks/useFileUpload';
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileUp, FileText, Upload, Clock, FileCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from 'sonner';
+import { FileText, Upload, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { validateFileFormat } from '@/utils/assessment/fileValidation';
+import { deletePreviousFiles } from '@/utils/assessment/fileCleanup';
 
 export default function Analysis() {
-  const navigate = useNavigate();
-  const [selectedType, setSelectedType] = useState("question_paper");
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  
-  // Configure file upload for question papers
-  const questionPaperUpload = useFileUpload({
-    bucketName: 'files',
-    folderPath: 'analysis/question_papers',
-    fileTypes: ['application/pdf', 'image/jpeg', 'image/png'],
-    maxSize: 10,
-    onUploadSuccess: (url) => {
-      setUploadedFileUrl(url);
-      // Trigger analysis or redirect to next step
-      if (url) {
-        navigate(`/dashboard/analysis/result`, { 
-          state: { 
-            fileUrl: url, 
-            fileType: selectedType,
-            subjectId: selectedSubject
-          } 
-        });
-      }
-    }
+  const [files, setFiles] = useState<{ question: File | null; answer: File | null }>({
+    question: null,
+    answer: null,
   });
-  
-  // Configure file upload for answer keys
-  const answerKeyUpload = useFileUpload({
-    bucketName: 'files',
-    folderPath: 'analysis/answer_keys',
-    fileTypes: ['application/pdf', 'image/jpeg', 'image/png'],
-    maxSize: 10,
-    onUploadSuccess: (url) => {
-      setUploadedFileUrl(url);
-      // Trigger analysis or redirect to next step
-      if (url) {
-        navigate(`/dashboard/analysis/result`, { 
-          state: { 
-            fileUrl: url, 
-            fileType: selectedType,
-            subjectId: selectedSubject
-          } 
-        });
-      }
-    }
+  const [uploadedFiles, setUploadedFiles] = useState<{ question: string | null; answer: string | null }>({
+    question: null,
+    answer: null,
   });
-  
-  // Choose which upload hook to use based on selected type
-  const fileUpload = selectedType === 'question_paper' ? questionPaperUpload : answerKeyUpload;
-  
-  return (
-    <div className="container mx-auto py-6 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Paper Analysis</h1>
-        <p className="text-muted-foreground mt-1">
-          Upload question papers or answer keys for AI analysis
-        </p>
-      </div>
+  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { uploadFile, isUploading, progress } = useFileUpload();
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="col-span-1 md:col-span-2">
-          <CardHeader>
-            <CardTitle>Upload Paper for Analysis</CardTitle>
-            <CardDescription>
-              Upload a question paper or answer key to get AI-powered analysis and insights.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="document-type">Document Type</Label>
-              <Select 
-                value={selectedType} 
-                onValueChange={setSelectedType}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select document type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="question_paper">Question Paper</SelectItem>
-                  <SelectItem value="answer_key">Answer Key</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                {selectedType === 'question_paper' 
-                  ? 'Upload a question paper for difficulty analysis and blooms taxonomy mapping.' 
-                  : 'Upload an answer key to generate marking schemes and model answers.'}
-              </p>
-            </div>
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'question' | 'answer') => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      
+      if (!validateFileFormat(file)) {
+        toast.error('Invalid file format. Please upload PDF, PNG, or JPG files only.');
+        return;
+      }
+      
+      setFiles((prev) => ({
+        ...prev,
+        [type]: file,
+      }));
+      
+      // Reset the uploaded URL when a new file is selected
+      if (uploadedFiles[type]) {
+        setUploadedFiles(prev => ({
+          ...prev,
+          [type]: null
+        }));
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    const filesToUpload = [];
+    const previousUrls = [];
+    
+    if (files.question) {
+      filesToUpload.push({
+        file: files.question,
+        type: 'question' as const,
+        folder: 'questions',
+      });
+      
+      if (uploadedFiles.question) {
+        previousUrls.push(uploadedFiles.question);
+      }
+    }
+
+    if (files.answer) {
+      filesToUpload.push({
+        file: files.answer,
+        type: 'answer' as const,
+        folder: 'answers',
+      });
+      
+      if (uploadedFiles.answer) {
+        previousUrls.push(uploadedFiles.answer);
+      }
+    }
+    
+    if (filesToUpload.length === 0) {
+      toast.error('Please select at least one file to upload');
+      return;
+    }
+    
+    // Delete previous files if they exist
+    if (previousUrls.length > 0) {
+      await deletePreviousFiles(previousUrls);
+    }
+    
+    // Upload new files
+    for (const { file, type, folder } of filesToUpload) {
+      try {
+        const fileTypes = ['.pdf', '.jpg', '.jpeg', '.png'];
+        const result = await uploadFile(file, {
+          folder,
+          fileTypes,
+          maxSizeMB: 10,
+        });
+        
+        if (result.error) {
+          toast.error(`Error uploading ${type} file: ${result.error}`);
+        } else {
+          toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} file uploaded successfully`);
+          setUploadedFiles(prev => ({
+            ...prev,
+            [type]: result.url
+          }));
+        }
+      } catch (error: any) {
+        toast.error(`Error uploading ${type} file: ${error.message}`);
+      }
+    }
+  };
+  
+  const handleAnalyze = async () => {
+    if (!uploadedFiles.question && !uploadedFiles.answer) {
+      toast.error('Please upload at least one file to analyze');
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    
+    try {
+      // Mock analysis for now - replace with actual API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setAnalysisResults({
+        difficulty: 'Medium',
+        bloomsLevel: {
+          remember: 30,
+          understand: 25,
+          apply: 20,
+          analyze: 15,
+          evaluate: 5,
+          create: 5
+        },
+        questionTypes: {
+          mcq: 60,
+          shortAnswer: 25,
+          longAnswer: 15
+        },
+        topicsCovered: ['Algebra', 'Calculus', 'Geometry'],
+        suggestedImprovements: [
+          'Add more higher-order thinking questions',
+          'Balance the distribution of topics better',
+          'Consider adding more application-based questions'
+        ]
+      });
+      
+      toast.success('Analysis completed successfully');
+    } catch (error: any) {
+      toast.error(`Analysis failed: ${error.message}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Question Paper Analysis</CardTitle>
+          <CardDescription>
+            Upload question papers and answer keys to analyze their quality and structure
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="upload">
+            <TabsList className="mb-4">
+              <TabsTrigger value="upload">Upload Files</TabsTrigger>
+              <TabsTrigger value="results" disabled={!analysisResults}>Analysis Results</TabsTrigger>
+            </TabsList>
             
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject (Optional)</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No subject</SelectItem>
-                  <SelectItem value="physics">Physics</SelectItem>
-                  <SelectItem value="chemistry">Chemistry</SelectItem>
-                  <SelectItem value="mathematics">Mathematics</SelectItem>
-                  <SelectItem value="biology">Biology</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Selecting a subject improves analysis accuracy and enables subject-specific insights.
-              </p>
-            </div>
-            
-            <div className="mt-4">
-              <input
-                type="file"
-                className="hidden"
-                ref={fileUpload.fileInputRef}
-                onChange={fileUpload.handleFileChange}
-                accept={fileUpload.accept}
-              />
-              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors"
-                onClick={fileUpload.openFileDialog}>
-                <div className="flex flex-col items-center justify-center">
-                  <FileUp className="h-10 w-10 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-1">Upload {selectedType === 'question_paper' ? 'Question Paper' : 'Answer Key'}</h3>
-                  <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                    Drag and drop your file here, or click to browse. We support PDF, JPEG, and PNG files up to 10MB.
-                  </p>
-                  <Button disabled={fileUpload.isUploading}>
-                    {fileUpload.isUploading ? (
-                      <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Uploading... {fileUpload.progress}%
-                      </div>
-                    ) : (
-                      <div className="flex items-center">
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload File
-                      </div>
-                    )}
-                  </Button>
-                  {fileUpload.fileName && (
-                    <div className="mt-4 text-sm text-muted-foreground">
-                      Selected file: {fileUpload.fileName}
+            <TabsContent value="upload">
+              <div className="grid gap-6">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Important</AlertTitle>
+                  <AlertDescription>
+                    For best results, upload both the question paper and answer key in PDF format.
+                  </AlertDescription>
+                </Alert>
+                
+                <div className="grid gap-4">
+                  <div>
+                    <Label htmlFor="questionFile">Question Paper</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="questionFile"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileChange(e, 'question')}
+                        className="flex-1"
+                      />
+                      {files.question && (
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm">{files.question.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="answerFile">Answer Key (Optional)</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="answerFile"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileChange(e, 'answer')}
+                        className="flex-1"
+                      />
+                      {files.answer && (
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm">{files.answer.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {isUploading && (
+                    <div className="mt-2">
+                      <Progress value={progress} className="h-2" />
+                      <p className="text-sm text-center mt-1">Uploading... {progress}%</p>
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="bg-muted/50 flex flex-col items-start px-6 py-4 border-t">
-            <h4 className="font-medium mb-2">What to expect from the analysis:</h4>
-            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              <li>Difficulty level assessment for each question</li>
-              <li>Bloom's Taxonomy mapping and cognitive level distribution</li>
-              <li>Course outcome coverage analysis</li>
-              <li>Question quality evaluation</li>
-              <li>Visual charts and exportable reports</li>
-            </ul>
-          </CardFooter>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <div className="flex items-center space-x-2">
-              <FileCheck className="h-5 w-5 text-primary" />
-              <CardTitle>Recently Analyzed</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-secondary/50 rounded-md">
-                <FileText className="h-8 w-8 text-primary/70" />
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Physics Midterm 2023</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <Badge variant="outline">Question Paper</Badge>
-                    <span className="text-xs text-muted-foreground">3 days ago</span>
+                  
+                  <div className="flex gap-2 mt-4">
+                    <Button 
+                      onClick={handleUpload} 
+                      disabled={isUploading || (!files.question && !files.answer)}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload Files
+                    </Button>
+                    
+                    <Button 
+                      onClick={handleAnalyze} 
+                      disabled={isAnalyzing || (!uploadedFiles.question && !uploadedFiles.answer)}
+                      variant="secondary"
+                    >
+                      {isAnalyzing ? 'Analyzing...' : 'Analyze Paper'}
+                    </Button>
                   </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate('/dashboard/analysis/history')}
-                >
-                  View
-                </Button>
               </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-secondary/50 rounded-md">
-                <FileText className="h-8 w-8 text-primary/70" />
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Chemistry Final Exam</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <Badge variant="outline">Answer Key</Badge>
-                    <span className="text-xs text-muted-foreground">5 days ago</span>
+            </TabsContent>
+            
+            <TabsContent value="results">
+              {analysisResults && (
+                <div className="grid gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Difficulty Level</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-2xl font-bold">{analysisResults.difficulty}</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Question Types</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-1">
+                          <li className="flex justify-between">
+                            <span>Multiple Choice</span>
+                            <span>{analysisResults.questionTypes.mcq}%</span>
+                          </li>
+                          <li className="flex justify-between">
+                            <span>Short Answer</span>
+                            <span>{analysisResults.questionTypes.shortAnswer}%</span>
+                          </li>
+                          <li className="flex justify-between">
+                            <span>Long Answer</span>
+                            <span>{analysisResults.questionTypes.longAnswer}%</span>
+                          </li>
+                        </ul>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Topics Covered</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="list-disc list-inside">
+                          {analysisResults.topicsCovered.map((topic: string, index: number) => (
+                            <li key={index}>{topic}</li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
                   </div>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Bloom's Taxonomy Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {Object.entries(analysisResults.bloomsLevel).map(([level, percentage]: [string, any]) => (
+                          <div key={level} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="capitalize">{level}</span>
+                              <span>{percentage}%</span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2">
+                              <div 
+                                className="bg-primary h-2 rounded-full" 
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Suggested Improvements</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-1">
+                        {analysisResults.suggestedImprovements.map((suggestion: string, index: number) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate('/dashboard/analysis/history')}
-                >
-                  View
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button 
-              variant="ghost" 
-              className="w-full flex items-center justify-center"
-              onClick={() => navigate('/dashboard/analysis/history')}
-            >
-              <Clock className="mr-2 h-4 w-4" /> View All Analyzed Papers
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <div className="flex items-center space-x-2">
-              <FileUp className="h-5 w-5 text-primary" />
-              <CardTitle>What You Can Upload</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-3 bg-secondary/50 rounded-md">
-              <h4 className="font-medium mb-1">Question Papers</h4>
-              <p className="text-sm text-muted-foreground">
-                Upload question papers to analyze difficulty levels, bloom's taxonomy distribution, and generate rubrics.
-              </p>
-            </div>
-            
-            <div className="p-3 bg-secondary/50 rounded-md">
-              <h4 className="font-medium mb-1">Answer Keys</h4>
-              <p className="text-sm text-muted-foreground">
-                Upload answer keys to generate detailed marking schemes, model answers, and evaluation guidelines.
-              </p>
-            </div>
-            
-            <div className="p-3 bg-secondary/50 rounded-md">
-              <h4 className="font-medium mb-1">File Formats</h4>
-              <p className="text-sm text-muted-foreground">
-                We support PDF documents, scanned images (JPG, PNG), and typed documents.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
